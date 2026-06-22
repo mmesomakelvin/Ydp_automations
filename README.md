@@ -17,7 +17,11 @@ It supports:
 - duplicate protection through status columns
 - force resend for a selected row
 
-## Apps Script Project
+## Apps Script Projects
+
+Each Apps Script project has its own `.clasp.json` and script ID.
+
+### Mentee Project
 
 Script ID:
 
@@ -29,6 +33,33 @@ Main script file:
 
 ```text
 YDP Mentee Email.gs
+```
+
+Push from the repository root:
+
+```powershell
+clasp.cmd push --force
+```
+
+### Mentor Project
+
+Script ID:
+
+```text
+1TyZ8bcZaKDAVBVOu_cl6xbVTsdZ9-4KCgQ4OTF2iB34e24kx49XIILp1
+```
+
+Local project folder:
+
+```text
+mentor/
+```
+
+Push from the mentor folder:
+
+```powershell
+cd mentor
+clasp.cmd push --force
 ```
 
 ## Sheet Menu
@@ -60,7 +91,7 @@ The script creates these columns if they do not already exist:
 - `Already Registered Email Sent At`
 - `Email Last Error`
 
-## Deployment
+## Mentee Deployment
 
 Push the local Apps Script files to Google Apps Script with:
 
@@ -88,4 +119,3 @@ Planning artifacts are stored in:
 ```text
 artifacts/
 ```
-

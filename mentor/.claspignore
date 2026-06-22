@@ -1,5 +1,3 @@
-artifacts/**
-mentor/**
 .git/**
 .codex/**
 .agents/**
