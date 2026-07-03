@@ -1,6 +1,9 @@
 const YDP_MATCHING_CONFIG = {
   menuName: 'YDP Matching',
   defaultMenteeSpreadsheetId: '1XkXpLf6y7qhpJJvn9Afg4EvO9J_a482OBdeHZxuM0Nk',
+  oldMenteeSpreadsheetIds: [
+    '1XkXpLf6y7qhpJyn9Afg4EvO9J_a482OBdeHZxuM0Nk'
+  ],
   defaultMentorSpreadsheetId: '1xKEca0gDJCkfkkI00QmhymfPfvn6o-fP-k8CF_LKaAU',
   defaultResponseTabName: 'Form_Responses',
   defaultGeminiModel: 'gemini-3.5-flash',
@@ -95,7 +98,11 @@ function setupYdpSourceConfigSheet_(spreadsheet) {
   const rows = [
     [
       YDP_MATCHING_CONFIG.configKeys.menteeSpreadsheetId,
-      existing[YDP_MATCHING_CONFIG.configKeys.menteeSpreadsheetId] || YDP_MATCHING_CONFIG.defaultMenteeSpreadsheetId,
+      getYdpCurrentOrDefaultSourceId_(
+        existing[YDP_MATCHING_CONFIG.configKeys.menteeSpreadsheetId],
+        YDP_MATCHING_CONFIG.defaultMenteeSpreadsheetId,
+        YDP_MATCHING_CONFIG.oldMenteeSpreadsheetIds
+      ),
       'Mentee application response spreadsheet ID.'
     ],
     [
@@ -148,6 +155,20 @@ function syncYdpSourceSheetToSnapshot_(sourceSpreadsheetId, sourceTabName, snaps
   targetSheet.autoResizeColumns(1, values[0].length);
 
   return Math.max(lastRow - 1, 0);
+}
+
+function getYdpCurrentOrDefaultSourceId_(currentValue, defaultValue, oldValues) {
+  const value = String(currentValue || '').trim();
+
+  if (!value) {
+    return defaultValue;
+  }
+
+  if ((oldValues || []).indexOf(value) !== -1) {
+    return defaultValue;
+  }
+
+  return value;
 }
 
 function callYdpGemini_(prompt) {

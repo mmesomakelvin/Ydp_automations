@@ -240,7 +240,7 @@ Use this order:
 1. Open the `YDP Matching Automation` Google Sheet.
 2. Refresh the sheet after the script is pushed.
 3. Open `YDP Matching > Setup matching workbook`.
-4. Confirm the `Source Config` tab has the correct source spreadsheet IDs.
+4. Confirm the `Source Config` tab has the correct source spreadsheet IDs. Running setup again is safe; it also repairs the old incorrect mentee source ID if it is still present.
 5. Open `YDP Matching > Sync source snapshots`.
 6. Open `YDP Matching > Test Gemini connection`.
 
