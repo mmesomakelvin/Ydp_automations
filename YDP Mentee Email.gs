@@ -32,6 +32,7 @@ function onOpen() {
     .addItem('Send mentee email to selected row', 'sendYdpMenteeRegistrationEmailToSelectedRow')
     .addItem('Send mentee email to all unsent rows', 'sendYdpMenteeRegistrationEmailsToAllUnsentRows')
     .addItem('Send already registered mentee update to all unsent rows', 'sendYdpAlreadyRegisteredMenteeEmailsToAllUnsentRows')
+    .addItem('Repair missing sent date for selected row', 'repairSelectedYdpMenteeSentDates')
     .addItem('Resend email to selected row', 'resendYdpMenteeEmailToSelectedRow')
     .addToUi();
 }
@@ -156,6 +157,18 @@ function sendYdpAlreadyRegisteredMenteeEmailsToAllUnsentRows() {
   sendYdpMenteeBulkEmails_('ALREADY');
 }
 
+function repairSelectedYdpMenteeSentDates() {
+  const sheet = getYdpMenteeSheet_();
+  const row = getSelectedYdpDataRow_(sheet);
+  const repaired = repairYdpMenteeSentDatesForRow_(sheet, row);
+
+  SpreadsheetApp.getUi().alert(
+    repaired > 0
+      ? 'Repaired ' + repaired + ' missing sent date(s) for row ' + row + '.'
+      : 'No missing sent dates found for row ' + row + '.'
+  );
+}
+
 function resendYdpMenteeEmailToSelectedRow() {
   const type = promptForYdpEmailType_('Which email should be resent? Type REGISTRATION or ALREADY.');
   if (!type) {
@@ -228,7 +241,15 @@ function sendYdpMenteeEmailForRow_(sheet, row, type, options) {
   if (!settings.force &&
       (registrationStatus === YDP_MENTEE_CONFIG.statuses.sent ||
         alreadyRegisteredStatus === YDP_MENTEE_CONFIG.statuses.sent)) {
-    return { row: row, sent: false, skipped: true, reason: 'A mentee email has already been sent for this row.' };
+    const repaired = repairYdpMenteeSentDatesForRow_(sheet, row);
+    return {
+      row: row,
+      sent: false,
+      skipped: true,
+      reason: repaired > 0
+        ? 'A mentee email has already been sent for this row. Repaired ' + repaired + ' missing sent date(s).'
+        : 'A mentee email has already been sent for this row.'
+    };
   }
 
   if (!settings.force && hasYdpMenteeEmailAlreadyBeenSent_(sheet, recipient, row)) {
@@ -437,6 +458,33 @@ function hasYdpMenteeEmailAlreadyBeenSent_(sheet, recipient, currentRow) {
       (registrationStatus === YDP_MENTEE_CONFIG.statuses.sent ||
         alreadyRegisteredStatus === YDP_MENTEE_CONFIG.statuses.sent);
   });
+}
+
+function repairYdpMenteeSentDatesForRow_(sheet, row) {
+  const headerMap = getYdpHeaderMap_(sheet);
+  const registrationStatusColumn = getYdpHeaderColumn_(headerMap, YDP_MENTEE_CONFIG.headers.registrationStatus);
+  const registrationSentAtColumn = getYdpHeaderColumn_(headerMap, YDP_MENTEE_CONFIG.headers.registrationSentAt);
+  const alreadyRegisteredStatusColumn = getYdpHeaderColumn_(headerMap, YDP_MENTEE_CONFIG.headers.alreadyRegisteredStatus);
+  const alreadyRegisteredSentAtColumn = getYdpHeaderColumn_(headerMap, YDP_MENTEE_CONFIG.headers.alreadyRegisteredSentAt);
+  const now = new Date();
+  let repaired = 0;
+
+  const registrationStatus = String(sheet.getRange(row, registrationStatusColumn).getValue() || '').trim();
+  const registrationSentAt = sheet.getRange(row, registrationSentAtColumn).getValue();
+  const alreadyRegisteredStatus = String(sheet.getRange(row, alreadyRegisteredStatusColumn).getValue() || '').trim();
+  const alreadyRegisteredSentAt = sheet.getRange(row, alreadyRegisteredSentAtColumn).getValue();
+
+  if (registrationStatus === YDP_MENTEE_CONFIG.statuses.sent && !registrationSentAt) {
+    sheet.getRange(row, registrationSentAtColumn).setValue(now);
+    repaired += 1;
+  }
+
+  if (alreadyRegisteredStatus === YDP_MENTEE_CONFIG.statuses.sent && !alreadyRegisteredSentAt) {
+    sheet.getRange(row, alreadyRegisteredSentAtColumn).setValue(now);
+    repaired += 1;
+  }
+
+  return repaired;
 }
 
 function promptForYdpEmailType_(message) {

@@ -94,6 +94,7 @@ YDP Automation
 | `Send mentee email to selected row` | Sends the new-registration email to only the selected mentee row. | Use for one person who just needs the normal registration email. | It will skip if either mentee email status already says `SENT`, unless you use resend. |
 | `Send mentee email to all unsent rows` | Sends the new-registration email to every row where no mentee email has been sent yet. | Use only when you want to send the normal new-registration email in bulk. | It skips rows where either normal registration or already-registered status already says `SENT`. |
 | `Send already registered mentee update to all unsent rows` | Sends the already-registered update email to old mentee registrations where no mentee email has been sent yet. | Use for applicants who registered before the automation was installed. | It skips rows where either normal registration or already-registered status already says `SENT`. |
+| `Repair missing sent date for selected row` | Fills a missing sent-at date when the status already says `SENT`. It does not send an email. | Use when a row says `SENT` but the matching date column is blank. | Select the affected row first. This writes today's date as the repair date. |
 | `Resend email to selected row` | Forces a resend to the selected row and asks which email type to resend. | Use only when someone says they did not receive the email, or you intentionally want to resend. | This bypasses normal duplicate protection for that selected row. |
 
 Recommended mentee setup order:
@@ -115,6 +116,7 @@ Recommended mentee setup order:
 | `Send mentor email to selected row` | Sends the new-registration email to only the selected mentor row. | Use for one person who just needs the normal mentor registration email. | It will skip if either mentor email status already says `SENT`, unless you use resend. |
 | `Send mentor email to all unsent rows` | Sends the new-registration mentor email to every row where no mentor email has been sent yet. | Use only when you want to send the normal new-registration email in bulk. | It skips rows where either normal registration or already-registered status already says `SENT`. |
 | `Send already registered mentor update to all unsent rows` | Sends the already-registered update email to old mentor registrations where no mentor email has been sent yet. | Use for mentors who registered before the automation was installed. | It skips rows where either normal registration or already-registered status already says `SENT`. |
+| `Repair missing sent date for selected row` | Fills a missing sent-at date when the status already says `SENT`. It does not send an email. | Use when a row says `SENT` but the matching date column is blank. | Select the affected row first. This writes today's date as the repair date. |
 | `Resend email to selected row` | Forces a resend to the selected row and asks which email type to resend. | Use only when someone says they did not receive the email, or you intentionally want to resend. | This bypasses normal duplicate protection for that selected row. |
 
 Recommended mentor setup order:
