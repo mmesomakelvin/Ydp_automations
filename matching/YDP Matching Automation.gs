@@ -121,7 +121,7 @@ function setupYdpSourceConfigSheet_(spreadsheet) {
     [
       YDP_MATCHING_CONFIG.configKeys.responseTabName,
       existing[YDP_MATCHING_CONFIG.configKeys.responseTabName] || YDP_MATCHING_CONFIG.defaultResponseTabName,
-      'Response tab name used in both source spreadsheets.'
+      'Preferred response tab name. The script can also auto-detect tabs like Form Responses 1.'
     ],
     [
       YDP_MATCHING_CONFIG.configKeys.geminiModel,
@@ -142,13 +142,13 @@ function syncYdpSourceSheetToSnapshot_(sourceSpreadsheetId, sourceTabName, snaps
   }
 
   const sourceSpreadsheet = SpreadsheetApp.openById(sourceSpreadsheetId);
-  const sourceSheet = sourceSpreadsheet.getSheetByName(sourceTabName);
+  const sourceSheet = findYdpSourceResponseSheet_(sourceSpreadsheet, sourceTabName);
 
   if (!sourceSheet) {
     const availableTabs = sourceSpreadsheet.getSheets().map(function(sheet) {
       return sheet.getName();
     }).join(', ');
-    throw new Error('Source tab not found: ' + sourceTabName + ' in ' + sourceSpreadsheetId + '. Available tabs: ' + availableTabs);
+    throw new Error('Source response tab not found in ' + sourceSpreadsheetId + '. Preferred tab: ' + sourceTabName + '. Available tabs: ' + availableTabs);
   }
 
   const targetSheet = getOrCreateYdpSheet_(SpreadsheetApp.getActive(), snapshotSheetName);
@@ -166,6 +166,63 @@ function syncYdpSourceSheetToSnapshot_(sourceSpreadsheetId, sourceTabName, snaps
   targetSheet.autoResizeColumns(1, values[0].length);
 
   return Math.max(lastRow - 1, 0);
+}
+
+function findYdpSourceResponseSheet_(spreadsheet, preferredTabName) {
+  const preferred = String(preferredTabName || '').trim();
+
+  if (preferred) {
+    const exactSheet = spreadsheet.getSheetByName(preferred);
+
+    if (exactSheet) {
+      return exactSheet;
+    }
+  }
+
+  const sheets = spreadsheet.getSheets();
+  const normalizedPreferred = normalizeYdpSheetName_(preferred);
+  const responseNameMatches = sheets.filter(function(sheet) {
+    const normalizedName = normalizeYdpSheetName_(sheet.getName());
+    return normalizedName === normalizedPreferred ||
+      normalizedName.indexOf('formresponses') === 0 ||
+      normalizedName.indexOf('formresponse') === 0;
+  });
+
+  if (responseNameMatches.length > 0) {
+    return responseNameMatches[0];
+  }
+
+  const headerMatches = sheets.filter(function(sheet) {
+    return ydpSheetLooksLikeFormResponse_(sheet);
+  });
+
+  if (headerMatches.length > 0) {
+    return headerMatches[0];
+  }
+
+  if (sheets.length === 1) {
+    return sheets[0];
+  }
+
+  return null;
+}
+
+function normalizeYdpSheetName_(value) {
+  return String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function ydpSheetLooksLikeFormResponse_(sheet) {
+  const lastColumn = sheet.getLastColumn();
+
+  if (sheet.getLastRow() < 1 || lastColumn < 2) {
+    return false;
+  }
+
+  const headers = sheet.getRange(1, 1, 1, Math.min(lastColumn, 10)).getValues()[0].map(function(header) {
+    return String(header || '').toLowerCase();
+  });
+
+  return headers.indexOf('timestamp') !== -1 && headers.indexOf('email address') !== -1;
 }
 
 function getYdpCurrentOrDefaultSourceId_(currentValue, defaultValue, oldValues) {

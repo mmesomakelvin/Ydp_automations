@@ -246,6 +246,8 @@ Use this order:
 
 Important: `Setup matching workbook` only creates the tabs. It does not import the mentor or mentee rows. The `Mentee Source Snapshot` and `Mentor Source Snapshot` tabs stay blank until `Sync source snapshots from forms` is run successfully.
 
+The source form tab does not have to be named exactly `Form_Responses`. The script first checks the configured tab name, then auto-detects common Google Forms tabs like `Form Responses 1`.
+
 If the snapshot tabs stay blank after syncing, open `Run Log`. A successful sync should say how many mentee and mentor rows were copied. If there is an error, the log explains whether the issue is sheet access, source spreadsheet ID, or tab name.
 
 The setup creates these tabs:
