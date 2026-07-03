@@ -16,6 +16,8 @@ It supports:
 - email preview for a selected row
 - duplicate protection through status columns
 - force resend for a selected row
+- stable mentee IDs based on unique email addresses
+- duplicate row marking for repeat registrations
 
 ### Mentor Registration Email
 
@@ -29,6 +31,8 @@ It supports the same control pattern as the mentee automation:
 - email preview for a selected row
 - duplicate protection through status columns
 - force resend for a selected row
+- stable mentor IDs based on unique email addresses
+- duplicate row marking for repeat registrations
 
 ## Apps Script Projects
 
@@ -89,6 +93,7 @@ YDP Automation
 | --- | --- | --- | --- |
 | `Setup email tracking columns` | Adds the status columns the script needs to know who has already received emails. | Use once after installing/pushing the script, or if tracking columns were deleted. | Safe to run again. It should not duplicate existing columns. |
 | `Install form submit trigger` | Turns on automatic sending for future new mentee registrations. | Use once when setting up the sheet automation. | If unsure, running it again is okay; the script checks if it already exists. |
+| `Assign IDs and mark duplicates` | Creates a stable `YDP-C2-Mentee-###` ID for each unique email. If the same email appears more than once, it gives the duplicate row the same ID and colors that duplicate row green. | Use once for all existing rows, and use again anytime you want to clean/check duplicates manually. | Email is the unique key. Do not delete the first/original row until you confirm the duplicate is not needed. |
 | `Send test mentee email` | Sends a sample mentee email to an address you enter. | Use before sending real emails, especially after editing the script. | Use your own email or a test email. |
 | `Preview selected row email` | Shows the email text for the selected mentee row before sending. | Use when you want to confirm the message for a specific person. | Select a real data row, not the header row. |
 | `Send mentee email to selected row` | Sends the new-registration email to only the selected mentee row. | Use for one person who just needs the normal registration email. | It will skip if either mentee email status already says `SENT`, unless you use resend. |
@@ -100,10 +105,11 @@ YDP Automation
 Recommended mentee setup order:
 
 1. `Setup email tracking columns`
-2. `Install form submit trigger`
-3. `Send test mentee email`
-4. For old registrations, use `Send already registered mentee update to all unsent rows`
-5. For future registrations, let the trigger send automatically
+2. `Assign IDs and mark duplicates`
+3. `Install form submit trigger`
+4. `Send test mentee email`
+5. For old registrations, use `Send already registered mentee update to all unsent rows`
+6. For future registrations, let the trigger send automatically
 
 ### Mentor Sheet Buttons
 
@@ -111,6 +117,7 @@ Recommended mentee setup order:
 | --- | --- | --- | --- |
 | `Setup email tracking columns` | Adds the status columns the script needs to know who has already received mentor emails. | Use once after installing/pushing the mentor script, or if tracking columns were deleted. | Safe to run again. It should not duplicate existing columns. |
 | `Install form submit trigger` | Turns on automatic sending for future new mentor registrations. | Use once when setting up the mentor sheet automation. | If unsure, running it again is okay; the script checks if it already exists. |
+| `Assign IDs and mark duplicates` | Creates a stable `YDP-C2-Mentor-###` ID for each unique email. If the same email appears more than once, it gives the duplicate row the same ID and colors that duplicate row green. | Use once for all existing rows, and use again anytime you want to clean/check duplicates manually. | Email is the unique key. Do not delete the first/original row until you confirm the duplicate is not needed. |
 | `Send test mentor email` | Sends a sample mentor email to an address you enter. | Use before sending real mentor emails, especially after editing the script. | Use your own email or a test email. |
 | `Preview selected row email` | Shows the email text for the selected mentor row before sending. | Use when you want to confirm the message for a specific mentor. | Select a real data row, not the header row. |
 | `Send mentor email to selected row` | Sends the new-registration email to only the selected mentor row. | Use for one person who just needs the normal mentor registration email. | It will skip if either mentor email status already says `SENT`, unless you use resend. |
@@ -122,15 +129,20 @@ Recommended mentee setup order:
 Recommended mentor setup order:
 
 1. `Setup email tracking columns`
-2. `Install form submit trigger`
-3. `Send test mentor email`
-4. For old registrations, use `Send already registered mentor update to all unsent rows`
-5. For future registrations, let the trigger send automatically
+2. `Assign IDs and mark duplicates`
+3. `Install form submit trigger`
+4. `Send test mentor email`
+5. For old registrations, use `Send already registered mentor update to all unsent rows`
+6. For future registrations, let the trigger send automatically
 
 ## Tracking Columns
 
 The mentee script creates these columns if they do not already exist:
 
+- `Mentee ID`
+- `Duplicate Status`
+- `Original Row`
+- `ID Assigned At`
 - `Mentee Registration Email Status`
 - `Mentee Registration Email Sent At`
 - `Already Registered Email Status`
@@ -139,6 +151,10 @@ The mentee script creates these columns if they do not already exist:
 
 The mentor script creates these columns if they do not already exist:
 
+- `Mentor ID`
+- `Duplicate Status`
+- `Original Row`
+- `ID Assigned At`
 - `Mentor Registration Email Status`
 - `Mentor Registration Email Sent At`
 - `Already Registered Email Status`

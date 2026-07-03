@@ -3,10 +3,16 @@
   senderName: 'YDP Mentorship Team',
   startDateText: 'July 10, 2026',
   menuName: 'YDP Automation',
+  idPrefix: 'YDP-C2-Mentor-',
+  duplicateColor: '#d9ead3',
   headers: {
     email: 'Email Address',
     firstName: 'First Name',
     lastName: 'Last Name',
+    personId: 'Mentor ID',
+    duplicateStatus: 'Duplicate Status',
+    originalRow: 'Original Row',
+    idAssignedAt: 'ID Assigned At',
     registrationStatus: 'Mentor Registration Email Status',
     registrationSentAt: 'Mentor Registration Email Sent At',
     alreadyRegisteredStatus: 'Already Registered Email Status',
@@ -25,6 +31,7 @@ function onOpen() {
     .createMenu(YDP_MENTOR_CONFIG.menuName)
     .addItem('Setup email tracking columns', 'setupYdpMentorEmailTrackingColumns')
     .addItem('Install form submit trigger', 'installYdpMentorFormSubmitTrigger')
+    .addItem('Assign IDs and mark duplicates', 'assignYdpMentorIdsAndMarkDuplicates')
     .addSeparator()
     .addItem('Send test mentor email', 'sendTestYdpMentorEmail')
     .addItem('Preview selected row email', 'previewSelectedYdpMentorEmail')
@@ -47,6 +54,7 @@ function handleYdpMentorFormSubmit(e) {
 
   try {
     setupYdpMentorEmailTrackingColumns();
+    setupYdpMentorIdTrackingColumns();
     const sheet = getYdpMentorSheet_();
     const row = e && e.range ? e.range.getRow() : sheet.getLastRow();
 
@@ -54,6 +62,7 @@ function handleYdpMentorFormSubmit(e) {
       return;
     }
 
+    assignYdpMentorIdsAndMarkDuplicates({ silent: true });
     sendYdpMentorEmailForRow_(sheet, row, 'REGISTRATION', { force: false });
   } finally {
     lock.releaseLock();
@@ -93,6 +102,41 @@ function setupYdpMentorEmailTrackingColumns() {
   });
 
   SpreadsheetApp.getActive().toast('YDP email tracking columns are ready.');
+}
+
+function setupYdpMentorIdTrackingColumns() {
+  const sheet = getYdpMentorSheet_();
+  const idHeaders = [
+    YDP_MENTOR_CONFIG.headers.personId,
+    YDP_MENTOR_CONFIG.headers.duplicateStatus,
+    YDP_MENTOR_CONFIG.headers.originalRow,
+    YDP_MENTOR_CONFIG.headers.idAssignedAt
+  ];
+
+  const headerMap = getYdpHeaderMap_(sheet);
+  idHeaders.forEach(function(header) {
+    ensureYdpHeader_(sheet, headerMap, header);
+  });
+}
+
+function assignYdpMentorIdsAndMarkDuplicates(options) {
+  const settings = options || {};
+  setupYdpMentorIdTrackingColumns();
+
+  const sheet = getYdpMentorSheet_();
+  const summary = assignYdpMentorIdsAndMarkDuplicates_(sheet);
+
+  if (!settings.silent) {
+    SpreadsheetApp.getUi().alert(
+      'YDP mentor ID assignment complete.\n\n' +
+      'New IDs assigned: ' + summary.newIds + '\n' +
+      'Original rows: ' + summary.originals + '\n' +
+      'Duplicate rows marked green: ' + summary.duplicates + '\n' +
+      'Rows skipped because email was missing: ' + summary.skipped
+    );
+  }
+
+  return summary;
 }
 
 function sendTestYdpMentorEmail() {
@@ -458,6 +502,99 @@ function hasYdpMentorEmailAlreadyBeenSent_(sheet, recipient, currentRow) {
       (registrationStatus === YDP_MENTOR_CONFIG.statuses.sent ||
         alreadyRegisteredStatus === YDP_MENTOR_CONFIG.statuses.sent);
   });
+}
+
+function assignYdpMentorIdsAndMarkDuplicates_(sheet) {
+  const headerMap = getYdpHeaderMap_(sheet);
+  const emailColumn = getYdpHeaderColumn_(headerMap, YDP_MENTOR_CONFIG.headers.email);
+  const personIdColumn = getYdpHeaderColumn_(headerMap, YDP_MENTOR_CONFIG.headers.personId);
+  const duplicateStatusColumn = getYdpHeaderColumn_(headerMap, YDP_MENTOR_CONFIG.headers.duplicateStatus);
+  const originalRowColumn = getYdpHeaderColumn_(headerMap, YDP_MENTOR_CONFIG.headers.originalRow);
+  const idAssignedAtColumn = getYdpHeaderColumn_(headerMap, YDP_MENTOR_CONFIG.headers.idAssignedAt);
+  const lastRow = sheet.getLastRow();
+  const lastColumn = sheet.getLastColumn();
+  const summary = {
+    newIds: 0,
+    originals: 0,
+    duplicates: 0,
+    skipped: 0
+  };
+
+  if (lastRow <= 1) {
+    return summary;
+  }
+
+  const values = sheet.getRange(2, 1, lastRow - 1, lastColumn).getValues();
+  const emailRecords = {};
+  let nextNumber = getNextYdpIdNumber_(values, personIdColumn, YDP_MENTOR_CONFIG.idPrefix);
+  const now = new Date();
+
+  values.forEach(function(rowValues, index) {
+    const row = index + 2;
+    const email = normalizeYdpEmail_(rowValues[emailColumn - 1]);
+    const existingId = String(rowValues[personIdColumn - 1] || '').trim();
+    const existingAssignedAt = rowValues[idAssignedAtColumn - 1];
+
+    if (!email) {
+      summary.skipped += 1;
+      return;
+    }
+
+    if (!emailRecords[email]) {
+      const personId = existingId || formatYdpSequentialId_(YDP_MENTOR_CONFIG.idPrefix, nextNumber);
+      if (!existingId) {
+        nextNumber += 1;
+        summary.newIds += 1;
+      }
+
+      emailRecords[email] = {
+        id: personId,
+        originalRow: row
+      };
+
+      sheet.getRange(row, personIdColumn).setValue(personId);
+      sheet.getRange(row, duplicateStatusColumn).setValue('ORIGINAL');
+      sheet.getRange(row, originalRowColumn).setValue(row);
+      if (!existingAssignedAt) {
+        sheet.getRange(row, idAssignedAtColumn).setValue(now);
+      }
+      summary.originals += 1;
+      return;
+    }
+
+    sheet.getRange(row, personIdColumn).setValue(emailRecords[email].id);
+    sheet.getRange(row, duplicateStatusColumn).setValue('DUPLICATE');
+    sheet.getRange(row, originalRowColumn).setValue(emailRecords[email].originalRow);
+    if (!existingAssignedAt) {
+      sheet.getRange(row, idAssignedAtColumn).setValue(now);
+    }
+    sheet.getRange(row, 1, 1, lastColumn).setBackground(YDP_MENTOR_CONFIG.duplicateColor);
+    summary.duplicates += 1;
+  });
+
+  return summary;
+}
+
+function getNextYdpIdNumber_(values, idColumn, prefix) {
+  return values.reduce(function(maxNumber, rowValues) {
+    const id = String(rowValues[idColumn - 1] || '').trim();
+    const escapedPrefix = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const match = id.match(new RegExp('^' + escapedPrefix + '(\\d+)$'));
+
+    if (!match) {
+      return maxNumber;
+    }
+
+    return Math.max(maxNumber, Number(match[1]) + 1);
+  }, 1);
+}
+
+function formatYdpSequentialId_(prefix, number) {
+  return prefix + String(number).padStart(3, '0');
+}
+
+function normalizeYdpEmail_(email) {
+  return String(email || '').trim().toLowerCase();
 }
 
 function repairYdpMentorSentDatesForRow_(sheet, row) {
