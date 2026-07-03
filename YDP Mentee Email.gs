@@ -211,10 +211,13 @@ function sendYdpMenteeEmailForRow_(sheet, row, type, options) {
   const sentAtHeader = getYdpSentAtHeaderForType_(type);
   const statusColumn = getYdpHeaderColumn_(headerMap, statusHeader);
   const sentAtColumn = getYdpHeaderColumn_(headerMap, sentAtHeader);
+  const registrationStatusColumn = getYdpHeaderColumn_(headerMap, YDP_MENTEE_CONFIG.headers.registrationStatus);
+  const alreadyRegisteredStatusColumn = getYdpHeaderColumn_(headerMap, YDP_MENTEE_CONFIG.headers.alreadyRegisteredStatus);
   const lastErrorColumn = getYdpHeaderColumn_(headerMap, YDP_MENTEE_CONFIG.headers.lastError);
   const rowData = getYdpRowData_(sheet, row);
   const recipient = String(rowData[YDP_MENTEE_CONFIG.headers.email] || '').trim();
-  const currentStatus = String(sheet.getRange(row, statusColumn).getValue() || '').trim();
+  const registrationStatus = String(sheet.getRange(row, registrationStatusColumn).getValue() || '').trim();
+  const alreadyRegisteredStatus = String(sheet.getRange(row, alreadyRegisteredStatusColumn).getValue() || '').trim();
 
   if (!isValidYdpEmail_(recipient)) {
     sheet.getRange(row, statusColumn).setValue(YDP_MENTEE_CONFIG.statuses.error);
@@ -222,8 +225,10 @@ function sendYdpMenteeEmailForRow_(sheet, row, type, options) {
     return { row: row, sent: false, skipped: false, error: 'Missing or invalid email address.' };
   }
 
-  if (!settings.force && currentStatus === YDP_MENTEE_CONFIG.statuses.sent) {
-    return { row: row, sent: false, skipped: true, reason: 'Already sent.' };
+  if (!settings.force &&
+      (registrationStatus === YDP_MENTEE_CONFIG.statuses.sent ||
+        alreadyRegisteredStatus === YDP_MENTEE_CONFIG.statuses.sent)) {
+    return { row: row, sent: false, skipped: true, reason: 'A mentee email has already been sent for this row.' };
   }
 
   if (!settings.force && hasYdpMenteeEmailAlreadyBeenSent_(sheet, recipient, row)) {
