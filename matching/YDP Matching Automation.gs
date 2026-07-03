@@ -1,6 +1,6 @@
 const YDP_MATCHING_CONFIG = {
   menuName: 'YDP Matching',
-  defaultMenteeSpreadsheetId: '1XkXpLf6y7qhpJyn9Afg4EvO9J_a482OBdeHZxuM0Nk',
+  defaultMenteeSpreadsheetId: '1XkXpLf6y7qhpJJvn9Afg4EvO9J_a482OBdeHZxuM0Nk',
   defaultMentorSpreadsheetId: '1xKEca0gDJCkfkkI00QmhymfPfvn6o-fP-k8CF_LKaAU',
   defaultResponseTabName: 'Form_Responses',
   defaultGeminiModel: 'gemini-3.5-flash',
