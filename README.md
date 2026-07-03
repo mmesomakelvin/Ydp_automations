@@ -79,6 +79,35 @@ cd mentor
 clasp.cmd push --force
 ```
 
+### Matching Project
+
+Script ID:
+
+```text
+1svZufkQfd0cKRBv75BuxTOqs6QIMQWA214SLU5d69QF_x8Z1IjM7DCYf
+```
+
+Local project folder:
+
+```text
+matching/
+```
+
+Push from the matching folder:
+
+```powershell
+cd matching
+clasp.cmd push --force
+```
+
+The matching script reads the Gemini key from Apps Script Script Properties:
+
+```text
+GEMINI_API_KEY
+```
+
+Do not store the Gemini API key in code or GitHub.
+
 ## Sheet Menu Buttons
 
 After the script is pushed and the spreadsheet is refreshed, the sheet shows a custom menu:
@@ -201,3 +230,28 @@ artifacts/superpowers/README.md
 | Document | Purpose | Link |
 | --- | --- | --- |
 | Mentor-Mentee Matching Criteria | Mentee selection scoring and mentor-mentee pairing rules | https://docs.google.com/document/d/1ytuSV7vLncZbyLF_6ebbXijYoYt9ZYyZTo7rzPmuOqE/edit?usp=sharing |
+
+## Matching Automation Setup
+
+The matching automation is separate from the mentee and mentor email automations.
+
+Use this order:
+
+1. Open the `YDP Matching Automation` Google Sheet.
+2. Refresh the sheet after the script is pushed.
+3. Open `YDP Matching > Setup matching workbook`.
+4. Confirm the `Source Config` tab has the correct source spreadsheet IDs.
+5. Open `YDP Matching > Sync source snapshots`.
+6. Open `YDP Matching > Test Gemini connection`.
+
+The setup creates these tabs:
+
+- `Source Config`
+- `Mentee Source Snapshot`
+- `Mentor Source Snapshot`
+- `Mentee Scores`
+- `Match Recommendations`
+- `Matched Pairs`
+- `Run Log`
+
+The first build only sets up the matching workbook, source snapshots, and Gemini connection test. It does not finalize mentor-mentee matches yet.
