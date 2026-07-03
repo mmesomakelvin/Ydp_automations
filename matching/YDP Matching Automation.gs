@@ -7,6 +7,7 @@ const YDP_MATCHING_CONFIG = {
   defaultMentorSpreadsheetId: '1xKEca0gDJCkfkkI00QmhymfPfvn6o-fP-k8CF_LKaAU',
   defaultResponseTabName: 'Form_Responses',
   defaultGeminiModel: 'gemini-3.5-flash',
+  defaultMenteeScoringBatchSize: 10,
   sheets: {
     sourceConfig: 'Source Config',
     menteeSnapshot: 'Mentee Source Snapshot',
@@ -104,6 +105,11 @@ function generateYdpMenteeScores() {
 
     const spreadsheet = SpreadsheetApp.getActive();
     const sourceSheet = spreadsheet.getSheetByName(YDP_MATCHING_CONFIG.sheets.menteeSnapshot);
+    const scoreSheet = ensureYdpSheetWithHeaders_(
+      spreadsheet,
+      YDP_MATCHING_CONFIG.sheets.menteeScores,
+      getYdpMenteeScoresHeaders_()
+    );
 
     if (!sourceSheet || sourceSheet.getLastRow() <= 1) {
       throw new Error('No mentee snapshot rows found. Run "Sync source snapshots from forms" first.');
@@ -113,16 +119,32 @@ function generateYdpMenteeScores() {
     const sourceHeaders = sourceValues[0].map(function(header) {
       return String(header || '').trim();
     });
-    const scoreRows = [];
+    const existingScoreMap = getYdpExistingMenteeScoreMap_(scoreSheet);
     let successCount = 0;
     let errorCount = 0;
+    let skippedCount = 0;
+    let quotaHit = false;
+    let quotaMessage = '';
 
-    sourceValues.slice(1).forEach(function(row, rowIndex) {
+    for (let rowIndex = 0; rowIndex < sourceValues.slice(1).length; rowIndex++) {
+      if (successCount >= YDP_MATCHING_CONFIG.defaultMenteeScoringBatchSize) {
+        break;
+      }
+
+      const row = sourceValues[rowIndex + 1];
+
       if (isYdpBlankSourceRow_(row)) {
-        return;
+        continue;
       }
 
       const mentee = buildYdpMenteeScoringProfile_(sourceHeaders, row, rowIndex + 2);
+      const menteeKey = getYdpMenteeScoreKey_(mentee);
+      const existingScore = existingScoreMap[menteeKey];
+
+      if (existingScore && existingScore.reviewStatus !== 'ERROR' && existingScore.finalScore !== '') {
+        skippedCount++;
+        continue;
+      }
 
       try {
         const scoring = scoreYdpMenteeWithGemini_(mentee);
@@ -132,7 +154,7 @@ function generateYdpMenteeScores() {
         const softSkillsScore = clampYdpScore_(scoring.softSkillsScore);
         const finalScore = learningScore * 8 + communityScore * 4 + careerScore * 4 + softSkillsScore * 4;
 
-        scoreRows.push([
+        existingScoreMap[menteeKey] = upsertYdpMenteeScoreRow_(scoreSheet, existingScore, [
           mentee.id,
           mentee.name,
           mentee.email,
@@ -150,7 +172,13 @@ function generateYdpMenteeScores() {
         ]);
         successCount++;
       } catch (error) {
-        scoreRows.push([
+        if (isYdpGeminiQuotaError_(error)) {
+          quotaHit = true;
+          quotaMessage = error.message;
+          break;
+        }
+
+        existingScoreMap[menteeKey] = upsertYdpMenteeScoreRow_(scoreSheet, existingScore, [
           mentee.id,
           mentee.name,
           mentee.email,
@@ -163,17 +191,24 @@ function generateYdpMenteeScores() {
           'ERROR',
           '',
           '',
-          error.message,
+          shortenYdpErrorMessage_(error.message),
           new Date()
         ]);
         errorCount++;
       }
-    });
+    }
 
-    writeYdpMenteeScoreRows_(spreadsheet, scoreRows);
+    scoreSheet.autoResizeColumns(1, getYdpMenteeScoresHeaders_().length);
 
-    const message = 'Generated mentee scores for ' + successCount + ' mentees. Errors: ' + errorCount + '.';
-    logYdpMatchingRun_('GENERATE_MENTEE_SCORES', errorCount ? 'PARTIAL_SUCCESS' : 'SUCCESS', message);
+    let message = 'Generated mentee scores for ' + successCount + ' mentees. Skipped already-scored rows: ' + skippedCount + '. Errors: ' + errorCount + '.';
+
+    if (quotaHit) {
+      message += '\n\nGemini quota was reached, so scoring stopped safely. Wait and run this button again later. Last error: ' + quotaMessage;
+    } else if (successCount >= YDP_MATCHING_CONFIG.defaultMenteeScoringBatchSize) {
+      message += '\n\nBatch limit reached. Run this button again to score the next batch.';
+    }
+
+    logYdpMatchingRun_('GENERATE_MENTEE_SCORES', quotaHit || errorCount ? 'PARTIAL_SUCCESS' : 'SUCCESS', message);
     SpreadsheetApp.getUi().alert(message);
   } catch (error) {
     logYdpMatchingRun_('GENERATE_MENTEE_SCORES', 'ERROR', error.message);
@@ -488,18 +523,82 @@ function isYdpBlankSourceRow_(row) {
   });
 }
 
-function writeYdpMenteeScoreRows_(spreadsheet, rows) {
-  const sheet = getOrCreateYdpSheet_(spreadsheet, YDP_MATCHING_CONFIG.sheets.menteeScores);
+function getYdpExistingMenteeScoreMap_(sheet) {
   const headers = getYdpMenteeScoresHeaders_();
-  sheet.clearContents();
-  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-  sheet.setFrozenRows(1);
+  const map = {};
 
-  if (rows.length > 0) {
-    sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
+  if (sheet.getLastRow() <= 1) {
+    return map;
   }
 
-  sheet.autoResizeColumns(1, headers.length);
+  const values = sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).getValues();
+  const idIndex = headers.indexOf('Mentee ID');
+  const emailIndex = headers.indexOf('Mentee Email');
+  const finalScoreIndex = headers.indexOf('Final Score');
+  const reviewStatusIndex = headers.indexOf('Review Status');
+
+  values.forEach(function(row, index) {
+    const score = {
+      rowNumber: index + 2,
+      id: String(row[idIndex] || '').trim(),
+      email: String(row[emailIndex] || '').trim(),
+      finalScore: String(row[finalScoreIndex] || '').trim(),
+      reviewStatus: String(row[reviewStatusIndex] || '').trim()
+    };
+    const key = getYdpMenteeScoreKey_(score);
+
+    if (key) {
+      map[key] = score;
+    }
+  });
+
+  return map;
+}
+
+function upsertYdpMenteeScoreRow_(sheet, existingScore, rowValues) {
+  const headers = getYdpMenteeScoresHeaders_();
+  const rowNumber = existingScore && existingScore.rowNumber ? existingScore.rowNumber : sheet.getLastRow() + 1;
+  sheet.getRange(rowNumber, 1, 1, headers.length).setValues([rowValues]);
+
+  return {
+    rowNumber: rowNumber,
+    id: String(rowValues[headers.indexOf('Mentee ID')] || '').trim(),
+    email: String(rowValues[headers.indexOf('Mentee Email')] || '').trim(),
+    finalScore: String(rowValues[headers.indexOf('Final Score')] || '').trim(),
+    reviewStatus: String(rowValues[headers.indexOf('Review Status')] || '').trim()
+  };
+}
+
+function getYdpMenteeScoreKey_(menteeOrScore) {
+  const id = String(menteeOrScore.id || '').trim().toLowerCase();
+  const email = String(menteeOrScore.email || '').trim().toLowerCase();
+
+  if (id) {
+    return 'id:' + id;
+  }
+
+  if (email) {
+    return 'email:' + email;
+  }
+
+  return '';
+}
+
+function isYdpGeminiQuotaError_(error) {
+  const message = String(error && error.message ? error.message : error || '').toLowerCase();
+  return message.indexOf('resource_exhausted') !== -1 ||
+    message.indexOf('quota') !== -1 ||
+    message.indexOf('http 429') !== -1;
+}
+
+function shortenYdpErrorMessage_(message) {
+  const text = String(message || '').replace(/\s+/g, ' ').trim();
+
+  if (text.length <= 300) {
+    return text;
+  }
+
+  return text.slice(0, 297) + '...';
 }
 
 function getYdpCurrentOrDefaultSourceId_(currentValue, defaultValue, oldValues) {
@@ -552,7 +651,7 @@ function callYdpGemini_(prompt) {
   const bodyText = response.getContentText();
 
   if (statusCode < 200 || statusCode >= 300) {
-    throw new Error('Gemini API returned HTTP ' + statusCode + ': ' + bodyText);
+    throw new Error(formatYdpGeminiHttpError_(statusCode, bodyText));
   }
 
   const body = JSON.parse(bodyText);
@@ -569,6 +668,33 @@ function callYdpGemini_(prompt) {
   }
 
   return String(text).trim();
+}
+
+function formatYdpGeminiHttpError_(statusCode, bodyText) {
+  try {
+    const body = JSON.parse(bodyText);
+    const error = body && body.error ? body.error : {};
+    const status = error.status ? String(error.status) : 'UNKNOWN';
+    const message = error.message ? String(error.message) : String(bodyText || '');
+    const retryInfo = getYdpGeminiRetryInfo_(error.details || []);
+    const retrySuffix = retryInfo ? ' Retry after: ' + retryInfo + '.' : '';
+
+    return 'Gemini API HTTP ' + statusCode + ' ' + status + ': ' + message + retrySuffix;
+  } catch (error) {
+    return 'Gemini API HTTP ' + statusCode + ': ' + shortenYdpErrorMessage_(bodyText);
+  }
+}
+
+function getYdpGeminiRetryInfo_(details) {
+  for (let index = 0; index < details.length; index++) {
+    const detail = details[index];
+
+    if (detail && detail.retryDelay) {
+      return String(detail.retryDelay);
+    }
+  }
+
+  return '';
 }
 
 function getYdpMatchingRuntimeConfig_() {

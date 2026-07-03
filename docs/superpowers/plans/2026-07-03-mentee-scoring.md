@@ -4,7 +4,7 @@
 
 **Goal:** Add a matching workbook button that scores all synced mentees using the documented YDP selection criteria.
 
-**Architecture:** The matching Apps Script reads rows from `Mentee Source Snapshot`, sends each mentee's relevant answers to Gemini for structured category scores, calculates the weighted final score, and writes reviewable results into `Mentee Scores`. The workflow remains human-review-first; no mentee is selected or rejected automatically.
+**Architecture:** The matching Apps Script reads rows from `Mentee Source Snapshot`, sends each mentee's relevant answers to Gemini for structured category scores, calculates the weighted final score, and writes reviewable results into `Mentee Scores`. Scoring runs in batches, preserves completed scores, and stops cleanly when Gemini quota is reached. The workflow remains human-review-first; no mentee is selected or rejected automatically.
 
 **Tech Stack:** Google Apps Script, Google Sheets, Gemini API via `UrlFetchApp`, CLASP, GitHub.
 
@@ -42,7 +42,10 @@ learningScore * 8 + communityScore * 4 + careerScore * 4 + softSkillsScore * 4
 ```
 
 - [ ] Write one output row per mentee.
-- [ ] If one mentee fails, write that row as `ERROR` and continue with the next mentee.
+- [ ] Skip already-scored mentees.
+- [ ] Retry rows marked `ERROR` on the next run.
+- [ ] If Gemini quota is reached, stop the run instead of creating error rows for all remaining mentees.
+- [ ] If one non-quota mentee fails, write that row as `ERROR` and continue with the next mentee.
 
 ### Task 3: Documentation And Verification
 
