@@ -31,7 +31,7 @@ function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu(YDP_MATCHING_CONFIG.menuName)
     .addItem('Setup matching workbook', 'setupYdpMatchingWorkbook')
-    .addItem('Sync source snapshots', 'syncYdpMatchingSourceSnapshots')
+    .addItem('Sync source snapshots from forms', 'syncYdpMatchingSourceSnapshots')
     .addSeparator()
     .addItem('Test Gemini connection', 'testYdpGeminiConnection')
     .addToUi();
@@ -40,6 +40,12 @@ function onOpen() {
 function setupYdpMatchingWorkbook() {
   const spreadsheet = SpreadsheetApp.getActive();
 
+  setupYdpMatchingWorkbookTabs_(spreadsheet);
+  logYdpMatchingRun_('SETUP', 'SUCCESS', 'Matching workbook tabs are ready.');
+  SpreadsheetApp.getUi().alert('YDP matching workbook setup is complete. Next, run "Sync source snapshots from forms" to import mentor and mentee rows.');
+}
+
+function setupYdpMatchingWorkbookTabs_(spreadsheet) {
   setupYdpSourceConfigSheet_(spreadsheet);
   ensureYdpSheetWithHeaders_(spreadsheet, YDP_MATCHING_CONFIG.sheets.menteeSnapshot, []);
   ensureYdpSheetWithHeaders_(spreadsheet, YDP_MATCHING_CONFIG.sheets.mentorSnapshot, []);
@@ -47,29 +53,31 @@ function setupYdpMatchingWorkbook() {
   ensureYdpSheetWithHeaders_(spreadsheet, YDP_MATCHING_CONFIG.sheets.matchRecommendations, getYdpMatchRecommendationHeaders_());
   ensureYdpSheetWithHeaders_(spreadsheet, YDP_MATCHING_CONFIG.sheets.matchedPairs, getYdpMatchedPairsHeaders_());
   ensureYdpSheetWithHeaders_(spreadsheet, YDP_MATCHING_CONFIG.sheets.runLog, getYdpRunLogHeaders_());
-
-  logYdpMatchingRun_('SETUP', 'SUCCESS', 'Matching workbook tabs are ready.');
-  SpreadsheetApp.getUi().alert('YDP matching workbook setup is complete.');
 }
 
 function syncYdpMatchingSourceSnapshots() {
-  setupYdpMatchingWorkbook();
+  try {
+    setupYdpMatchingWorkbookTabs_(SpreadsheetApp.getActive());
 
-  const config = getYdpMatchingRuntimeConfig_();
-  const menteeCount = syncYdpSourceSheetToSnapshot_(
-    config.menteeSpreadsheetId,
-    config.responseTabName,
-    YDP_MATCHING_CONFIG.sheets.menteeSnapshot
-  );
-  const mentorCount = syncYdpSourceSheetToSnapshot_(
-    config.mentorSpreadsheetId,
-    config.responseTabName,
-    YDP_MATCHING_CONFIG.sheets.mentorSnapshot
-  );
+    const config = getYdpMatchingRuntimeConfig_();
+    const menteeCount = syncYdpSourceSheetToSnapshot_(
+      config.menteeSpreadsheetId,
+      config.responseTabName,
+      YDP_MATCHING_CONFIG.sheets.menteeSnapshot
+    );
+    const mentorCount = syncYdpSourceSheetToSnapshot_(
+      config.mentorSpreadsheetId,
+      config.responseTabName,
+      YDP_MATCHING_CONFIG.sheets.mentorSnapshot
+    );
 
-  const message = 'Synced ' + menteeCount + ' mentee rows and ' + mentorCount + ' mentor rows.';
-  logYdpMatchingRun_('SYNC_SOURCE_SNAPSHOTS', 'SUCCESS', message);
-  SpreadsheetApp.getUi().alert(message);
+    const message = 'Synced ' + menteeCount + ' mentee rows and ' + mentorCount + ' mentor rows.';
+    logYdpMatchingRun_('SYNC_SOURCE_SNAPSHOTS', 'SUCCESS', message);
+    SpreadsheetApp.getUi().alert(message);
+  } catch (error) {
+    logYdpMatchingRun_('SYNC_SOURCE_SNAPSHOTS', 'ERROR', error.message);
+    SpreadsheetApp.getUi().alert('Source sync failed:\n\n' + error.message);
+  }
 }
 
 function testYdpGeminiConnection() {
@@ -137,7 +145,10 @@ function syncYdpSourceSheetToSnapshot_(sourceSpreadsheetId, sourceTabName, snaps
   const sourceSheet = sourceSpreadsheet.getSheetByName(sourceTabName);
 
   if (!sourceSheet) {
-    throw new Error('Source tab not found: ' + sourceTabName + ' in ' + sourceSpreadsheetId);
+    const availableTabs = sourceSpreadsheet.getSheets().map(function(sheet) {
+      return sheet.getName();
+    }).join(', ');
+    throw new Error('Source tab not found: ' + sourceTabName + ' in ' + sourceSpreadsheetId + '. Available tabs: ' + availableTabs);
   }
 
   const targetSheet = getOrCreateYdpSheet_(SpreadsheetApp.getActive(), snapshotSheetName);

@@ -241,8 +241,12 @@ Use this order:
 2. Refresh the sheet after the script is pushed.
 3. Open `YDP Matching > Setup matching workbook`.
 4. Confirm the `Source Config` tab has the correct source spreadsheet IDs. Running setup again is safe; it also repairs the old incorrect mentee source ID if it is still present.
-5. Open `YDP Matching > Sync source snapshots`.
+5. Open `YDP Matching > Sync source snapshots from forms`.
 6. Open `YDP Matching > Test Gemini connection`.
+
+Important: `Setup matching workbook` only creates the tabs. It does not import the mentor or mentee rows. The `Mentee Source Snapshot` and `Mentor Source Snapshot` tabs stay blank until `Sync source snapshots from forms` is run successfully.
+
+If the snapshot tabs stay blank after syncing, open `Run Log`. A successful sync should say how many mentee and mentor rows were copied. If there is an error, the log explains whether the issue is sheet access, source spreadsheet ID, or tab name.
 
 The setup creates these tabs:
 
