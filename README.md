@@ -195,3 +195,9 @@ Start with:
 ```text
 artifacts/superpowers/README.md
 ```
+
+## Source Documents
+
+| Document | Purpose | Link |
+| --- | --- | --- |
+| Mentor-Mentee Matching Criteria | Mentee selection scoring and mentor-mentee pairing rules | https://docs.google.com/document/d/1ytuSV7vLncZbyLF_6ebbXijYoYt9ZYyZTo7rzPmuOqE/edit?usp=sharing |

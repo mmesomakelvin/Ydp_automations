@@ -12,6 +12,7 @@ Each numbered file is one automation capability, written in plain language befor
 | 2 | Mentor Registration Email Automation | Deployed | Mentor registration email automation is built and deployed in its own Apps Script project. It mirrors the mentee controls for tests, previews, bulk sends, selected-row sends, resends, tracking columns, and trigger installation. | Confirm the form-submit trigger is installed in the live sheet. Send tests after any future change. |
 | 3 | Reminders, Nudges, and Weekly KPI Digest | Brainstorming | Major version 1 decisions are captured: email-only, monthly mentee activities, reminder timing, no-show rules, feedback form rules, Google Sheets dashboard first, PDF report, chart snapshots, and Gemini-assisted write-up. | Finalize exact sheet names, sheet columns, stakeholder recipients, sender name, report check time, and Gemini privacy level. Then design/build the Apps Script and dashboard. |
 | 4 | YDP Program Control Center | Brainstorming | Internal Vercel portal direction is captured: Google login allowlist, hybrid Google Sheet + GitHub docs source, view-only first, status dashboard plus documentation library. | Finalize tracker columns, allowed users, website framework, page structure, and GitHub/Sheet reading method. Then build the tracker and portal. |
+| 5 | Mentor-Mentee Matching Criteria | Brainstorming | Source Google Doc was read and converted into mentee selection criteria, weighted scoring, and mentor-mentee pairing priorities. | Confirm exact form columns, decide whether scoring is manual/Gemini-assisted/rule-based, then design the matching recommendation workflow. |
 
 ## Implementation Links
 
@@ -21,6 +22,7 @@ Each numbered file is one automation capability, written in plain language befor
 | 2 | Mentor Registration Email Automation | `mentor/YDP Mentor Email.gs`, `mentor/.clasp.json` | Apps Script ID: `1TyZ8bcZaKDAVBVOu_cl6xbVTsdZ9-4KCgQ4OTF2iB34e24kx49XIILp1` |
 | 3 | Reminders, Nudges, and Weekly KPI Digest | Not built yet | Planned Apps Script + Google Sheets dashboard |
 | 4 | YDP Program Control Center | Not built yet | Planned Vercel internal website |
+| 5 | Mentor-Mentee Matching Criteria | Not built yet | Source doc: `https://docs.google.com/document/d/1ytuSV7vLncZbyLF_6ebbXijYoYt9ZYyZTo7rzPmuOqE/edit?usp=sharing` |
 
 ## What Is Left
 

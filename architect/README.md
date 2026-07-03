@@ -12,6 +12,7 @@ Use this as the build guardrail before implementation so we do not mix script ID
 | 2 | Mentor Registration Email Automation | Google Sheets + separate Apps Script project + MailApp + clasp | Built and deployed |
 | 3 | Reminders, Nudges, and Weekly KPI Digest | Google Sheets + Apps Script time triggers + MailApp + Google Sheets dashboard + Gemini API + PDF export | Design in progress |
 | 4 | YDP Program Control Center | Vercel web app + Google login allowlist + Google Sheets tracker + GitHub Markdown docs | Design in progress |
+| 5 | Mentor-Mentee Matching Criteria | Google Sheets + Apps Script + mentor/mentee IDs + optional Gemini assistance + human review | Design in progress |
 
 ## Build Rules
 
