@@ -243,6 +243,7 @@ Use this order:
 4. Confirm the `Source Config` tab has the correct source spreadsheet IDs. Running setup again is safe; it also repairs the old incorrect mentee source ID if it is still present.
 5. Open `YDP Matching > Sync source snapshots from forms`.
 6. Open `YDP Matching > Test Gemini connection`.
+7. Open `YDP Matching > Generate mentee scores`.
 
 Important: `Setup matching workbook` only creates the tabs. It does not import the mentor or mentee rows. The `Mentee Source Snapshot` and `Mentor Source Snapshot` tabs stay blank until `Sync source snapshots from forms` is run successfully.
 
@@ -260,4 +261,41 @@ The setup creates these tabs:
 - `Matched Pairs`
 - `Run Log`
 
-The first build only sets up the matching workbook, source snapshots, and Gemini connection test. It does not finalize mentor-mentee matches yet.
+## Matching Menu Buttons
+
+| Button | What it does in plain English | When to use it | Be careful |
+| --- | --- | --- | --- |
+| `Setup matching workbook` | Creates the matching tabs and configuration area. | Use once at the start, or rerun if tabs are missing. | This does not import mentor/mentee data. |
+| `Sync source snapshots from forms` | Copies the latest rows from the live mentee and mentor form response sheets into this matching workbook. | Use before scoring or matching, especially after new people register. | For now this is manual. A scheduled auto-sync will be added after scoring/matching is stable. |
+| `Generate mentee scores` | Uses Gemini to score every synced mentee against the YDP selection criteria and writes the result into `Mentee Scores`. | Use after the source snapshots have data. | Gemini gives a review recommendation; it does not make the final decision for the team. |
+| `Test Gemini connection` | Checks that the Gemini API key is working. | Use after setting or changing the API key. | The API key must stay in Apps Script Script Properties, not in GitHub. |
+
+## Mentee Scoring
+
+The `Generate mentee scores` button scores all mentees in `Mentee Source Snapshot`.
+
+It writes these review columns into `Mentee Scores`:
+
+- `Learning Commitment Score`
+- `Community Engagement Score`
+- `Career Goals Score`
+- `Soft Skills Score`
+- `Final Score`
+- `Review Status`
+- `Gemini Summary`
+- `Gemini Concerns`
+- `Scored At`
+
+The category scores are from `0` to `5`. The final score is calculated as:
+
+```text
+Learning Commitment Score * 8
++ Community Engagement Score * 4
++ Career Goals Score * 4
++ Soft Skills Score * 4
+= Final Score out of 100
+```
+
+The matching automation currently sets scored rows to `Pending Review`. The program team still reviews before anyone is selected or matched.
+
+The current build sets up the matching workbook, source snapshots, Gemini connection test, and mentee scoring. It does not finalize mentor-mentee matches yet.

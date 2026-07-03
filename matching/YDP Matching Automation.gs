@@ -33,6 +33,8 @@ function onOpen() {
     .addItem('Setup matching workbook', 'setupYdpMatchingWorkbook')
     .addItem('Sync source snapshots from forms', 'syncYdpMatchingSourceSnapshots')
     .addSeparator()
+    .addItem('Generate mentee scores', 'generateYdpMenteeScores')
+    .addSeparator()
     .addItem('Test Gemini connection', 'testYdpGeminiConnection')
     .addToUi();
 }
@@ -93,6 +95,89 @@ function testYdpGeminiConnection() {
   } catch (error) {
     logYdpMatchingRun_('TEST_GEMINI', 'ERROR', error.message);
     SpreadsheetApp.getUi().alert('Gemini connection failed:\n\n' + error.message);
+  }
+}
+
+function generateYdpMenteeScores() {
+  try {
+    setupYdpMatchingWorkbookTabs_(SpreadsheetApp.getActive());
+
+    const spreadsheet = SpreadsheetApp.getActive();
+    const sourceSheet = spreadsheet.getSheetByName(YDP_MATCHING_CONFIG.sheets.menteeSnapshot);
+
+    if (!sourceSheet || sourceSheet.getLastRow() <= 1) {
+      throw new Error('No mentee snapshot rows found. Run "Sync source snapshots from forms" first.');
+    }
+
+    const sourceValues = sourceSheet.getRange(1, 1, sourceSheet.getLastRow(), sourceSheet.getLastColumn()).getValues();
+    const sourceHeaders = sourceValues[0].map(function(header) {
+      return String(header || '').trim();
+    });
+    const scoreRows = [];
+    let successCount = 0;
+    let errorCount = 0;
+
+    sourceValues.slice(1).forEach(function(row, rowIndex) {
+      if (isYdpBlankSourceRow_(row)) {
+        return;
+      }
+
+      const mentee = buildYdpMenteeScoringProfile_(sourceHeaders, row, rowIndex + 2);
+
+      try {
+        const scoring = scoreYdpMenteeWithGemini_(mentee);
+        const learningScore = clampYdpScore_(scoring.learningScore);
+        const communityScore = clampYdpScore_(scoring.communityScore);
+        const careerScore = clampYdpScore_(scoring.careerScore);
+        const softSkillsScore = clampYdpScore_(scoring.softSkillsScore);
+        const finalScore = learningScore * 8 + communityScore * 4 + careerScore * 4 + softSkillsScore * 4;
+
+        scoreRows.push([
+          mentee.id,
+          mentee.name,
+          mentee.email,
+          mentee.careerPath,
+          learningScore,
+          communityScore,
+          careerScore,
+          softSkillsScore,
+          finalScore,
+          'Pending Review',
+          '',
+          String(scoring.summary || '').trim(),
+          String(scoring.concerns || '').trim(),
+          new Date()
+        ]);
+        successCount++;
+      } catch (error) {
+        scoreRows.push([
+          mentee.id,
+          mentee.name,
+          mentee.email,
+          mentee.careerPath,
+          '',
+          '',
+          '',
+          '',
+          '',
+          'ERROR',
+          '',
+          '',
+          error.message,
+          new Date()
+        ]);
+        errorCount++;
+      }
+    });
+
+    writeYdpMenteeScoreRows_(spreadsheet, scoreRows);
+
+    const message = 'Generated mentee scores for ' + successCount + ' mentees. Errors: ' + errorCount + '.';
+    logYdpMatchingRun_('GENERATE_MENTEE_SCORES', errorCount ? 'PARTIAL_SUCCESS' : 'SUCCESS', message);
+    SpreadsheetApp.getUi().alert(message);
+  } catch (error) {
+    logYdpMatchingRun_('GENERATE_MENTEE_SCORES', 'ERROR', error.message);
+    SpreadsheetApp.getUi().alert('Mentee scoring failed:\n\n' + error.message);
   }
 }
 
@@ -223,6 +308,198 @@ function ydpSheetLooksLikeFormResponse_(sheet) {
   });
 
   return headers.indexOf('timestamp') !== -1 && headers.indexOf('email address') !== -1;
+}
+
+function buildYdpMenteeScoringProfile_(headers, row, sourceRowNumber) {
+  const firstName = getYdpValueByHeaderRules_(headers, row, [
+    ['first', 'name']
+  ]);
+  const lastName = getYdpValueByHeaderRules_(headers, row, [
+    ['last', 'name']
+  ]);
+  const email = getYdpValueByHeaderRules_(headers, row, [
+    ['email', 'address']
+  ]);
+
+  return {
+    id: getYdpValueByHeaderRules_(headers, row, [
+      ['mentee', 'id']
+    ]) || email || 'Mentee Row ' + sourceRowNumber,
+    name: [firstName, lastName].filter(Boolean).join(' ') || 'Mentee Row ' + sourceRowNumber,
+    email: email,
+    careerPath: getYdpValueByHeaderRules_(headers, row, [
+      ['career', 'path'],
+      ['interested', 'in']
+    ]),
+    skills: getYdpValueByHeaderRules_(headers, row, [
+      ['skills', 'experience'],
+      ['skills', 'currently'],
+      ['areas', 'focus']
+    ]),
+    learningStyle: getYdpValueByHeaderRules_(headers, row, [
+      ['learning', 'style']
+    ]),
+    mentorPreference: getYdpValueByHeaderRules_(headers, row, [
+      ['mentor', 'back'],
+      ['mentor', 'preference']
+    ]),
+    coursesTraining: getYdpValueByHeaderRules_(headers, row, [
+      ['courses', 'training'],
+      ['training', 'related']
+    ]),
+    personalEffort: getYdpValueByHeaderRules_(headers, row, [
+      ['personal', 'efforts'],
+      ['hands-on', 'experience'],
+      ['hands', 'experience']
+    ]),
+    goals: getYdpValueByHeaderRules_(headers, row, [
+      ['main', 'goals'],
+      ['top', 'goals'],
+      ['goals', 'mentorship']
+    ]),
+    currentStage: getYdpValueByHeaderRules_(headers, row, [
+      ['current', 'career', 'level'],
+      ['best', 'describes', 'current']
+    ]),
+    ydpMembership: getYdpValueByHeaderRules_(headers, row, [
+      ['member', 'young', 'data'],
+      ['member', 'ydp']
+    ]),
+    ydpEngagement: getYdpValueByHeaderRules_(headers, row, [
+      ['engaged', 'ydp'],
+      ['ydp', 'engaged'],
+      ['ydp', 'platform']
+    ]),
+    commitment: getYdpValueByHeaderRules_(headers, row, [
+      ['commit', 'full', 'duration'],
+      ['hours', 'per', 'week'],
+      ['actively', 'engag']
+    ]),
+    teamwork: getYdpValueByHeaderRules_(headers, row, [
+      ['working', 'teams'],
+      ['work', 'teams']
+    ]),
+    whySelect: getYdpValueByHeaderRules_(headers, row, [
+      ['why', 'select'],
+      ['selected', 'mentorship']
+    ]),
+    sourceRowNumber: sourceRowNumber
+  };
+}
+
+function scoreYdpMenteeWithGemini_(mentee) {
+  const prompt = [
+    'You are scoring a mentee application for the YDP Mentorship Program.',
+    'Use only the information provided. Do not invent facts.',
+    '',
+    'Scoring criteria:',
+    '1. Learning Commitment & Prior Effort: 0-5. Strong evidence includes courses, projects, certifications, practice, or real-world application.',
+    '2. Community Engagement & Participation: 0-5. Strong evidence includes YDP membership, discussions, volunteering, events, or collaborations.',
+    '3. Career Goals & Program Alignment: 0-5. Strong evidence includes clear career path, focused goals, and realistic mentorship expectations.',
+    '4. Soft Skills & Mindset: 0-5. Strong evidence includes proactiveness, commitment, teamwork, ownership, and openness to feedback.',
+    '',
+    'Return JSON only. No markdown. No extra text.',
+    'Expected JSON shape:',
+    '{"learningScore":0,"communityScore":0,"careerScore":0,"softSkillsScore":0,"summary":"","concerns":""}',
+    '',
+    'Mentee application:',
+    JSON.stringify(mentee)
+  ].join('\n');
+
+  return callYdpGeminiJson_(prompt);
+}
+
+function callYdpGeminiJson_(prompt) {
+  const responseText = callYdpGemini_(prompt);
+  const jsonText = extractYdpJsonObject_(responseText);
+
+  try {
+    return JSON.parse(jsonText);
+  } catch (error) {
+    throw new Error('Gemini returned invalid JSON: ' + responseText);
+  }
+}
+
+function extractYdpJsonObject_(text) {
+  const cleaned = String(text || '')
+    .replace(/^```json\s*/i, '')
+    .replace(/^```\s*/i, '')
+    .replace(/```$/i, '')
+    .trim();
+  const start = cleaned.indexOf('{');
+  const end = cleaned.lastIndexOf('}');
+
+  if (start === -1 || end === -1 || end <= start) {
+    throw new Error('Gemini response did not contain a JSON object: ' + text);
+  }
+
+  return cleaned.slice(start, end + 1);
+}
+
+function getYdpValueByHeaderRules_(headers, row, rules) {
+  for (let ruleIndex = 0; ruleIndex < rules.length; ruleIndex++) {
+    const rule = rules[ruleIndex];
+    const columnIndex = findYdpHeaderIndexByKeywords_(headers, rule);
+
+    if (columnIndex !== -1) {
+      return String(row[columnIndex] || '').trim();
+    }
+  }
+
+  return '';
+}
+
+function findYdpHeaderIndexByKeywords_(headers, keywords) {
+  const normalizedKeywords = keywords.map(function(keyword) {
+    return normalizeYdpHeaderText_(keyword);
+  });
+
+  for (let index = 0; index < headers.length; index++) {
+    const normalizedHeader = normalizeYdpHeaderText_(headers[index]);
+    const matches = normalizedKeywords.every(function(keyword) {
+      return normalizedHeader.indexOf(keyword) !== -1;
+    });
+
+    if (matches) {
+      return index;
+    }
+  }
+
+  return -1;
+}
+
+function normalizeYdpHeaderText_(value) {
+  return String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function clampYdpScore_(value) {
+  const numberValue = Number(value);
+
+  if (isNaN(numberValue)) {
+    return 0;
+  }
+
+  return Math.max(0, Math.min(5, Math.round(numberValue)));
+}
+
+function isYdpBlankSourceRow_(row) {
+  return row.every(function(value) {
+    return String(value || '').trim() === '';
+  });
+}
+
+function writeYdpMenteeScoreRows_(spreadsheet, rows) {
+  const sheet = getOrCreateYdpSheet_(spreadsheet, YDP_MATCHING_CONFIG.sheets.menteeScores);
+  const headers = getYdpMenteeScoresHeaders_();
+  sheet.clearContents();
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  sheet.setFrozenRows(1);
+
+  if (rows.length > 0) {
+    sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
+  }
+
+  sheet.autoResizeColumns(1, headers.length);
 }
 
 function getYdpCurrentOrDefaultSourceId_(currentValue, defaultValue, oldValues) {
@@ -360,14 +637,17 @@ function getYdpMenteeScoresHeaders_() {
     'Mentee ID',
     'Mentee Name',
     'Mentee Email',
+    'Career Path Interest',
     'Learning Commitment Score',
     'Community Engagement Score',
     'Career Goals Score',
     'Soft Skills Score',
     'Final Score',
-    'Selection Status',
+    'Review Status',
     'Reviewer Notes',
-    'Gemini Summary'
+    'Gemini Summary',
+    'Gemini Concerns',
+    'Scored At'
   ];
 }
 
