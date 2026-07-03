@@ -17,6 +17,19 @@ It supports:
 - duplicate protection through status columns
 - force resend for a selected row
 
+### Mentor Registration Email
+
+The mentor script sends email updates to mentors in the Google Sheet response tab.
+
+It supports the same control pattern as the mentee automation:
+
+- automatic email sending for new mentor form submissions
+- manual batch email sending for mentors who registered before the automation was installed
+- test emails
+- email preview for a selected row
+- duplicate protection through status columns
+- force resend for a selected row
+
 ## Apps Script Projects
 
 Each Apps Script project has its own `.clasp.json` and script ID.
@@ -62,7 +75,7 @@ cd mentor
 clasp.cmd push --force
 ```
 
-## Sheet Menu
+## Sheet Menu Buttons
 
 After the script is pushed and the spreadsheet is refreshed, the sheet shows a custom menu:
 
@@ -70,23 +83,62 @@ After the script is pushed and the spreadsheet is refreshed, the sheet shows a c
 YDP Automation
 ```
 
-Menu actions:
+### Mentee Sheet Buttons
 
-- `Setup email tracking columns`
-- `Install form submit trigger`
-- `Send test mentee email`
-- `Preview selected row email`
-- `Send mentee email to selected row`
-- `Send mentee email to all unsent rows`
-- `Send already registered mentee update to all unsent rows`
-- `Resend email to selected row`
+| Button | What it does in plain English | When to use it | Be careful |
+| --- | --- | --- | --- |
+| `Setup email tracking columns` | Adds the status columns the script needs to know who has already received emails. | Use once after installing/pushing the script, or if tracking columns were deleted. | Safe to run again. It should not duplicate existing columns. |
+| `Install form submit trigger` | Turns on automatic sending for future new mentee registrations. | Use once when setting up the sheet automation. | If unsure, running it again is okay; the script checks if it already exists. |
+| `Send test mentee email` | Sends a sample mentee email to an address you enter. | Use before sending real emails, especially after editing the script. | Use your own email or a test email. |
+| `Preview selected row email` | Shows the email text for the selected mentee row before sending. | Use when you want to confirm the message for a specific person. | Select a real data row, not the header row. |
+| `Send mentee email to selected row` | Sends the new-registration email to only the selected mentee row. | Use for one person who just needs the normal registration email. | It will skip if that email was already sent, unless you use resend. |
+| `Send mentee email to all unsent rows` | Sends the new-registration email to every row that has not already received it. | Use only when you want to send the normal new-registration email in bulk. | Do not use this for people who registered before the automation if you want them to receive the already-registered update instead. |
+| `Send already registered mentee update to all unsent rows` | Sends the already-registered update email to old mentee registrations that have not received it. | Use for applicants who registered before the automation was installed. | This is the safer bulk option for old registrations. |
+| `Resend email to selected row` | Forces a resend to the selected row and asks which email type to resend. | Use only when someone says they did not receive the email, or you intentionally want to resend. | This bypasses normal duplicate protection for that selected row. |
+
+Recommended mentee setup order:
+
+1. `Setup email tracking columns`
+2. `Install form submit trigger`
+3. `Send test mentee email`
+4. For old registrations, use `Send already registered mentee update to all unsent rows`
+5. For future registrations, let the trigger send automatically
+
+### Mentor Sheet Buttons
+
+| Button | What it does in plain English | When to use it | Be careful |
+| --- | --- | --- | --- |
+| `Setup email tracking columns` | Adds the status columns the script needs to know who has already received mentor emails. | Use once after installing/pushing the mentor script, or if tracking columns were deleted. | Safe to run again. It should not duplicate existing columns. |
+| `Install form submit trigger` | Turns on automatic sending for future new mentor registrations. | Use once when setting up the mentor sheet automation. | If unsure, running it again is okay; the script checks if it already exists. |
+| `Send test mentor email` | Sends a sample mentor email to an address you enter. | Use before sending real mentor emails, especially after editing the script. | Use your own email or a test email. |
+| `Preview selected row email` | Shows the email text for the selected mentor row before sending. | Use when you want to confirm the message for a specific mentor. | Select a real data row, not the header row. |
+| `Send mentor email to selected row` | Sends the new-registration email to only the selected mentor row. | Use for one person who just needs the normal mentor registration email. | It will skip if that email was already sent, unless you use resend. |
+| `Send mentor email to all unsent rows` | Sends the new-registration mentor email to every row that has not already received it. | Use only when you want to send the normal new-registration email in bulk. | Do not use this for people who registered before the automation if you want them to receive the already-registered update instead. |
+| `Send already registered mentor update to all unsent rows` | Sends the already-registered update email to old mentor registrations that have not received it. | Use for mentors who registered before the automation was installed. | This is the safer bulk option for old mentor registrations. |
+| `Resend email to selected row` | Forces a resend to the selected row and asks which email type to resend. | Use only when someone says they did not receive the email, or you intentionally want to resend. | This bypasses normal duplicate protection for that selected row. |
+
+Recommended mentor setup order:
+
+1. `Setup email tracking columns`
+2. `Install form submit trigger`
+3. `Send test mentor email`
+4. For old registrations, use `Send already registered mentor update to all unsent rows`
+5. For future registrations, let the trigger send automatically
 
 ## Tracking Columns
 
-The script creates these columns if they do not already exist:
+The mentee script creates these columns if they do not already exist:
 
 - `Mentee Registration Email Status`
 - `Mentee Registration Email Sent At`
+- `Already Registered Email Status`
+- `Already Registered Email Sent At`
+- `Email Last Error`
+
+The mentor script creates these columns if they do not already exist:
+
+- `Mentor Registration Email Status`
+- `Mentor Registration Email Sent At`
 - `Already Registered Email Status`
 - `Already Registered Email Sent At`
 - `Email Last Error`
@@ -117,5 +169,11 @@ https://script.google.com/home/usersettings
 Planning artifacts are stored in:
 
 ```text
-artifacts/
+artifacts/superpowers/
+```
+
+Start with:
+
+```text
+artifacts/superpowers/README.md
 ```
