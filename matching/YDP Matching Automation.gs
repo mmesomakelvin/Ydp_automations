@@ -14,6 +14,7 @@ const YDP_MATCHING_CONFIG = {
     menteeSnapshot: 'Mentee Source Snapshot',
     mentorSnapshot: 'Mentor Source Snapshot',
     menteeScores: 'Mentee Scores',
+    pairScores: 'Pair Scores',
     matchRecommendations: 'Match Recommendations',
     matchedPairs: 'Matched Pairs',
     runLog: 'Run Log'
@@ -36,6 +37,7 @@ function onOpen() {
     .addItem('Sync source snapshots from forms', 'syncYdpMatchingSourceSnapshots')
     .addSeparator()
     .addItem('Generate next mentee score', 'generateYdpMenteeScores')
+    .addItem('Generate next pair score', 'generateYdpNextPairScore')
     .addSeparator()
     .addItem('Test Gemini connection', 'testYdpGeminiConnection')
     .addToUi();
@@ -54,6 +56,7 @@ function setupYdpMatchingWorkbookTabs_(spreadsheet) {
   ensureYdpSheetWithHeaders_(spreadsheet, YDP_MATCHING_CONFIG.sheets.menteeSnapshot, []);
   ensureYdpSheetWithHeaders_(spreadsheet, YDP_MATCHING_CONFIG.sheets.mentorSnapshot, []);
   ensureYdpSheetWithHeaders_(spreadsheet, YDP_MATCHING_CONFIG.sheets.menteeScores, getYdpMenteeScoresHeaders_());
+  ensureYdpSheetWithHeaders_(spreadsheet, YDP_MATCHING_CONFIG.sheets.pairScores, getYdpPairScoresHeaders_());
   ensureYdpSheetWithHeaders_(spreadsheet, YDP_MATCHING_CONFIG.sheets.matchRecommendations, getYdpMatchRecommendationHeaders_());
   ensureYdpSheetWithHeaders_(spreadsheet, YDP_MATCHING_CONFIG.sheets.matchedPairs, getYdpMatchedPairsHeaders_());
   ensureYdpSheetWithHeaders_(spreadsheet, YDP_MATCHING_CONFIG.sheets.runLog, getYdpRunLogHeaders_());
@@ -220,6 +223,127 @@ function generateYdpMenteeScores() {
   } catch (error) {
     logYdpMatchingRun_('GENERATE_MENTEE_SCORES', 'ERROR', error.message);
     SpreadsheetApp.getUi().alert('Mentee scoring failed:\n\n' + error.message);
+  }
+}
+
+function generateYdpNextPairScore() {
+  try {
+    setupYdpMatchingWorkbookTabs_(SpreadsheetApp.getActive());
+
+    const spreadsheet = SpreadsheetApp.getActive();
+    const menteeScoresSheet = spreadsheet.getSheetByName(YDP_MATCHING_CONFIG.sheets.menteeScores);
+    const mentorSnapshotSheet = spreadsheet.getSheetByName(YDP_MATCHING_CONFIG.sheets.mentorSnapshot);
+    const pairScoresSheet = ensureYdpSheetWithHeaders_(
+      spreadsheet,
+      YDP_MATCHING_CONFIG.sheets.pairScores,
+      getYdpPairScoresHeaders_()
+    );
+
+    if (!menteeScoresSheet || menteeScoresSheet.getLastRow() <= 1) {
+      throw new Error('No mentee scores found. Score mentees before generating pair scores.');
+    }
+
+    if (!mentorSnapshotSheet || mentorSnapshotSheet.getLastRow() <= 1) {
+      throw new Error('No mentor snapshot rows found. Run "Sync source snapshots from forms" first.');
+    }
+
+    const mentees = getYdpEligibleMenteesForPairScoring_(menteeScoresSheet);
+    const mentors = getYdpMentorProfilesForPairScoring_(mentorSnapshotSheet);
+    const existingPairMap = getYdpExistingPairScoreMap_(pairScoresSheet);
+
+    if (mentees.length === 0) {
+      throw new Error('No eligible mentees found. Eligible mentees need Final Score >= 60 and Review Status = Pending Review.');
+    }
+
+    if (mentors.length === 0) {
+      throw new Error('No usable mentors found in Mentor Source Snapshot.');
+    }
+
+    for (let menteeIndex = 0; menteeIndex < mentees.length; menteeIndex++) {
+      const mentee = mentees[menteeIndex];
+
+      for (let mentorIndex = 0; mentorIndex < mentors.length; mentorIndex++) {
+        const mentor = mentors[mentorIndex];
+        const pairId = buildYdpPairId_(mentee.id, mentor.id);
+        const existingPair = existingPairMap[pairId];
+
+        if (existingPair && existingPair.status === 'Scored') {
+          continue;
+        }
+
+        try {
+          const scoring = scoreYdpMentorMenteePairWithGemini_(mentee, mentor);
+          const skillFitScore = clampYdpWeightedScore_(scoring.skillFitScore, 40);
+          const careerFitScore = clampYdpWeightedScore_(scoring.careerFitScore, 30);
+          const availabilityFitScore = clampYdpWeightedScore_(scoring.availabilityFitScore, 15);
+          const capacityFitScore = clampYdpWeightedScore_(scoring.capacityFitScore, 15);
+          const totalPairScore = skillFitScore + careerFitScore + availabilityFitScore + capacityFitScore;
+
+          existingPairMap[pairId] = upsertYdpPairScoreRow_(pairScoresSheet, existingPair, [
+            pairId,
+            mentee.id,
+            mentee.name,
+            mentee.email,
+            mentor.id,
+            mentor.name,
+            mentor.email,
+            skillFitScore,
+            careerFitScore,
+            availabilityFitScore,
+            capacityFitScore,
+            totalPairScore,
+            String(scoring.reason || '').trim(),
+            String(scoring.concern || '').trim(),
+            'Scored',
+            new Date()
+          ]);
+
+          pairScoresSheet.autoResizeColumns(1, getYdpPairScoresHeaders_().length);
+          const message = 'Generated pair score: ' + mentee.name + ' + ' + mentor.name + ' = ' + totalPairScore + '/100.';
+          logYdpMatchingRun_('GENERATE_PAIR_SCORE', 'SUCCESS', message);
+          SpreadsheetApp.getUi().alert(message);
+          return;
+        } catch (error) {
+          if (isYdpGeminiQuotaError_(error)) {
+            const quotaMessage = 'Gemini quota was reached, so pair scoring stopped safely. ' + error.message;
+            logYdpMatchingRun_('GENERATE_PAIR_SCORE', 'PARTIAL_SUCCESS', quotaMessage);
+            SpreadsheetApp.getUi().alert(quotaMessage);
+            return;
+          }
+
+          existingPairMap[pairId] = upsertYdpPairScoreRow_(pairScoresSheet, existingPair, [
+            pairId,
+            mentee.id,
+            mentee.name,
+            mentee.email,
+            mentor.id,
+            mentor.name,
+            mentor.email,
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            shortenYdpErrorMessage_(error.message),
+            'Error',
+            new Date()
+          ]);
+
+          const message = 'Pair score failed for ' + mentee.name + ' + ' + mentor.name + '. Error saved in Pair Scores.';
+          logYdpMatchingRun_('GENERATE_PAIR_SCORE', 'PARTIAL_SUCCESS', message);
+          SpreadsheetApp.getUi().alert(message);
+          return;
+        }
+      }
+    }
+
+    const completeMessage = 'All eligible mentee/mentor pairs already have pair scores.';
+    logYdpMatchingRun_('GENERATE_PAIR_SCORE', 'SUCCESS', completeMessage);
+    SpreadsheetApp.getUi().alert(completeMessage);
+  } catch (error) {
+    logYdpMatchingRun_('GENERATE_PAIR_SCORE', 'ERROR', error.message);
+    SpreadsheetApp.getUi().alert('Pair scoring failed:\n\n' + error.message);
   }
 }
 
@@ -461,6 +585,46 @@ function scoreYdpMenteeWithGemini_(mentee) {
   return callYdpGeminiJson_(prompt);
 }
 
+function scoreYdpMentorMenteePairWithGemini_(mentee, mentor) {
+  const compactPair = {
+    mentee: {
+      name: mentee.name,
+      careerPath: mentee.careerPath,
+      finalScore: mentee.finalScore,
+      summary: mentee.summary,
+      concerns: mentee.concerns
+    },
+    mentor: {
+      name: mentor.name,
+      currentRole: mentor.currentRole,
+      yearsExperience: mentor.yearsExperience,
+      expertise: mentor.expertise,
+      availability: mentor.availability,
+      preferredTimes: mentor.preferredTimes,
+      communication: mentor.communication,
+      menteePreferences: mentor.menteePreferences,
+      statedCapacity: mentor.statedCapacity,
+      flexibleCapacity: mentor.flexibleCapacity
+    }
+  };
+  const prompt = [
+    'Score this YDP mentor/mentee pair. Use only provided facts.',
+    '',
+    'Return JSON only. No markdown. No extra text.',
+    '{"skillFitScore":0,"careerFitScore":0,"availabilityFitScore":0,"capacityFitScore":0,"reason":"","concern":""}',
+    '',
+    'Score limits:',
+    'skillFitScore: 0-40 for mentor expertise matching mentee needs.',
+    'careerFitScore: 0-30 for mentor role/background matching mentee career path.',
+    'availabilityFitScore: 0-15 for practical communication/time fit.',
+    'capacityFitScore: 0-15 for stated/flexible capacity support.',
+    '',
+    JSON.stringify(compactPair)
+  ].join('\n');
+
+  return callYdpGeminiJson_(prompt);
+}
+
 function callYdpGeminiJson_(prompt) {
   const responseText = callYdpGemini_(prompt);
   const jsonText = extractYdpJsonObject_(responseText);
@@ -538,6 +702,171 @@ function isYdpBlankSourceRow_(row) {
   return row.every(function(value) {
     return String(value || '').trim() === '';
   });
+}
+
+function getYdpEligibleMenteesForPairScoring_(sheet) {
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(function(header) {
+    return String(header || '').trim();
+  });
+  const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+  const idIndex = headers.indexOf('Mentee ID');
+  const nameIndex = headers.indexOf('Mentee Name');
+  const emailIndex = headers.indexOf('Mentee Email');
+  const careerPathIndex = headers.indexOf('Career Path Interest');
+  const finalScoreIndex = headers.indexOf('Final Score');
+  const reviewStatusIndex = headers.indexOf('Review Status');
+  const summaryIndex = headers.indexOf('Gemini Summary');
+  const concernsIndex = headers.indexOf('Gemini Concerns');
+
+  return rows.map(function(row) {
+    return {
+      id: String(row[idIndex] || '').trim(),
+      name: String(row[nameIndex] || '').trim(),
+      email: String(row[emailIndex] || '').trim(),
+      careerPath: String(row[careerPathIndex] || '').trim(),
+      finalScore: Number(row[finalScoreIndex]),
+      reviewStatus: String(row[reviewStatusIndex] || '').trim(),
+      summary: String(row[summaryIndex] || '').trim(),
+      concerns: String(row[concernsIndex] || '').trim()
+    };
+  }).filter(function(mentee) {
+    return mentee.id &&
+      mentee.email &&
+      !isNaN(mentee.finalScore) &&
+      mentee.finalScore >= 60 &&
+      mentee.reviewStatus === 'Pending Review';
+  }).sort(function(a, b) {
+    return b.finalScore - a.finalScore;
+  });
+}
+
+function getYdpMentorProfilesForPairScoring_(sheet) {
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(function(header) {
+    return String(header || '').trim();
+  });
+  const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+
+  return rows.map(function(row, rowIndex) {
+    const firstName = getYdpValueByHeaderRules_(headers, row, [
+      ['first', 'name']
+    ]);
+    const lastName = getYdpValueByHeaderRules_(headers, row, [
+      ['last', 'name']
+    ]);
+    const email = getYdpValueByHeaderRules_(headers, row, [
+      ['email', 'address']
+    ]);
+    const statedCapacity = parseYdpCapacity_(
+      getYdpValueByHeaderRules_(headers, row, [
+        ['how', 'many', 'mentees'],
+        ['mentees', 'willing']
+      ])
+    );
+
+    return {
+      id: getYdpValueByHeaderRules_(headers, row, [
+        ['mentor', 'id']
+      ]) || email || 'Mentor Row ' + (rowIndex + 2),
+      name: [firstName, lastName].filter(Boolean).join(' ') || 'Mentor Row ' + (rowIndex + 2),
+      email: email,
+      currentRole: getYdpValueByHeaderRules_(headers, row, [
+        ['current', 'role']
+      ]),
+      yearsExperience: getYdpValueByHeaderRules_(headers, row, [
+        ['years', 'experience']
+      ]),
+      expertise: getYdpValueByHeaderRules_(headers, row, [
+        ['areas', 'expertise'],
+        ['expertise']
+      ]),
+      availability: getYdpValueByHeaderRules_(headers, row, [
+        ['availability'],
+        ['hours', 'per']
+      ]),
+      preferredTimes: getYdpValueByHeaderRules_(headers, row, [
+        ['preferred', 'days'],
+        ['preferred', 'times']
+      ]),
+      communication: getYdpValueByHeaderRules_(headers, row, [
+        ['preferred', 'communication']
+      ]),
+      menteePreferences: getYdpValueByHeaderRules_(headers, row, [
+        ['preferences', 'mentee'],
+        ['mentee', 'preferences']
+      ]),
+      statedCapacity: statedCapacity,
+      flexibleCapacity: statedCapacity + 2
+    };
+  }).filter(function(mentor) {
+    return mentor.id && mentor.email;
+  });
+}
+
+function parseYdpCapacity_(value) {
+  const match = String(value || '').match(/\d+/);
+
+  if (!match) {
+    return 1;
+  }
+
+  return Math.max(1, Number(match[0]));
+}
+
+function buildYdpPairId_(menteeId, mentorId) {
+  return normalizeYdpPairIdPart_(menteeId) + '__' + normalizeYdpPairIdPart_(mentorId);
+}
+
+function normalizeYdpPairIdPart_(value) {
+  return String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
+function getYdpExistingPairScoreMap_(sheet) {
+  const headers = getYdpPairScoresHeaders_();
+  const map = {};
+
+  if (sheet.getLastRow() <= 1) {
+    return map;
+  }
+
+  const values = sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).getValues();
+  const pairIdIndex = headers.indexOf('Pair ID');
+  const statusIndex = headers.indexOf('Pair Score Status');
+
+  values.forEach(function(row, index) {
+    const pairId = String(row[pairIdIndex] || '').trim();
+
+    if (pairId) {
+      map[pairId] = {
+        rowNumber: index + 2,
+        pairId: pairId,
+        status: String(row[statusIndex] || '').trim()
+      };
+    }
+  });
+
+  return map;
+}
+
+function upsertYdpPairScoreRow_(sheet, existingPair, rowValues) {
+  const headers = getYdpPairScoresHeaders_();
+  const rowNumber = existingPair && existingPair.rowNumber ? existingPair.rowNumber : sheet.getLastRow() + 1;
+  sheet.getRange(rowNumber, 1, 1, headers.length).setValues([rowValues]);
+
+  return {
+    rowNumber: rowNumber,
+    pairId: String(rowValues[headers.indexOf('Pair ID')] || '').trim(),
+    status: String(rowValues[headers.indexOf('Pair Score Status')] || '').trim()
+  };
+}
+
+function clampYdpWeightedScore_(value, maxValue) {
+  const numberValue = Number(value);
+
+  if (isNaN(numberValue)) {
+    return 0;
+  }
+
+  return Math.max(0, Math.min(maxValue, Math.round(numberValue)));
 }
 
 function getYdpExistingMenteeScoreMap_(sheet) {
@@ -794,6 +1123,27 @@ function getYdpMenteeScoresHeaders_() {
     'Reviewer Notes',
     'Gemini Summary',
     'Gemini Concerns',
+    'Scored At'
+  ];
+}
+
+function getYdpPairScoresHeaders_() {
+  return [
+    'Pair ID',
+    'Mentee ID',
+    'Mentee Name',
+    'Mentee Email',
+    'Mentor ID',
+    'Mentor Name',
+    'Mentor Email',
+    'Skill Fit Score',
+    'Career Fit Score',
+    'Availability Fit Score',
+    'Capacity Fit Score',
+    'Total Pair Score',
+    'Gemini Reason',
+    'Gemini Concern',
+    'Pair Score Status',
     'Scored At'
   ];
 }

@@ -244,6 +244,7 @@ Use this order:
 5. Open `YDP Matching > Sync source snapshots from forms`.
 6. Open `YDP Matching > Test Gemini connection`.
 7. Open `YDP Matching > Generate next mentee score`.
+8. Open `YDP Matching > Generate next pair score`.
 
 Important: `Setup matching workbook` only creates the tabs. It does not import the mentor or mentee rows. The `Mentee Source Snapshot` and `Mentor Source Snapshot` tabs stay blank until `Sync source snapshots from forms` is run successfully.
 
@@ -257,6 +258,7 @@ The setup creates these tabs:
 - `Mentee Source Snapshot`
 - `Mentor Source Snapshot`
 - `Mentee Scores`
+- `Pair Scores`
 - `Match Recommendations`
 - `Matched Pairs`
 - `Run Log`
@@ -268,6 +270,7 @@ The setup creates these tabs:
 | `Setup matching workbook` | Creates the matching tabs and configuration area. | Use once at the start, or rerun if tabs are missing. | This does not import mentor/mentee data. |
 | `Sync source snapshots from forms` | Copies the latest rows from the live mentee and mentor form response sheets into this matching workbook. | Use before scoring or matching, especially after new people register. | For now this is manual. A scheduled auto-sync will be added after scoring/matching is stable. |
 | `Generate next mentee score` | Uses Gemini to score one unscored mentee against the YDP selection criteria and writes the result into `Mentee Scores`. | Use after the source snapshots have data. Run it again to continue scoring remaining mentees. | Gemini gives a review recommendation; it does not make the final decision for the team. If Gemini quota is reached, wait and run it again later. |
+| `Generate next pair score` | Uses Gemini to score one eligible mentee against one available mentor and writes the comparison into `Pair Scores`. | Use after mentee scores and mentor snapshots exist. Run it again later to continue pair scoring. | This can hit Gemini quota. Existing pair scores are preserved. |
 | `Test Gemini connection` | Checks that the Gemini API key is working. | Use after setting or changing the API key. | The API key must stay in Apps Script Script Properties, not in GitHub. |
 
 ## Mentee Scoring
@@ -303,3 +306,37 @@ The matching automation currently sets scored rows to `Pending Review`. The prog
 If you see a quota message, do not delete the sheet. Wait for the quota window to reset, then run `Generate next mentee score` again. It will continue from the unscored or `ERROR` rows.
 
 The current build sets up the matching workbook, source snapshots, Gemini connection test, and mentee scoring. It does not finalize mentor-mentee matches yet.
+
+## Pair Scoring
+
+The `Generate next pair score` button creates the `Pair Scores` audit trail one comparison at a time.
+
+It reads:
+
+- eligible mentees from `Mentee Scores`,
+- mentors from `Mentor Source Snapshot`.
+
+Eligible mentees must have:
+
+- `Final Score >= 60`,
+- `Review Status = Pending Review`,
+- a mentee ID,
+- an email address.
+
+Each pair score contains:
+
+- skill fit score out of `40`,
+- career fit score out of `30`,
+- availability fit score out of `15`,
+- capacity fit score out of `15`,
+- total pair score out of `100`,
+- Gemini reason,
+- Gemini concern.
+
+Testing order:
+
+1. Run `YDP Matching > Setup matching workbook`.
+2. Confirm the `Pair Scores` tab exists.
+3. Run `YDP Matching > Generate next pair score`.
+4. Open `Pair Scores`.
+5. Confirm one row was added, or wait and retry if Gemini quota appears.
