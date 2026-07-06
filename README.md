@@ -244,8 +244,9 @@ Use this order:
 5. Open `YDP Matching > Sync source snapshots from forms`.
 6. Open `YDP Matching > Test Gemini connection`.
 7. Open `YDP Matching > Generate next mentee score`.
-8. Open `YDP Matching > Generate next pair score`.
-9. After the first pair score works, use `YDP Matching > Generate pair scores batch` to score several unscored pairs at a time.
+8. After the first mentee score works, use `YDP Matching > Generate mentee scores batch` to score several unscored mentees at a time.
+9. Open `YDP Matching > Generate next pair score`.
+10. After the first pair score works, use `YDP Matching > Generate pair scores batch` to score several unscored pairs at a time.
 
 Important: `Setup matching workbook` only creates the tabs. It does not import the mentor or mentee rows. The `Mentee Source Snapshot` and `Mentor Source Snapshot` tabs stay blank until `Sync source snapshots from forms` is run successfully.
 
@@ -271,6 +272,7 @@ The setup creates these tabs:
 | `Setup matching workbook` | Creates the matching tabs and configuration area. | Use once at the start, or rerun if tabs are missing. | This does not import mentor/mentee data. |
 | `Sync source snapshots from forms` | Copies the latest rows from the live mentee and mentor form response sheets into this matching workbook. | Use before scoring or matching, especially after new people register. | For now this is manual. A scheduled auto-sync will be added after scoring/matching is stable. |
 | `Generate next mentee score` | Uses Gemini to score one unscored mentee against the YDP selection criteria and writes the result into `Mentee Scores`. | Use after the source snapshots have data. Run it again to continue scoring remaining mentees. | Gemini gives a review recommendation; it does not make the final decision for the team. If Gemini quota is reached, wait and run it again later. |
+| `Generate mentee scores batch` | Uses Gemini to score up to 5 unscored mentees in one run and writes them into `Mentee Scores`. | Use after the one-mentee test works. This is the normal button for moving faster. | It may stop because of Gemini quota. Nothing already scored is deleted. Run it again later to continue. |
 | `Generate next pair score` | Uses Gemini to score one eligible mentee against one available mentor and writes the comparison into `Pair Scores`. | Use after mentee scores and mentor snapshots exist. Run it again later to continue pair scoring. | This can hit Gemini quota. Existing pair scores are preserved. If a row says `Error`, read `Gemini Concern`; running the button again retries that same pair. |
 | `Generate pair scores batch` | Uses Gemini to score up to 5 unscored mentee/mentor pairs in one run and writes them into `Pair Scores`. | Use after the one-pair test works. This is the normal button for moving faster. | It still may stop because of Gemini quota or Apps Script time limits. Nothing already scored is deleted. Run it again later to continue. |
 | `Test Gemini connection` | Checks that the Gemini API key is working. | Use after setting or changing the API key. | The API key must stay in Apps Script Script Properties, not in GitHub. |
@@ -279,7 +281,15 @@ The setup creates these tabs:
 
 The `Generate next mentee score` button scores mentees in `Mentee Source Snapshot` one at a time.
 
-It is intentionally one-at-a-time because Gemini can hit quota/rate limits if too many people are scored in one run. The script keeps completed scores, skips already-scored mentees, retries rows marked `ERROR`, and stops safely when quota is reached.
+The `Generate mentee scores batch` button does the same work, but tries up to 5 mentees in one run. In plain English:
+
+- `Generate next mentee score` = test or retry one mentee.
+- `Generate mentee scores batch` = move faster once the test works.
+- Neither button deletes existing mentee scores.
+- Already-scored mentees are skipped.
+- Rows marked `ERROR` are retried, because the issue may have been temporary.
+
+The script keeps completed scores, skips already-scored mentees, retries rows marked `ERROR`, and stops safely when quota is reached.
 
 It writes these review columns into `Mentee Scores`:
 

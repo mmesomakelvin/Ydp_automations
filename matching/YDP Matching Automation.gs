@@ -7,7 +7,7 @@ const YDP_MATCHING_CONFIG = {
   defaultMentorSpreadsheetId: '1xKEca0gDJCkfkkI00QmhymfPfvn6o-fP-k8CF_LKaAU',
   defaultResponseTabName: 'Form_Responses',
   defaultGeminiModel: 'gemini-3.5-flash',
-  defaultMenteeScoringBatchSize: 1,
+  defaultMenteeScoringBatchSize: 5,
   defaultPairScoringBatchSize: 5,
   maxManualRunMilliseconds: 240000,
   sheets: {
@@ -38,6 +38,7 @@ function onOpen() {
     .addItem('Sync source snapshots from forms', 'syncYdpMatchingSourceSnapshots')
     .addSeparator()
     .addItem('Generate next mentee score', 'generateYdpMenteeScores')
+    .addItem('Generate mentee scores batch', 'generateYdpMenteeScoresBatch')
     .addItem('Generate next pair score', 'generateYdpNextPairScore')
     .addItem('Generate pair scores batch', 'generateYdpPairScoresBatch')
     .addSeparator()
@@ -106,6 +107,14 @@ function testYdpGeminiConnection() {
 }
 
 function generateYdpMenteeScores() {
+  generateYdpMenteeScores_(1, 'GENERATE_MENTEE_SCORE');
+}
+
+function generateYdpMenteeScoresBatch() {
+  generateYdpMenteeScores_(getYdpDefaultMenteeScoringBatchSize_(), 'GENERATE_MENTEE_SCORES_BATCH');
+}
+
+function generateYdpMenteeScores_(maxMenteesToScore, actionName) {
   const runStartedAt = Date.now();
 
   try {
@@ -139,7 +148,7 @@ function generateYdpMenteeScores() {
         break;
       }
 
-      if (successCount >= YDP_MATCHING_CONFIG.defaultMenteeScoringBatchSize) {
+      if (successCount >= maxMenteesToScore) {
         break;
       }
 
@@ -212,18 +221,19 @@ function generateYdpMenteeScores() {
 
     scoreSheet.autoResizeColumns(1, getYdpMenteeScoresHeaders_().length);
 
-    let message = 'Generated mentee scores for ' + successCount + ' mentees. Skipped already-scored rows: ' + skippedCount + '. Errors: ' + errorCount + '.';
+    const message = buildYdpMenteeScoreBatchMessage_({
+      successCount: successCount,
+      skippedCount: skippedCount,
+      errorCount: errorCount,
+      quotaHit: quotaHit,
+      quotaMessage: quotaMessage,
+      completedAll: successCount === 0 && !quotaHit && errorCount === 0
+    });
 
-    if (quotaHit) {
-      message += '\n\nGemini quota was reached, so scoring stopped safely. Wait and run this button again later. ' + quotaMessage;
-    } else if (successCount >= YDP_MATCHING_CONFIG.defaultMenteeScoringBatchSize) {
-      message += '\n\nOne mentee was scored. Run this button again when you want to score the next unscored mentee.';
-    }
-
-    logYdpMatchingRun_('GENERATE_MENTEE_SCORES', quotaHit || errorCount ? 'PARTIAL_SUCCESS' : 'SUCCESS', message);
+    logYdpMatchingRun_(actionName, quotaHit || errorCount ? 'PARTIAL_SUCCESS' : 'SUCCESS', message);
     SpreadsheetApp.getUi().alert(message);
   } catch (error) {
-    logYdpMatchingRun_('GENERATE_MENTEE_SCORES', 'ERROR', error.message);
+    logYdpMatchingRun_(actionName, 'ERROR', error.message);
     SpreadsheetApp.getUi().alert('Mentee scoring failed:\n\n' + error.message);
   }
 }
@@ -1017,6 +1027,39 @@ function getYdpMenteeScoreKey_(menteeOrScore) {
   }
 
   return '';
+}
+
+function getYdpDefaultMenteeScoringBatchSize_() {
+  return YDP_MATCHING_CONFIG.defaultMenteeScoringBatchSize;
+}
+
+function buildYdpMenteeScoreBatchMessage_(summary) {
+  if (summary.completedAll) {
+    return 'All available mentees already have scores.';
+  }
+
+  const lines = [
+    'Generated mentee scores for ' + summary.successCount + ' mentees.',
+    'Skipped already-scored rows: ' + summary.skippedCount + '.',
+    'Errors: ' + summary.errorCount + '.'
+  ];
+
+  if (summary.quotaHit) {
+    lines.push('');
+    lines.push('Gemini quota was reached, so scoring stopped safely. Wait and run this button again later.');
+
+    if (summary.quotaMessage) {
+      lines.push(summary.quotaMessage);
+    }
+  } else if (summary.successCount === 1) {
+    lines.push('');
+    lines.push('One mentee was scored. Run this button again when you want to score the next unscored mentee.');
+  } else if (summary.successCount > 1) {
+    lines.push('');
+    lines.push('Run this button again when you want to continue scoring the next unscored mentees.');
+  }
+
+  return lines.join('\n');
 }
 
 function isYdpGeminiQuotaError_(error) {

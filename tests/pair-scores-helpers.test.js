@@ -43,6 +43,8 @@ assert.ok(describedError.length <= 900);
 
 assert.strictEqual(typeof context.getYdpDefaultPairScoringBatchSize_, 'function');
 assert.strictEqual(context.getYdpDefaultPairScoringBatchSize_(), 5);
+assert.strictEqual(typeof context.getYdpDefaultMenteeScoringBatchSize_, 'function');
+assert.strictEqual(context.getYdpDefaultMenteeScoringBatchSize_(), 5);
 assert.strictEqual(typeof context.shouldYdpSkipExistingPairScore_, 'function');
 assert.strictEqual(context.shouldYdpSkipExistingPairScore_({ status: 'Scored' }), true);
 assert.strictEqual(context.shouldYdpSkipExistingPairScore_({ status: 'scored' }), true);
@@ -60,5 +62,17 @@ const batchMessage = context.buildYdpPairScoreBatchMessage_({
 assert.ok(batchMessage.includes('Generated pair scores for 3 pairs.'));
 assert.ok(batchMessage.includes('Skipped already-scored pairs: 7.'));
 assert.ok(batchMessage.includes('Errors: 1.'));
+
+assert.strictEqual(typeof context.buildYdpMenteeScoreBatchMessage_, 'function');
+const menteeBatchMessage = context.buildYdpMenteeScoreBatchMessage_({
+  successCount: 5,
+  skippedCount: 12,
+  errorCount: 0,
+  quotaHit: false,
+  completedAll: false
+});
+assert.ok(menteeBatchMessage.includes('Generated mentee scores for 5 mentees.'));
+assert.ok(menteeBatchMessage.includes('Skipped already-scored rows: 12.'));
+assert.ok(menteeBatchMessage.includes('Errors: 0.'));
 
 console.log('pair score helper tests passed');
