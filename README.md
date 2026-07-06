@@ -298,7 +298,7 @@ It writes these review columns into `Mentee Scores`:
 - `Career Goals Score`
 - `Soft Skills Score`
 - `Final Score`
-- `Review Status`
+- `Gemini Review Status`
 - `Gemini Summary`
 - `Gemini Concerns`
 - `Scored At`
@@ -313,7 +313,15 @@ Learning Commitment Score * 8
 = Final Score out of 100
 ```
 
-The matching automation currently sets scored rows to `Pending Review`. The program team still reviews before anyone is selected or matched.
+The matching automation sets `Gemini Review Status` automatically:
+
+| Status | Meaning |
+| --- | --- |
+| `Can Pair` | The mentee crossed the automated threshold and can be compared with mentors. |
+| `Do Not Pair` | The mentee did not cross the automated threshold for matching. |
+| `ERROR` | Gemini could not score the row; the script will retry it. |
+
+For now, the crossing line is `Final Score >= 60`.
 
 If you see a quota message, do not delete the sheet. Wait for the quota window to reset, then run `Generate next mentee score` again. It will continue from the unscored or `ERROR` rows.
 
@@ -339,9 +347,11 @@ It reads:
 Eligible mentees must have:
 
 - `Final Score >= 60`,
-- `Review Status = Pending Review`,
+- `Gemini Review Status = Can Pair`,
 - a mentee ID,
 - an email address.
+
+`Pair Scores` is related to `Mentee Scores`. It does not match every registered mentee. It only compares mentors against mentees that have crossed the automated review stage, meaning `Gemini Review Status = Can Pair`.
 
 Each pair score contains:
 

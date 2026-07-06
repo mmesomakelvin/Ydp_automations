@@ -42,7 +42,7 @@ Use `Mentee Scores` as the source for eligible mentees.
 A mentee is eligible when:
 
 - `Final Score >= 60`,
-- `Review Status = Pending Review`,
+- `Gemini Review Status = Can Pair`,
 - `Mentee ID` is present,
 - `Mentee Email` is present.
 

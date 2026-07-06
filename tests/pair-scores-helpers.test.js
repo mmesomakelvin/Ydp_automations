@@ -34,6 +34,17 @@ assert.strictEqual(JSON.stringify(headers), JSON.stringify([
   'Scored At'
 ]));
 
+assert.strictEqual(typeof context.getYdpMenteeScoresHeaders_, 'function');
+const menteeHeaders = context.getYdpMenteeScoresHeaders_();
+assert.ok(menteeHeaders.includes('Gemini Review Status'));
+assert.strictEqual(menteeHeaders.includes('Review Status'), false);
+
+assert.strictEqual(typeof context.getYdpGeminiReviewStatusForScore_, 'function');
+assert.strictEqual(context.getYdpGeminiReviewStatusForScore_(60), 'Can Pair');
+assert.strictEqual(context.getYdpGeminiReviewStatusForScore_(100), 'Can Pair');
+assert.strictEqual(context.getYdpGeminiReviewStatusForScore_(59), 'Do Not Pair');
+assert.strictEqual(context.getYdpGeminiReviewStatusForScore_(''), 'Do Not Pair');
+
 assert.strictEqual(typeof context.describeYdpPairScoreError_, 'function');
 
 const longError = 'Gemini API HTTP 503 UNAVAILABLE: ' + 'x'.repeat(1000);

@@ -58,7 +58,9 @@ function setupYdpMatchingWorkbookTabs_(spreadsheet) {
   setupYdpSourceConfigSheet_(spreadsheet);
   ensureYdpSheetWithHeaders_(spreadsheet, YDP_MATCHING_CONFIG.sheets.menteeSnapshot, []);
   ensureYdpSheetWithHeaders_(spreadsheet, YDP_MATCHING_CONFIG.sheets.mentorSnapshot, []);
-  ensureYdpSheetWithHeaders_(spreadsheet, YDP_MATCHING_CONFIG.sheets.menteeScores, getYdpMenteeScoresHeaders_());
+  migrateYdpMenteeScoreReviewStatus_(
+    ensureYdpSheetWithHeaders_(spreadsheet, YDP_MATCHING_CONFIG.sheets.menteeScores, getYdpMenteeScoresHeaders_())
+  );
   ensureYdpSheetWithHeaders_(spreadsheet, YDP_MATCHING_CONFIG.sheets.pairScores, getYdpPairScoresHeaders_());
   ensureYdpSheetWithHeaders_(spreadsheet, YDP_MATCHING_CONFIG.sheets.matchRecommendations, getYdpMatchRecommendationHeaders_());
   ensureYdpSheetWithHeaders_(spreadsheet, YDP_MATCHING_CONFIG.sheets.matchedPairs, getYdpMatchedPairsHeaders_());
@@ -185,7 +187,7 @@ function generateYdpMenteeScores_(maxMenteesToScore, actionName) {
           careerScore,
           softSkillsScore,
           finalScore,
-          'Pending Review',
+          getYdpGeminiReviewStatusForScore_(finalScore),
           '',
           String(scoring.summary || '').trim(),
           String(scoring.concerns || '').trim(),
@@ -280,7 +282,7 @@ function generateYdpPairScores_(maxPairsToScore, actionName) {
     let stoppedForTime = false;
 
     if (mentees.length === 0) {
-      throw new Error('No eligible mentees found. Eligible mentees need Final Score >= 60 and Review Status = Pending Review.');
+      throw new Error('No eligible mentees found. Eligible mentees need Final Score >= 60 and Gemini Review Status = Can Pair.');
     }
 
     if (mentors.length === 0) {
@@ -776,7 +778,7 @@ function getYdpEligibleMenteesForPairScoring_(sheet) {
   const emailIndex = headers.indexOf('Mentee Email');
   const careerPathIndex = headers.indexOf('Career Path Interest');
   const finalScoreIndex = headers.indexOf('Final Score');
-  const reviewStatusIndex = headers.indexOf('Review Status');
+  const reviewStatusIndex = getYdpMenteeReviewStatusIndex_(headers);
   const summaryIndex = headers.indexOf('Gemini Summary');
   const concernsIndex = headers.indexOf('Gemini Concerns');
 
@@ -796,7 +798,7 @@ function getYdpEligibleMenteesForPairScoring_(sheet) {
       mentee.email &&
       !isNaN(mentee.finalScore) &&
       mentee.finalScore >= 60 &&
-      mentee.reviewStatus === 'Pending Review';
+      mentee.reviewStatus === 'Can Pair';
   }).sort(function(a, b) {
     return b.finalScore - a.finalScore;
   });
@@ -980,7 +982,7 @@ function getYdpExistingMenteeScoreMap_(sheet) {
   const idIndex = headers.indexOf('Mentee ID');
   const emailIndex = headers.indexOf('Mentee Email');
   const finalScoreIndex = headers.indexOf('Final Score');
-  const reviewStatusIndex = headers.indexOf('Review Status');
+  const reviewStatusIndex = getYdpMenteeReviewStatusIndex_(headers);
 
   values.forEach(function(row, index) {
     const score = {
@@ -1010,7 +1012,7 @@ function upsertYdpMenteeScoreRow_(sheet, existingScore, rowValues) {
     id: String(rowValues[headers.indexOf('Mentee ID')] || '').trim(),
     email: String(rowValues[headers.indexOf('Mentee Email')] || '').trim(),
     finalScore: String(rowValues[headers.indexOf('Final Score')] || '').trim(),
-    reviewStatus: String(rowValues[headers.indexOf('Review Status')] || '').trim()
+    reviewStatus: String(rowValues[getYdpMenteeReviewStatusIndex_(headers)] || '').trim()
   };
 }
 
@@ -1031,6 +1033,26 @@ function getYdpMenteeScoreKey_(menteeOrScore) {
 
 function getYdpDefaultMenteeScoringBatchSize_() {
   return YDP_MATCHING_CONFIG.defaultMenteeScoringBatchSize;
+}
+
+function getYdpGeminiReviewStatusForScore_(finalScore) {
+  const numberValue = Number(finalScore);
+
+  if (!isNaN(numberValue) && numberValue >= 60) {
+    return 'Can Pair';
+  }
+
+  return 'Do Not Pair';
+}
+
+function getYdpMenteeReviewStatusIndex_(headers) {
+  const geminiReviewStatusIndex = headers.indexOf('Gemini Review Status');
+
+  if (geminiReviewStatusIndex !== -1) {
+    return geminiReviewStatusIndex;
+  }
+
+  return headers.indexOf('Review Status');
 }
 
 function buildYdpMenteeScoreBatchMessage_(summary) {
@@ -1259,6 +1281,56 @@ function ensureYdpSheetWithHeaders_(spreadsheet, sheetName, headers) {
   return sheet;
 }
 
+function migrateYdpMenteeScoreReviewStatus_(sheet) {
+  if (!sheet || sheet.getLastRow() < 1) {
+    return;
+  }
+
+  const headers = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), getYdpMenteeScoresHeaders_().length)).getValues()[0].map(function(header) {
+    return String(header || '').trim();
+  });
+  const oldStatusIndex = headers.indexOf('Review Status');
+  const newStatusIndex = headers.indexOf('Gemini Review Status');
+  const statusIndex = newStatusIndex !== -1 ? newStatusIndex : oldStatusIndex;
+
+  if (oldStatusIndex !== -1 && newStatusIndex === -1) {
+    sheet.getRange(1, oldStatusIndex + 1).setValue('Gemini Review Status');
+  }
+
+  if (statusIndex === -1 || sheet.getLastRow() <= 1) {
+    return;
+  }
+
+  const finalScoreIndex = headers.indexOf('Final Score');
+
+  if (finalScoreIndex === -1) {
+    return;
+  }
+
+  const rowCount = sheet.getLastRow() - 1;
+  const finalScoreValues = sheet.getRange(2, finalScoreIndex + 1, rowCount, 1).getValues();
+  const statusRange = sheet.getRange(2, statusIndex + 1, rowCount, 1);
+  const statusValues = statusRange.getValues();
+  let changed = false;
+
+  for (let index = 0; index < statusValues.length; index++) {
+    const currentStatus = String(statusValues[index][0] || '').trim();
+
+    if (currentStatus === 'ERROR' || currentStatus === 'Can Pair' || currentStatus === 'Do Not Pair') {
+      continue;
+    }
+
+    if (currentStatus === 'Pending Review' || currentStatus === '') {
+      statusValues[index][0] = getYdpGeminiReviewStatusForScore_(finalScoreValues[index][0]);
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    statusRange.setValues(statusValues);
+  }
+}
+
 function getOrCreateYdpSheet_(spreadsheet, sheetName) {
   return spreadsheet.getSheetByName(sheetName) || spreadsheet.insertSheet(sheetName);
 }
@@ -1274,7 +1346,7 @@ function getYdpMenteeScoresHeaders_() {
     'Career Goals Score',
     'Soft Skills Score',
     'Final Score',
-    'Review Status',
+    'Gemini Review Status',
     'Reviewer Notes',
     'Gemini Summary',
     'Gemini Concerns',
