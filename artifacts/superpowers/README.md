@@ -14,6 +14,7 @@ Each numbered file is one automation capability, written in plain language befor
 | 4 | YDP Program Control Center | Brainstorming | Internal Vercel portal direction is captured: Google login allowlist, hybrid Google Sheet + GitHub docs source, view-only first, status dashboard plus documentation library. | Finalize tracker columns, allowed users, website framework, page structure, and GitHub/Sheet reading method. Then build the tracker and portal. |
 | 5 | Mentor-Mentee Matching Criteria | In build | Source Google Doc was read and converted into mentee selection criteria, weighted scoring, and mentor-mentee pairing priorities. Matching workbook setup, source snapshot sync, Gemini connection test, Gemini-assisted mentee scoring, and Pair Scores auto-matching design are documented. | Build `Pair Scores`, `Generate next pair score`, and `Auto-match from pair scores`. |
 | 6 | Mentee Application Intake Automation | Brainstorming | Mentee-first intake design captured: same response sheet, intake score/status/recommendation/notes, email+phone duplicate checks, and `Intake Dictionary` helper tab. | Confirm required fields and phone-normalization rules, then extend the existing mentee Apps Script. |
+| 7 | Pair Scores Auto Matching | Ready to build | Final matching design is documented separately: every eligible mentee is compared against every available mentor, Gemini scores each pair, and the system selects final matches. | Implement `Pair Scores`, `Generate next pair score`, and `Auto-match from pair scores` in the matching Apps Script. |
 
 ## Implementation Links
 
@@ -25,6 +26,7 @@ Each numbered file is one automation capability, written in plain language befor
 | 4 | YDP Program Control Center | Not built yet | Planned Vercel internal website |
 | 5 | Mentor-Mentee Matching Criteria | `matching/YDP Matching Automation.gs`, `matching/.clasp.json` | Apps Script ID: `1svZufkQfd0cKRBv75BuxTOqs6QIMQWA214SLU5d69QF_x8Z1IjM7DCYf`; source doc: `https://docs.google.com/document/d/1ytuSV7vLncZbyLF_6ebbXijYoYt9ZYyZTo7rzPmuOqE/edit?usp=sharing` |
 | 6 | Mentee Application Intake Automation | Planned extension to `YDP Mentee Email.gs` | Uses existing mentee Apps Script ID: `1HnM-PC5rnLXOmbN-DW9mZBTITdeL2cFyFaX6KJ3_iVyT94iQHKN9520u` |
+| 7 | Pair Scores Auto Matching | Planned extension to `matching/YDP Matching Automation.gs` | Uses matching Apps Script ID: `1svZufkQfd0cKRBv75BuxTOqs6QIMQWA214SLU5d69QF_x8Z1IjM7DCYf` |
 
 ## What Is Left
 

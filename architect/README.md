@@ -14,6 +14,7 @@ Use this as the build guardrail before implementation so we do not mix script ID
 | 4 | YDP Program Control Center | Vercel web app + Google login allowlist + Google Sheets tracker + GitHub Markdown docs | Design in progress |
 | 5 | Mentor-Mentee Matching Criteria | Google Sheets + Apps Script + mentor/mentee IDs + optional Gemini assistance + human review | Design in progress |
 | 6 | Mentee Application Intake Automation | Existing mentee Google Sheet + Apps Script form-submit trigger + rule-based scoring + intake dictionary tab | Design in progress |
+| 7 | Pair Scores Auto Matching | Matching workbook + Apps Script + Gemini pair scoring + resumable pair scores + auto-matched final pairs | Ready to build |
 
 ## Build Rules
 
