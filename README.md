@@ -277,6 +277,20 @@ The setup creates these tabs:
 | `Generate pair scores batch` | Uses Gemini to score up to 5 unscored mentee/mentor pairs in one run and writes them into `Pair Scores`. | Use after the one-pair test works. This is the normal button for moving faster. | It still may stop because of Gemini quota or Apps Script time limits. Nothing already scored is deleted. Run it again later to continue. |
 | `Test Gemini connection` | Checks that the Gemini API key is working. | Use after setting or changing the API key. | The API key must stay in Apps Script Script Properties, not in GitHub. |
 
+## Data Dictionaries
+
+Each automation workbook now has a `Create data dictionary` button. It creates or refreshes a `Data Dictionary` tab that explains the key sheets, columns, and menu buttons in plain English.
+
+Run them here:
+
+| Workbook | Menu path |
+| --- | --- |
+| Mentee response sheet | `YDP Automation > Create data dictionary` |
+| Mentor response sheet | `YDP Automation > Create data dictionary` |
+| Matching workbook | `YDP Matching > Create data dictionary` |
+
+This is safe to run. It only updates the `Data Dictionary` tab. It does not send emails, assign IDs, score mentees, score pairs, or change response data.
+
 ## Mentee Scoring
 
 The `Generate next mentee score` button scores mentees in `Mentee Source Snapshot` one at a time.

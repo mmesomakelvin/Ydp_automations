@@ -32,6 +32,7 @@ function onOpen() {
     .addItem('Setup email tracking columns', 'setupYdpMenteeEmailTrackingColumns')
     .addItem('Install form submit trigger', 'installYdpMenteeFormSubmitTrigger')
     .addItem('Assign IDs and mark duplicates', 'assignYdpMenteeIdsAndMarkDuplicates')
+    .addItem('Create data dictionary', 'createYdpMenteeDataDictionary')
     .addSeparator()
     .addItem('Send test mentee email', 'sendTestYdpMenteeEmail')
     .addItem('Preview selected row email', 'previewSelectedYdpMenteeEmail')
@@ -137,6 +138,58 @@ function assignYdpMenteeIdsAndMarkDuplicates(options) {
   }
 
   return summary;
+}
+
+function createYdpMenteeDataDictionary() {
+  const sheet = getOrCreateYdpMenteeDictionarySheet_();
+  writeYdpMenteeDataDictionary_(sheet, getYdpMenteeDataDictionaryRows_());
+  SpreadsheetApp.getUi().alert('Mentee data dictionary created/updated in the "Data Dictionary" tab.');
+}
+
+function getYdpMenteeDataDictionaryRows_() {
+  return [
+    ['Section', 'Sheet / Button', 'Column / Action', 'Plain English Meaning', 'When To Use'],
+    ['Sheet', YDP_MENTEE_CONFIG.sheetName, 'Timestamp', 'When the mentee submitted the application form.', 'Reference only.'],
+    ['Sheet', YDP_MENTEE_CONFIG.sheetName, 'Email Address', 'The mentee email address. This is used as the unique identity key.', 'Required for IDs and emails.'],
+    ['Sheet', YDP_MENTEE_CONFIG.sheetName, 'First Name', 'The mentee first name used for email personalization.', 'Required for cleaner emails.'],
+    ['Sheet', YDP_MENTEE_CONFIG.sheetName, 'Last Name', 'The mentee last name used for records and matching.', 'Reference and matching.'],
+    ['Sheet', YDP_MENTEE_CONFIG.sheetName, 'Phone', 'The mentee phone number from the form.', 'Reference only for now.'],
+    ['Sheet', YDP_MENTEE_CONFIG.sheetName, 'Location (City, Country)', 'Where the mentee is based.', 'Useful later for timezone or cohort context.'],
+    ['Sheet', YDP_MENTEE_CONFIG.sheetName, 'LinkedIn Profile URL', 'The mentee LinkedIn profile link.', 'Reference for review.'],
+    ['Sheet', YDP_MENTEE_CONFIG.sheetName, 'Preferred Communication Method', 'How the mentee prefers to be contacted.', 'Useful later for engagement planning.'],
+    ['Sheet', YDP_MENTEE_CONFIG.sheetName, YDP_MENTEE_CONFIG.headers.personId, 'Stable mentee ID created by the automation.', 'Use this instead of names when matching or tracking.'],
+    ['Sheet', YDP_MENTEE_CONFIG.sheetName, YDP_MENTEE_CONFIG.headers.duplicateStatus, 'Shows ORIGINAL for first application and DUPLICATE for repeated email submissions.', 'Use this to avoid counting the same mentee twice.'],
+    ['Sheet', YDP_MENTEE_CONFIG.sheetName, YDP_MENTEE_CONFIG.headers.originalRow, 'For duplicate rows, this points back to the original row number.', 'Use when cleaning duplicate applications.'],
+    ['Sheet', YDP_MENTEE_CONFIG.sheetName, YDP_MENTEE_CONFIG.headers.idAssignedAt, 'Timestamp when the mentee ID was assigned.', 'Audit trail.'],
+    ['Sheet', YDP_MENTEE_CONFIG.sheetName, YDP_MENTEE_CONFIG.headers.registrationStatus, 'Whether the first registration email was sent.', 'Do not edit unless correcting a mistake.'],
+    ['Sheet', YDP_MENTEE_CONFIG.sheetName, YDP_MENTEE_CONFIG.headers.registrationSentAt, 'Date/time the first registration email was sent.', 'Audit trail.'],
+    ['Sheet', YDP_MENTEE_CONFIG.sheetName, YDP_MENTEE_CONFIG.headers.alreadyRegisteredStatus, 'Whether the already-registered update email was sent.', 'Used for older existing applicants.'],
+    ['Sheet', YDP_MENTEE_CONFIG.sheetName, YDP_MENTEE_CONFIG.headers.alreadyRegisteredSentAt, 'Date/time the already-registered update email was sent.', 'Audit trail.'],
+    ['Sheet', YDP_MENTEE_CONFIG.sheetName, YDP_MENTEE_CONFIG.headers.lastError, 'Last email error message for that row.', 'Check this if an email did not send.'],
+    ['Button', YDP_MENTEE_CONFIG.menuName, 'Setup email tracking columns', 'Creates the email tracking columns if they are missing.', 'Run once, or if columns are missing.'],
+    ['Button', YDP_MENTEE_CONFIG.menuName, 'Install form submit trigger', 'Makes the automation run when a new form response arrives.', 'Run once after deploying the script.'],
+    ['Button', YDP_MENTEE_CONFIG.menuName, 'Assign IDs and mark duplicates', 'Creates mentee IDs and marks repeated email submissions as duplicates.', 'Run after importing or receiving new form rows.'],
+    ['Button', YDP_MENTEE_CONFIG.menuName, 'Create data dictionary', 'Creates this explanation tab.', 'Run whenever you want to refresh documentation.'],
+    ['Button', YDP_MENTEE_CONFIG.menuName, 'Send test mentee email', 'Sends a test email to an address you enter.', 'Use before real sends.'],
+    ['Button', YDP_MENTEE_CONFIG.menuName, 'Preview selected row email', 'Shows the email content for the selected row without sending.', 'Use when checking wording.'],
+    ['Button', YDP_MENTEE_CONFIG.menuName, 'Send mentee email to selected row', 'Sends the registration email to one selected mentee if not already sent.', 'Use for a single controlled send.'],
+    ['Button', YDP_MENTEE_CONFIG.menuName, 'Send mentee email to all unsent rows', 'Sends registration emails only to rows not already marked SENT.', 'Use carefully for bulk sends.'],
+    ['Button', YDP_MENTEE_CONFIG.menuName, 'Send already registered mentee update to all unsent rows', 'Sends the already-registered update to older rows that have not received it.', 'Use for existing applicants.'],
+    ['Button', YDP_MENTEE_CONFIG.menuName, 'Repair missing sent date for selected row', 'Adds a missing sent date where status already says SENT.', 'Use only to repair tracking.'],
+    ['Button', YDP_MENTEE_CONFIG.menuName, 'Resend email to selected row', 'Force resends one selected row.', 'Use only when you intentionally want a duplicate email sent.']
+  ];
+}
+
+function getOrCreateYdpMenteeDictionarySheet_() {
+  return SpreadsheetApp.getActive().getSheetByName('Data Dictionary') || SpreadsheetApp.getActive().insertSheet('Data Dictionary');
+}
+
+function writeYdpMenteeDataDictionary_(sheet, rows) {
+  sheet.clearContents();
+  sheet.getRange(1, 1, rows.length, rows[0].length).setValues(rows);
+  sheet.setFrozenRows(1);
+  sheet.getRange(1, 1, 1, rows[0].length).setFontWeight('bold');
+  sheet.autoResizeColumns(1, rows[0].length);
 }
 
 function sendTestYdpMenteeEmail() {

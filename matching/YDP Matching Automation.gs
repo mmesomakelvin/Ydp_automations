@@ -36,6 +36,7 @@ function onOpen() {
     .createMenu(YDP_MATCHING_CONFIG.menuName)
     .addItem('Setup matching workbook', 'setupYdpMatchingWorkbook')
     .addItem('Sync source snapshots from forms', 'syncYdpMatchingSourceSnapshots')
+    .addItem('Create data dictionary', 'createYdpMatchingDataDictionary')
     .addSeparator()
     .addItem('Generate next mentee score', 'generateYdpMenteeScores')
     .addItem('Generate mentee scores batch', 'generateYdpMenteeScoresBatch')
@@ -90,6 +91,74 @@ function syncYdpMatchingSourceSnapshots() {
     logYdpMatchingRun_('SYNC_SOURCE_SNAPSHOTS', 'ERROR', error.message);
     SpreadsheetApp.getUi().alert('Source sync failed:\n\n' + error.message);
   }
+}
+
+function createYdpMatchingDataDictionary() {
+  const sheet = getOrCreateYdpSheet_(SpreadsheetApp.getActive(), 'Data Dictionary');
+  writeYdpMatchingDataDictionary_(sheet, getYdpMatchingDataDictionaryRows_());
+  SpreadsheetApp.getUi().alert('Matching data dictionary created/updated in the "Data Dictionary" tab.');
+}
+
+function getYdpMatchingDataDictionaryRows_() {
+  return [
+    ['Section', 'Sheet / Button', 'Column / Action', 'Plain English Meaning', 'When To Use'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.sourceConfig, 'MENTEE_SOURCE_SPREADSHEET_ID', 'The Google Sheet ID for the live mentee form responses.', 'Used by source sync.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.sourceConfig, 'MENTOR_SOURCE_SPREADSHEET_ID', 'The Google Sheet ID for the live mentor form responses.', 'Used by source sync.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.sourceConfig, 'SOURCE_RESPONSE_TAB_NAME', 'Preferred source tab name. The script can still auto-detect common form tabs.', 'Usually leave as-is.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.sourceConfig, 'GEMINI_MODEL', 'Gemini model used for scoring and explanations.', 'Only change intentionally.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.menteeSnapshot, 'All copied source columns', 'Latest copied view of the mentee response sheet.', 'Refresh using source sync. Do not manually score here.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.mentorSnapshot, 'All copied source columns', 'Latest copied view of the mentor response sheet.', 'Refresh using source sync. Do not manually match here.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.menteeScores, 'Mentee ID', 'Stable mentee identifier.', 'Used for matching and tracking.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.menteeScores, 'Mentee Name', 'Readable mentee name.', 'Reference.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.menteeScores, 'Mentee Email', 'Mentee email address.', 'Reference and final communications.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.menteeScores, 'Career Path Interest', 'The mentee target data career path.', 'Used by matching.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.menteeScores, 'Learning Commitment Score', 'Gemini-assisted score from 0 to 5 for effort, learning, courses, and projects.', 'Part of final score.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.menteeScores, 'Community Engagement Score', 'Gemini-assisted score from 0 to 5 for YDP/community engagement.', 'Part of final score.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.menteeScores, 'Career Goals Score', 'Gemini-assisted score from 0 to 5 for clarity of goals and fit.', 'Part of final score.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.menteeScores, 'Soft Skills Score', 'Gemini-assisted score from 0 to 5 for commitment, teamwork, and ownership.', 'Part of final score.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.menteeScores, 'Final Score', 'Weighted score out of 100.', 'Mentees need 60 or above to be marked Can Pair.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.menteeScores, 'Gemini Review Status', 'Can Pair, Do Not Pair, or ERROR.', 'Only Can Pair mentees go into Pair Scores.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.menteeScores, 'Reviewer Notes', 'Optional human notes.', 'Use when overriding or explaining decisions.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.menteeScores, 'Gemini Summary', 'Gemini explanation of the mentee score.', 'Read for context.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.menteeScores, 'Gemini Concerns', 'Gemini concern or risk note.', 'Check before final decisions.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.menteeScores, 'Scored At', 'When Gemini scored the row.', 'Audit trail.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.pairScores, 'Pair ID', 'Unique ID for one mentee plus one mentor comparison.', 'Audit trail.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.pairScores, 'Skill Fit Score', 'Score out of 40 for mentor skill fit.', 'Part of total pair score.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.pairScores, 'Career Fit Score', 'Score out of 30 for career/background fit.', 'Part of total pair score.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.pairScores, 'Availability Fit Score', 'Score out of 15 for practical availability and communication fit.', 'Part of total pair score.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.pairScores, 'Capacity Fit Score', 'Score out of 15 for mentor capacity support.', 'Part of total pair score.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.pairScores, 'Total Pair Score', 'Overall mentor/mentee fit score out of 100.', 'Used later to auto-select matches.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.pairScores, 'Gemini Reason', 'Why Gemini thinks the pair works or does not work.', 'Review before final matching.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.pairScores, 'Gemini Concern', 'Any issue or error for the pair.', 'Check when status is Error.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.pairScores, 'Pair Score Status', 'Scored or Error.', 'Only Scored rows are considered complete.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.matchRecommendations, 'Recommendation ID', 'Unique ID for a recommended match.', 'Future auto-match output.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.matchRecommendations, 'Recommended Mentor ID', 'The mentor selected for a mentee.', 'Future auto-match output.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.matchRecommendations, 'Review Status', 'Team review state for the recommendation.', 'Use after auto-matching is built.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.matchedPairs, 'Match ID', 'Unique ID for a final mentor/mentee assignment.', 'Final matching tracker.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.matchedPairs, 'Match Status', 'Auto-Matched or later manual status.', 'Use after auto-matching is built.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.matchedPairs, 'Active Status', 'Whether the pair is active.', 'Used during the mentorship program.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.matchedPairs, 'Risk Status', 'Risk flag for inactive/no-show/problem pairs.', 'Used later for monitoring.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.runLog, 'Timestamp', 'When an automation action ran.', 'Audit trail.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.runLog, 'Action', 'The automation action name.', 'Audit trail.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.runLog, 'Status', 'SUCCESS, PARTIAL_SUCCESS, or ERROR.', 'Check when troubleshooting.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.runLog, 'Message', 'Detailed result or error from the automation.', 'Read when something fails.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Setup matching workbook', 'Creates/repairs matching tabs and migrates old status wording.', 'Run once, or when tabs/headers need repair.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Sync source snapshots from forms', 'Copies latest mentor and mentee source rows into this workbook.', 'Run before scoring after new form responses arrive.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Create data dictionary', 'Creates this explanation tab.', 'Run whenever you want to refresh documentation.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Generate next mentee score', 'Scores one unscored mentee with Gemini.', 'Use as a safe one-row test.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Generate mentee scores batch', 'Scores up to 5 unscored mentees with Gemini.', 'Use after the one-row test works.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Generate next pair score', 'Scores one mentee/mentor pair with Gemini.', 'Use as a safe one-pair test.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Generate pair scores batch', 'Scores up to 5 unscored mentee/mentor pairs with Gemini.', 'Use to move matching comparisons forward.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Test Gemini connection', 'Checks that the Gemini API key works.', 'Run after changing the API key or model.']
+  ];
+}
+
+function writeYdpMatchingDataDictionary_(sheet, rows) {
+  sheet.clearContents();
+  sheet.getRange(1, 1, rows.length, rows[0].length).setValues(rows);
+  sheet.setFrozenRows(1);
+  sheet.getRange(1, 1, 1, rows[0].length).setFontWeight('bold');
+  sheet.autoResizeColumns(1, rows[0].length);
 }
 
 function testYdpGeminiConnection() {

@@ -32,6 +32,7 @@ function onOpen() {
     .addItem('Setup email tracking columns', 'setupYdpMentorEmailTrackingColumns')
     .addItem('Install form submit trigger', 'installYdpMentorFormSubmitTrigger')
     .addItem('Assign IDs and mark duplicates', 'assignYdpMentorIdsAndMarkDuplicates')
+    .addItem('Create data dictionary', 'createYdpMentorDataDictionary')
     .addSeparator()
     .addItem('Send test mentor email', 'sendTestYdpMentorEmail')
     .addItem('Preview selected row email', 'previewSelectedYdpMentorEmail')
@@ -137,6 +138,64 @@ function assignYdpMentorIdsAndMarkDuplicates(options) {
   }
 
   return summary;
+}
+
+function createYdpMentorDataDictionary() {
+  const sheet = getOrCreateYdpMentorDictionarySheet_();
+  writeYdpMentorDataDictionary_(sheet, getYdpMentorDataDictionaryRows_());
+  SpreadsheetApp.getUi().alert('Mentor data dictionary created/updated in the "Data Dictionary" tab.');
+}
+
+function getYdpMentorDataDictionaryRows_() {
+  return [
+    ['Section', 'Sheet / Button', 'Column / Action', 'Plain English Meaning', 'When To Use'],
+    ['Sheet', YDP_MENTOR_CONFIG.sheetName, 'Timestamp', 'When the mentor submitted the application form.', 'Reference only.'],
+    ['Sheet', YDP_MENTOR_CONFIG.sheetName, 'Email Address', 'The mentor email address. This is used as the unique identity key.', 'Required for IDs and emails.'],
+    ['Sheet', YDP_MENTOR_CONFIG.sheetName, 'First Name', 'The mentor first name used for email personalization.', 'Required for cleaner emails.'],
+    ['Sheet', YDP_MENTOR_CONFIG.sheetName, 'Last Name', 'The mentor last name used for records and matching.', 'Reference and matching.'],
+    ['Sheet', YDP_MENTOR_CONFIG.sheetName, 'Phone Number', 'The mentor phone number from the form.', 'Reference only for now.'],
+    ['Sheet', YDP_MENTOR_CONFIG.sheetName, 'Location (city, country)', 'Where the mentor is based.', 'Useful later for timezone or cohort context.'],
+    ['Sheet', YDP_MENTOR_CONFIG.sheetName, 'LinkedIn Profile URL', 'The mentor LinkedIn profile link.', 'Reference for review.'],
+    ['Sheet', YDP_MENTOR_CONFIG.sheetName, 'Preferred Communication Method', 'How the mentor prefers to be contacted.', 'Useful later for engagement planning.'],
+    ['Sheet', YDP_MENTOR_CONFIG.sheetName, 'Years of Experience in Data', 'Mentor experience range.', 'Used by matching.'],
+    ['Sheet', YDP_MENTOR_CONFIG.sheetName, 'Current Role', 'Current job title or professional role.', 'Used by matching.'],
+    ['Sheet', YDP_MENTOR_CONFIG.sheetName, 'Areas of Expertise', 'Skills or data areas the mentor can support.', 'Used heavily by matching.'],
+    ['Sheet', YDP_MENTOR_CONFIG.sheetName, 'How many mentees are you willing to take on', 'Stated mentor capacity.', 'Matching uses this plus a flexible buffer of 2.'],
+    ['Sheet', YDP_MENTOR_CONFIG.sheetName, 'Availability', 'How many hours the mentor can give.', 'Used by matching.'],
+    ['Sheet', YDP_MENTOR_CONFIG.sheetName, 'Preferred Days and Times for Session', 'When the mentor prefers to meet.', 'Used by matching if available.'],
+    ['Sheet', YDP_MENTOR_CONFIG.sheetName, YDP_MENTOR_CONFIG.headers.personId, 'Stable mentor ID created by the automation.', 'Use this instead of names when matching or tracking.'],
+    ['Sheet', YDP_MENTOR_CONFIG.sheetName, YDP_MENTOR_CONFIG.headers.duplicateStatus, 'Shows ORIGINAL for first application and DUPLICATE for repeated email submissions.', 'Use this to avoid counting the same mentor twice.'],
+    ['Sheet', YDP_MENTOR_CONFIG.sheetName, YDP_MENTOR_CONFIG.headers.originalRow, 'For duplicate rows, this points back to the original row number.', 'Use when cleaning duplicate applications.'],
+    ['Sheet', YDP_MENTOR_CONFIG.sheetName, YDP_MENTOR_CONFIG.headers.idAssignedAt, 'Timestamp when the mentor ID was assigned.', 'Audit trail.'],
+    ['Sheet', YDP_MENTOR_CONFIG.sheetName, YDP_MENTOR_CONFIG.headers.registrationStatus, 'Whether the first registration email was sent.', 'Do not edit unless correcting a mistake.'],
+    ['Sheet', YDP_MENTOR_CONFIG.sheetName, YDP_MENTOR_CONFIG.headers.registrationSentAt, 'Date/time the first registration email was sent.', 'Audit trail.'],
+    ['Sheet', YDP_MENTOR_CONFIG.sheetName, YDP_MENTOR_CONFIG.headers.alreadyRegisteredStatus, 'Whether the already-registered update email was sent.', 'Used for older existing applicants.'],
+    ['Sheet', YDP_MENTOR_CONFIG.sheetName, YDP_MENTOR_CONFIG.headers.alreadyRegisteredSentAt, 'Date/time the already-registered update email was sent.', 'Audit trail.'],
+    ['Sheet', YDP_MENTOR_CONFIG.sheetName, YDP_MENTOR_CONFIG.headers.lastError, 'Last email error message for that row.', 'Check this if an email did not send.'],
+    ['Button', YDP_MENTOR_CONFIG.menuName, 'Setup email tracking columns', 'Creates the email tracking columns if they are missing.', 'Run once, or if columns are missing.'],
+    ['Button', YDP_MENTOR_CONFIG.menuName, 'Install form submit trigger', 'Makes the automation run when a new form response arrives.', 'Run once after deploying the script.'],
+    ['Button', YDP_MENTOR_CONFIG.menuName, 'Assign IDs and mark duplicates', 'Creates mentor IDs and marks repeated email submissions as duplicates.', 'Run after importing or receiving new form rows.'],
+    ['Button', YDP_MENTOR_CONFIG.menuName, 'Create data dictionary', 'Creates this explanation tab.', 'Run whenever you want to refresh documentation.'],
+    ['Button', YDP_MENTOR_CONFIG.menuName, 'Send test mentor email', 'Sends a test email to an address you enter.', 'Use before real sends.'],
+    ['Button', YDP_MENTOR_CONFIG.menuName, 'Preview selected row email', 'Shows the email content for the selected row without sending.', 'Use when checking wording.'],
+    ['Button', YDP_MENTOR_CONFIG.menuName, 'Send mentor email to selected row', 'Sends the registration email to one selected mentor if not already sent.', 'Use for a single controlled send.'],
+    ['Button', YDP_MENTOR_CONFIG.menuName, 'Send mentor email to all unsent rows', 'Sends registration emails only to rows not already marked SENT.', 'Use carefully for bulk sends.'],
+    ['Button', YDP_MENTOR_CONFIG.menuName, 'Send already registered mentor update to all unsent rows', 'Sends the already-registered update to older rows that have not received it.', 'Use for existing applicants.'],
+    ['Button', YDP_MENTOR_CONFIG.menuName, 'Repair missing sent date for selected row', 'Adds a missing sent date where status already says SENT.', 'Use only to repair tracking.'],
+    ['Button', YDP_MENTOR_CONFIG.menuName, 'Resend email to selected row', 'Force resends one selected row.', 'Use only when you intentionally want a duplicate email sent.']
+  ];
+}
+
+function getOrCreateYdpMentorDictionarySheet_() {
+  return SpreadsheetApp.getActive().getSheetByName('Data Dictionary') || SpreadsheetApp.getActive().insertSheet('Data Dictionary');
+}
+
+function writeYdpMentorDataDictionary_(sheet, rows) {
+  sheet.clearContents();
+  sheet.getRange(1, 1, rows.length, rows[0].length).setValues(rows);
+  sheet.setFrozenRows(1);
+  sheet.getRange(1, 1, 1, rows[0].length).setFontWeight('bold');
+  sheet.autoResizeColumns(1, rows[0].length);
 }
 
 function sendTestYdpMentorEmail() {
