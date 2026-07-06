@@ -7,7 +7,8 @@ const YDP_MATCHING_CONFIG = {
   defaultMentorSpreadsheetId: '1xKEca0gDJCkfkkI00QmhymfPfvn6o-fP-k8CF_LKaAU',
   defaultResponseTabName: 'Form_Responses',
   defaultGeminiModel: 'gemini-3.5-flash',
-  defaultMenteeScoringBatchSize: 10,
+  defaultMenteeScoringBatchSize: 1,
+  maxManualRunMilliseconds: 240000,
   sheets: {
     sourceConfig: 'Source Config',
     menteeSnapshot: 'Mentee Source Snapshot',
@@ -34,7 +35,7 @@ function onOpen() {
     .addItem('Setup matching workbook', 'setupYdpMatchingWorkbook')
     .addItem('Sync source snapshots from forms', 'syncYdpMatchingSourceSnapshots')
     .addSeparator()
-    .addItem('Generate mentee scores', 'generateYdpMenteeScores')
+    .addItem('Generate next mentee score', 'generateYdpMenteeScores')
     .addSeparator()
     .addItem('Test Gemini connection', 'testYdpGeminiConnection')
     .addToUi();
@@ -100,6 +101,8 @@ function testYdpGeminiConnection() {
 }
 
 function generateYdpMenteeScores() {
+  const runStartedAt = Date.now();
+
   try {
     setupYdpMatchingWorkbookTabs_(SpreadsheetApp.getActive());
 
@@ -127,6 +130,10 @@ function generateYdpMenteeScores() {
     let quotaMessage = '';
 
     for (let rowIndex = 0; rowIndex < sourceValues.slice(1).length; rowIndex++) {
+      if (Date.now() - runStartedAt > YDP_MATCHING_CONFIG.maxManualRunMilliseconds) {
+        break;
+      }
+
       if (successCount >= YDP_MATCHING_CONFIG.defaultMenteeScoringBatchSize) {
         break;
       }
@@ -203,9 +210,9 @@ function generateYdpMenteeScores() {
     let message = 'Generated mentee scores for ' + successCount + ' mentees. Skipped already-scored rows: ' + skippedCount + '. Errors: ' + errorCount + '.';
 
     if (quotaHit) {
-      message += '\n\nGemini quota was reached, so scoring stopped safely. Wait and run this button again later. Last error: ' + quotaMessage;
+      message += '\n\nGemini quota was reached, so scoring stopped safely. Wait and run this button again later. ' + quotaMessage;
     } else if (successCount >= YDP_MATCHING_CONFIG.defaultMenteeScoringBatchSize) {
-      message += '\n\nBatch limit reached. Run this button again to score the next batch.';
+      message += '\n\nOne mentee was scored. Run this button again when you want to score the next unscored mentee.';
     }
 
     logYdpMatchingRun_('GENERATE_MENTEE_SCORES', quotaHit || errorCount ? 'PARTIAL_SUCCESS' : 'SUCCESS', message);
@@ -423,22 +430,32 @@ function buildYdpMenteeScoringProfile_(headers, row, sourceRowNumber) {
 }
 
 function scoreYdpMenteeWithGemini_(mentee) {
+  const compactMentee = {
+    name: mentee.name,
+    careerPath: mentee.careerPath,
+    skills: mentee.skills,
+    coursesTraining: mentee.coursesTraining,
+    personalEffort: mentee.personalEffort,
+    goals: mentee.goals,
+    ydpMembership: mentee.ydpMembership,
+    ydpEngagement: mentee.ydpEngagement,
+    commitment: mentee.commitment,
+    teamwork: mentee.teamwork,
+    whySelect: mentee.whySelect
+  };
   const prompt = [
-    'You are scoring a mentee application for the YDP Mentorship Program.',
-    'Use only the information provided. Do not invent facts.',
+    'Score this YDP mentee application. Use only provided facts.',
     '',
-    'Scoring criteria:',
-    '1. Learning Commitment & Prior Effort: 0-5. Strong evidence includes courses, projects, certifications, practice, or real-world application.',
-    '2. Community Engagement & Participation: 0-5. Strong evidence includes YDP membership, discussions, volunteering, events, or collaborations.',
-    '3. Career Goals & Program Alignment: 0-5. Strong evidence includes clear career path, focused goals, and realistic mentorship expectations.',
-    '4. Soft Skills & Mindset: 0-5. Strong evidence includes proactiveness, commitment, teamwork, ownership, and openness to feedback.',
+    'Scores are 0-5:',
+    'learningScore: courses, projects, practice, prior effort.',
+    'communityScore: YDP/community membership and participation.',
+    'careerScore: clear career path, focused goals, mentorship fit.',
+    'softSkillsScore: commitment, teamwork, ownership, proactive mindset.',
     '',
     'Return JSON only. No markdown. No extra text.',
-    'Expected JSON shape:',
     '{"learningScore":0,"communityScore":0,"careerScore":0,"softSkillsScore":0,"summary":"","concerns":""}',
     '',
-    'Mentee application:',
-    JSON.stringify(mentee)
+    JSON.stringify(compactMentee)
   ].join('\n');
 
   return callYdpGeminiJson_(prompt);
@@ -675,11 +692,15 @@ function formatYdpGeminiHttpError_(statusCode, bodyText) {
     const body = JSON.parse(bodyText);
     const error = body && body.error ? body.error : {};
     const status = error.status ? String(error.status) : 'UNKNOWN';
-    const message = error.message ? String(error.message) : String(bodyText || '');
     const retryInfo = getYdpGeminiRetryInfo_(error.details || []);
-    const retrySuffix = retryInfo ? ' Retry after: ' + retryInfo + '.' : '';
+    const retrySuffix = retryInfo ? ' Wait about ' + retryInfo + ' before trying again.' : ' Wait a few minutes before trying again.';
 
-    return 'Gemini API HTTP ' + statusCode + ' ' + status + ': ' + message + retrySuffix;
+    if (statusCode === 429 || status === 'RESOURCE_EXHAUSTED') {
+      return 'Gemini quota/rate limit reached.' + retrySuffix;
+    }
+
+    const message = error.message ? String(error.message) : String(bodyText || '');
+    return 'Gemini API HTTP ' + statusCode + ' ' + status + ': ' + shortenYdpErrorMessage_(message);
   } catch (error) {
     return 'Gemini API HTTP ' + statusCode + ': ' + shortenYdpErrorMessage_(bodyText);
   }

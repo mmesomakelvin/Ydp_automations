@@ -243,7 +243,7 @@ Use this order:
 4. Confirm the `Source Config` tab has the correct source spreadsheet IDs. Running setup again is safe; it also repairs the old incorrect mentee source ID if it is still present.
 5. Open `YDP Matching > Sync source snapshots from forms`.
 6. Open `YDP Matching > Test Gemini connection`.
-7. Open `YDP Matching > Generate mentee scores`.
+7. Open `YDP Matching > Generate next mentee score`.
 
 Important: `Setup matching workbook` only creates the tabs. It does not import the mentor or mentee rows. The `Mentee Source Snapshot` and `Mentor Source Snapshot` tabs stay blank until `Sync source snapshots from forms` is run successfully.
 
@@ -267,14 +267,14 @@ The setup creates these tabs:
 | --- | --- | --- | --- |
 | `Setup matching workbook` | Creates the matching tabs and configuration area. | Use once at the start, or rerun if tabs are missing. | This does not import mentor/mentee data. |
 | `Sync source snapshots from forms` | Copies the latest rows from the live mentee and mentor form response sheets into this matching workbook. | Use before scoring or matching, especially after new people register. | For now this is manual. A scheduled auto-sync will be added after scoring/matching is stable. |
-| `Generate mentee scores` | Uses Gemini to score the next unscored batch of synced mentees against the YDP selection criteria and writes the result into `Mentee Scores`. | Use after the source snapshots have data. Run it again to continue scoring remaining mentees. | Gemini gives a review recommendation; it does not make the final decision for the team. If Gemini quota is reached, wait and run it again later. |
+| `Generate next mentee score` | Uses Gemini to score one unscored mentee against the YDP selection criteria and writes the result into `Mentee Scores`. | Use after the source snapshots have data. Run it again to continue scoring remaining mentees. | Gemini gives a review recommendation; it does not make the final decision for the team. If Gemini quota is reached, wait and run it again later. |
 | `Test Gemini connection` | Checks that the Gemini API key is working. | Use after setting or changing the API key. | The API key must stay in Apps Script Script Properties, not in GitHub. |
 
 ## Mentee Scoring
 
-The `Generate mentee scores` button scores mentees in `Mentee Source Snapshot` in small batches.
+The `Generate next mentee score` button scores mentees in `Mentee Source Snapshot` one at a time.
 
-It is intentionally batched because Gemini can hit quota/rate limits if too many people are scored in one run. The script now keeps completed scores, skips already-scored mentees, retries rows marked `ERROR`, and stops safely when quota is reached.
+It is intentionally one-at-a-time because Gemini can hit quota/rate limits if too many people are scored in one run. The script keeps completed scores, skips already-scored mentees, retries rows marked `ERROR`, and stops safely when quota is reached.
 
 It writes these review columns into `Mentee Scores`:
 
@@ -300,6 +300,6 @@ Learning Commitment Score * 8
 
 The matching automation currently sets scored rows to `Pending Review`. The program team still reviews before anyone is selected or matched.
 
-If you see a quota message, do not delete the sheet. Wait for the quota window to reset, then run `Generate mentee scores` again. It will continue from the unscored or `ERROR` rows.
+If you see a quota message, do not delete the sheet. Wait for the quota window to reset, then run `Generate next mentee score` again. It will continue from the unscored or `ERROR` rows.
 
 The current build sets up the matching workbook, source snapshots, Gemini connection test, and mentee scoring. It does not finalize mentor-mentee matches yet.

@@ -4,7 +4,7 @@
 
 **Goal:** Add a matching workbook button that scores all synced mentees using the documented YDP selection criteria.
 
-**Architecture:** The matching Apps Script reads rows from `Mentee Source Snapshot`, sends each mentee's relevant answers to Gemini for structured category scores, calculates the weighted final score, and writes reviewable results into `Mentee Scores`. Scoring runs in batches, preserves completed scores, and stops cleanly when Gemini quota is reached. The workflow remains human-review-first; no mentee is selected or rejected automatically.
+**Architecture:** The matching Apps Script reads rows from `Mentee Source Snapshot`, sends each mentee's relevant answers to Gemini for structured category scores, calculates the weighted final score, and writes reviewable results into `Mentee Scores`. Scoring runs one mentee at a time, preserves completed scores, and stops cleanly when Gemini quota is reached. The workflow remains human-review-first; no mentee is selected or rejected automatically.
 
 **Tech Stack:** Google Apps Script, Google Sheets, Gemini API via `UrlFetchApp`, CLASP, GitHub.
 
@@ -15,7 +15,7 @@
 **Files:**
 - Modify: `matching/YDP Matching Automation.gs`
 
-- [ ] Add `Generate mentee scores` to the `YDP Matching` menu.
+- [ ] Add `Generate next mentee score` to the `YDP Matching` menu.
 - [ ] Expand `Mentee Scores` headers to include category scores, final score, scoring status, reviewer notes, Gemini summary, Gemini concerns, and scored timestamp.
 - [ ] Keep existing setup behavior safe to rerun.
 
