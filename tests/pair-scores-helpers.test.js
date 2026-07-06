@@ -41,4 +41,24 @@ const describedError = context.describeYdpPairScoreError_(new Error(longError));
 assert.ok(describedError.startsWith('Gemini API HTTP 503 UNAVAILABLE'));
 assert.ok(describedError.length <= 900);
 
+assert.strictEqual(typeof context.getYdpDefaultPairScoringBatchSize_, 'function');
+assert.strictEqual(context.getYdpDefaultPairScoringBatchSize_(), 5);
+assert.strictEqual(typeof context.shouldYdpSkipExistingPairScore_, 'function');
+assert.strictEqual(context.shouldYdpSkipExistingPairScore_({ status: 'Scored' }), true);
+assert.strictEqual(context.shouldYdpSkipExistingPairScore_({ status: 'scored' }), true);
+assert.strictEqual(context.shouldYdpSkipExistingPairScore_({ status: 'Error' }), false);
+assert.strictEqual(context.shouldYdpSkipExistingPairScore_(null), false);
+
+assert.strictEqual(typeof context.buildYdpPairScoreBatchMessage_, 'function');
+const batchMessage = context.buildYdpPairScoreBatchMessage_({
+  successCount: 3,
+  skippedCount: 7,
+  errorCount: 1,
+  quotaHit: false,
+  completedAll: false
+});
+assert.ok(batchMessage.includes('Generated pair scores for 3 pairs.'));
+assert.ok(batchMessage.includes('Skipped already-scored pairs: 7.'));
+assert.ok(batchMessage.includes('Errors: 1.'));
+
 console.log('pair score helper tests passed');

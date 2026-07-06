@@ -8,6 +8,7 @@ const YDP_MATCHING_CONFIG = {
   defaultResponseTabName: 'Form_Responses',
   defaultGeminiModel: 'gemini-3.5-flash',
   defaultMenteeScoringBatchSize: 1,
+  defaultPairScoringBatchSize: 5,
   maxManualRunMilliseconds: 240000,
   sheets: {
     sourceConfig: 'Source Config',
@@ -38,6 +39,7 @@ function onOpen() {
     .addSeparator()
     .addItem('Generate next mentee score', 'generateYdpMenteeScores')
     .addItem('Generate next pair score', 'generateYdpNextPairScore')
+    .addItem('Generate pair scores batch', 'generateYdpPairScoresBatch')
     .addSeparator()
     .addItem('Test Gemini connection', 'testYdpGeminiConnection')
     .addToUi();
@@ -227,6 +229,16 @@ function generateYdpMenteeScores() {
 }
 
 function generateYdpNextPairScore() {
+  generateYdpPairScores_(1, 'GENERATE_PAIR_SCORE');
+}
+
+function generateYdpPairScoresBatch() {
+  generateYdpPairScores_(getYdpDefaultPairScoringBatchSize_(), 'GENERATE_PAIR_SCORE_BATCH');
+}
+
+function generateYdpPairScores_(maxPairsToScore, actionName) {
+  const runStartedAt = Date.now();
+
   try {
     setupYdpMatchingWorkbookTabs_(SpreadsheetApp.getActive());
 
@@ -250,6 +262,12 @@ function generateYdpNextPairScore() {
     const mentees = getYdpEligibleMenteesForPairScoring_(menteeScoresSheet);
     const mentors = getYdpMentorProfilesForPairScoring_(mentorSnapshotSheet);
     const existingPairMap = getYdpExistingPairScoreMap_(pairScoresSheet);
+    let successCount = 0;
+    let errorCount = 0;
+    let skippedCount = 0;
+    let quotaHit = false;
+    let quotaMessage = '';
+    let stoppedForTime = false;
 
     if (mentees.length === 0) {
       throw new Error('No eligible mentees found. Eligible mentees need Final Score >= 60 and Review Status = Pending Review.');
@@ -267,8 +285,18 @@ function generateYdpNextPairScore() {
         const pairId = buildYdpPairId_(mentee.id, mentor.id);
         const existingPair = existingPairMap[pairId];
 
-        if (existingPair && existingPair.status === 'Scored') {
+        if (shouldYdpSkipExistingPairScore_(existingPair)) {
+          skippedCount++;
           continue;
+        }
+
+        if (Date.now() - runStartedAt > YDP_MATCHING_CONFIG.maxManualRunMilliseconds) {
+          stoppedForTime = true;
+          break;
+        }
+
+        if (successCount >= maxPairsToScore) {
+          break;
         }
 
         try {
@@ -299,16 +327,16 @@ function generateYdpNextPairScore() {
           ]);
 
           pairScoresSheet.autoResizeColumns(1, getYdpPairScoresHeaders_().length);
-          const message = 'Generated pair score: ' + mentee.name + ' + ' + mentor.name + ' = ' + totalPairScore + '/100.';
-          logYdpMatchingRun_('GENERATE_PAIR_SCORE', 'SUCCESS', message);
-          SpreadsheetApp.getUi().alert(message);
-          return;
+          successCount++;
+
+          if (successCount >= maxPairsToScore) {
+            break;
+          }
         } catch (error) {
           if (isYdpGeminiQuotaError_(error)) {
-            const quotaMessage = 'Gemini quota was reached, so pair scoring stopped safely. ' + error.message;
-            logYdpMatchingRun_('GENERATE_PAIR_SCORE', 'PARTIAL_SUCCESS', quotaMessage);
-            SpreadsheetApp.getUi().alert(quotaMessage);
-            return;
+            quotaHit = true;
+            quotaMessage = error.message;
+            break;
           }
 
           const readableError = describeYdpPairScoreError_(error);
@@ -342,18 +370,31 @@ function generateYdpNextPairScore() {
             '',
             'This was saved in Pair Scores with status "Error". Run "Generate next pair score" again to retry this same pair.'
           ].join('\n');
-          logYdpMatchingRun_('GENERATE_PAIR_SCORE', 'PARTIAL_SUCCESS', message);
+          logYdpMatchingRun_(actionName, 'PARTIAL_SUCCESS', message);
           SpreadsheetApp.getUi().alert(message);
           return;
         }
       }
+
+      if (successCount >= maxPairsToScore || quotaHit || stoppedForTime) {
+        break;
+      }
     }
 
-    const completeMessage = 'All eligible mentee/mentor pairs already have pair scores.';
-    logYdpMatchingRun_('GENERATE_PAIR_SCORE', 'SUCCESS', completeMessage);
-    SpreadsheetApp.getUi().alert(completeMessage);
+    const completedAll = !quotaHit && !stoppedForTime && successCount === 0;
+    const message = buildYdpPairScoreBatchMessage_({
+      successCount: successCount,
+      skippedCount: skippedCount,
+      errorCount: errorCount,
+      quotaHit: quotaHit,
+      quotaMessage: quotaMessage,
+      stoppedForTime: stoppedForTime,
+      completedAll: completedAll
+    });
+    logYdpMatchingRun_(actionName, quotaHit || stoppedForTime || errorCount ? 'PARTIAL_SUCCESS' : 'SUCCESS', message);
+    SpreadsheetApp.getUi().alert(message);
   } catch (error) {
-    logYdpMatchingRun_('GENERATE_PAIR_SCORE', 'ERROR', error.message);
+    logYdpMatchingRun_(actionName, 'ERROR', error.message);
     SpreadsheetApp.getUi().alert('Pair scoring failed:\n\n' + error.message);
   }
 }
@@ -856,6 +897,43 @@ function getYdpExistingPairScoreMap_(sheet) {
   });
 
   return map;
+}
+
+function getYdpDefaultPairScoringBatchSize_() {
+  return YDP_MATCHING_CONFIG.defaultPairScoringBatchSize;
+}
+
+function shouldYdpSkipExistingPairScore_(existingPair) {
+  return String(existingPair && existingPair.status ? existingPair.status : '').trim().toLowerCase() === 'scored';
+}
+
+function buildYdpPairScoreBatchMessage_(summary) {
+  if (summary.completedAll) {
+    return 'All eligible mentee/mentor pairs already have pair scores.';
+  }
+
+  const lines = [
+    'Generated pair scores for ' + summary.successCount + ' pairs.',
+    'Skipped already-scored pairs: ' + summary.skippedCount + '.',
+    'Errors: ' + summary.errorCount + '.'
+  ];
+
+  if (summary.quotaHit) {
+    lines.push('');
+    lines.push('Gemini quota was reached, so pair scoring stopped safely. Wait and run this button again later.');
+
+    if (summary.quotaMessage) {
+      lines.push(summary.quotaMessage);
+    }
+  } else if (summary.stoppedForTime) {
+    lines.push('');
+    lines.push('Apps Script time was almost up, so pair scoring stopped safely. Run the button again to continue.');
+  } else if (summary.successCount > 0) {
+    lines.push('');
+    lines.push('Run this button again when you want to continue scoring the next unscored pairs.');
+  }
+
+  return lines.join('\n');
 }
 
 function upsertYdpPairScoreRow_(sheet, existingPair, rowValues) {

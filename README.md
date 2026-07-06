@@ -245,6 +245,7 @@ Use this order:
 6. Open `YDP Matching > Test Gemini connection`.
 7. Open `YDP Matching > Generate next mentee score`.
 8. Open `YDP Matching > Generate next pair score`.
+9. After the first pair score works, use `YDP Matching > Generate pair scores batch` to score several unscored pairs at a time.
 
 Important: `Setup matching workbook` only creates the tabs. It does not import the mentor or mentee rows. The `Mentee Source Snapshot` and `Mentor Source Snapshot` tabs stay blank until `Sync source snapshots from forms` is run successfully.
 
@@ -271,6 +272,7 @@ The setup creates these tabs:
 | `Sync source snapshots from forms` | Copies the latest rows from the live mentee and mentor form response sheets into this matching workbook. | Use before scoring or matching, especially after new people register. | For now this is manual. A scheduled auto-sync will be added after scoring/matching is stable. |
 | `Generate next mentee score` | Uses Gemini to score one unscored mentee against the YDP selection criteria and writes the result into `Mentee Scores`. | Use after the source snapshots have data. Run it again to continue scoring remaining mentees. | Gemini gives a review recommendation; it does not make the final decision for the team. If Gemini quota is reached, wait and run it again later. |
 | `Generate next pair score` | Uses Gemini to score one eligible mentee against one available mentor and writes the comparison into `Pair Scores`. | Use after mentee scores and mentor snapshots exist. Run it again later to continue pair scoring. | This can hit Gemini quota. Existing pair scores are preserved. If a row says `Error`, read `Gemini Concern`; running the button again retries that same pair. |
+| `Generate pair scores batch` | Uses Gemini to score up to 5 unscored mentee/mentor pairs in one run and writes them into `Pair Scores`. | Use after the one-pair test works. This is the normal button for moving faster. | It still may stop because of Gemini quota or Apps Script time limits. Nothing already scored is deleted. Run it again later to continue. |
 | `Test Gemini connection` | Checks that the Gemini API key is working. | Use after setting or changing the API key. | The API key must stay in Apps Script Script Properties, not in GitHub. |
 
 ## Mentee Scoring
@@ -311,6 +313,14 @@ The current build sets up the matching workbook, source snapshots, Gemini connec
 
 The `Generate next pair score` button creates the `Pair Scores` audit trail one comparison at a time.
 
+The `Generate pair scores batch` button does the same work, but tries up to 5 comparisons in one run. In plain English:
+
+- `Generate next pair score` = test or retry one pair.
+- `Generate pair scores batch` = move faster once the test works.
+- Neither button deletes existing pair scores.
+- Only rows with `Pair Score Status = Scored` are skipped.
+- Rows with `Pair Score Status = Error` are retried, because the issue may have been temporary.
+
 It reads:
 
 - eligible mentees from `Mentee Scores`,
@@ -340,5 +350,7 @@ Testing order:
 3. Run `YDP Matching > Generate next pair score`.
 4. Open `Pair Scores`.
 5. Confirm one row was added, or wait and retry if Gemini quota appears.
+6. If the one-pair test works, run `YDP Matching > Generate pair scores batch`.
+7. Confirm several rows were added, or wait and retry if Gemini quota appears.
 
 If `Pair Score Status` says `Error`, the row is not final. The script saves the reason in `Gemini Concern` and also shows it in the popup. You can run `Generate next pair score` again after fixing the issue or waiting for Gemini to recover; it will retry that pair because only `Scored` rows are skipped.
