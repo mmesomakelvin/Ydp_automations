@@ -270,7 +270,7 @@ The setup creates these tabs:
 | `Setup matching workbook` | Creates the matching tabs and configuration area. | Use once at the start, or rerun if tabs are missing. | This does not import mentor/mentee data. |
 | `Sync source snapshots from forms` | Copies the latest rows from the live mentee and mentor form response sheets into this matching workbook. | Use before scoring or matching, especially after new people register. | For now this is manual. A scheduled auto-sync will be added after scoring/matching is stable. |
 | `Generate next mentee score` | Uses Gemini to score one unscored mentee against the YDP selection criteria and writes the result into `Mentee Scores`. | Use after the source snapshots have data. Run it again to continue scoring remaining mentees. | Gemini gives a review recommendation; it does not make the final decision for the team. If Gemini quota is reached, wait and run it again later. |
-| `Generate next pair score` | Uses Gemini to score one eligible mentee against one available mentor and writes the comparison into `Pair Scores`. | Use after mentee scores and mentor snapshots exist. Run it again later to continue pair scoring. | This can hit Gemini quota. Existing pair scores are preserved. |
+| `Generate next pair score` | Uses Gemini to score one eligible mentee against one available mentor and writes the comparison into `Pair Scores`. | Use after mentee scores and mentor snapshots exist. Run it again later to continue pair scoring. | This can hit Gemini quota. Existing pair scores are preserved. If a row says `Error`, read `Gemini Concern`; running the button again retries that same pair. |
 | `Test Gemini connection` | Checks that the Gemini API key is working. | Use after setting or changing the API key. | The API key must stay in Apps Script Script Properties, not in GitHub. |
 
 ## Mentee Scoring
@@ -340,3 +340,5 @@ Testing order:
 3. Run `YDP Matching > Generate next pair score`.
 4. Open `Pair Scores`.
 5. Confirm one row was added, or wait and retry if Gemini quota appears.
+
+If `Pair Score Status` says `Error`, the row is not final. The script saves the reason in `Gemini Concern` and also shows it in the popup. You can run `Generate next pair score` again after fixing the issue or waiting for Gemini to recover; it will retry that pair because only `Scored` rows are skipped.

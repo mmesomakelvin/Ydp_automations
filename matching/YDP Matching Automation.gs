@@ -311,6 +311,7 @@ function generateYdpNextPairScore() {
             return;
           }
 
+          const readableError = describeYdpPairScoreError_(error);
           existingPairMap[pairId] = upsertYdpPairScoreRow_(pairScoresSheet, existingPair, [
             pairId,
             mentee.id,
@@ -325,12 +326,22 @@ function generateYdpNextPairScore() {
             '',
             '',
             '',
-            shortenYdpErrorMessage_(error.message),
+            readableError,
             'Error',
             new Date()
           ]);
 
-          const message = 'Pair score failed for ' + mentee.name + ' + ' + mentor.name + '. Error saved in Pair Scores.';
+          pairScoresSheet.autoResizeColumns(1, getYdpPairScoresHeaders_().length);
+          pairScoresSheet.getRange(existingPairMap[pairId].rowNumber, 13, 1, 2).setWrap(true);
+
+          const message = [
+            'Pair score failed for ' + mentee.name + ' + ' + mentor.name + '.',
+            '',
+            'What happened:',
+            readableError,
+            '',
+            'This was saved in Pair Scores with status "Error". Run "Generate next pair score" again to retry this same pair.'
+          ].join('\n');
           logYdpMatchingRun_('GENERATE_PAIR_SCORE', 'PARTIAL_SUCCESS', message);
           SpreadsheetApp.getUi().alert(message);
           return;
@@ -632,7 +643,7 @@ function callYdpGeminiJson_(prompt) {
   try {
     return JSON.parse(jsonText);
   } catch (error) {
-    throw new Error('Gemini returned invalid JSON: ' + responseText);
+    throw new Error('Gemini returned invalid JSON. Raw response: ' + shortenYdpErrorMessage_(responseText, 900));
   }
 }
 
@@ -937,14 +948,37 @@ function isYdpGeminiQuotaError_(error) {
     message.indexOf('http 429') !== -1;
 }
 
-function shortenYdpErrorMessage_(message) {
-  const text = String(message || '').replace(/\s+/g, ' ').trim();
+function describeYdpPairScoreError_(error) {
+  const message = String(error && error.message ? error.message : error || '').trim();
 
-  if (text.length <= 300) {
+  if (!message) {
+    return 'Unknown pair scoring error.';
+  }
+
+  if (message.indexOf('Missing Script Property') !== -1) {
+    return 'Gemini API key is missing from Script Properties. Add GEMINI_API_KEY in the matching Apps Script settings.';
+  }
+
+  if (message.indexOf('Gemini API HTTP') !== -1 || message.indexOf('Gemini quota') !== -1) {
+    return shortenYdpErrorMessage_(message, 900);
+  }
+
+  if (message.indexOf('invalid JSON') !== -1 || message.indexOf('JSON object') !== -1) {
+    return shortenYdpErrorMessage_(message, 900);
+  }
+
+  return shortenYdpErrorMessage_(message, 900);
+}
+
+function shortenYdpErrorMessage_(message, maxLength) {
+  const text = String(message || '').replace(/\s+/g, ' ').trim();
+  const limit = maxLength || 300;
+
+  if (text.length <= limit) {
     return text;
   }
 
-  return text.slice(0, 297) + '...';
+  return text.slice(0, limit - 3) + '...';
 }
 
 function getYdpCurrentOrDefaultSourceId_(currentValue, defaultValue, oldValues) {

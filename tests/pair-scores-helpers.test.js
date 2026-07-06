@@ -34,4 +34,11 @@ assert.strictEqual(JSON.stringify(headers), JSON.stringify([
   'Scored At'
 ]));
 
+assert.strictEqual(typeof context.describeYdpPairScoreError_, 'function');
+
+const longError = 'Gemini API HTTP 503 UNAVAILABLE: ' + 'x'.repeat(1000);
+const describedError = context.describeYdpPairScoreError_(new Error(longError));
+assert.ok(describedError.startsWith('Gemini API HTTP 503 UNAVAILABLE'));
+assert.ok(describedError.length <= 900);
+
 console.log('pair score helper tests passed');
