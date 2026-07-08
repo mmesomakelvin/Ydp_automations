@@ -42,6 +42,7 @@ function onOpen() {
     .addItem('Generate mentee scores batch', 'generateYdpMenteeScoresBatch')
     .addItem('Generate next pair score', 'generateYdpNextPairScore')
     .addItem('Generate pair scores batch', 'generateYdpPairScoresBatch')
+    .addItem('Auto-match from pair scores', 'autoMatchYdpFromPairScores')
     .addSeparator()
     .addItem('Test Gemini connection', 'testYdpGeminiConnection')
     .addToUi();
@@ -149,6 +150,7 @@ function getYdpMatchingDataDictionaryRows_() {
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Generate mentee scores batch', 'Scores up to 5 unscored mentees with Gemini.', 'Use after the one-row test works.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Generate next pair score', 'Scores one mentee/mentor pair with Gemini.', 'Use as a safe one-pair test.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Generate pair scores batch', 'Scores up to 5 unscored mentee/mentor pairs with Gemini.', 'Use to move matching comparisons forward.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Auto-match from pair scores', 'Selects the best available mentor for each fully scored eligible mentee.', 'Run after pair scores are complete enough for matching.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Test Gemini connection', 'Checks that the Gemini API key works.', 'Run after changing the API key or model.']
   ];
 }
@@ -315,6 +317,53 @@ function generateYdpNextPairScore() {
 
 function generateYdpPairScoresBatch() {
   generateYdpPairScores_(getYdpDefaultPairScoringBatchSize_(), 'GENERATE_PAIR_SCORE_BATCH');
+}
+
+function autoMatchYdpFromPairScores() {
+  try {
+    const spreadsheet = SpreadsheetApp.getActive();
+    setupYdpMatchingWorkbookTabs_(spreadsheet);
+
+    const menteeScoresSheet = spreadsheet.getSheetByName(YDP_MATCHING_CONFIG.sheets.menteeScores);
+    const mentorSnapshotSheet = spreadsheet.getSheetByName(YDP_MATCHING_CONFIG.sheets.mentorSnapshot);
+    const pairScoresSheet = spreadsheet.getSheetByName(YDP_MATCHING_CONFIG.sheets.pairScores);
+
+    if (!menteeScoresSheet || menteeScoresSheet.getLastRow() <= 1) {
+      throw new Error('No mentee scores found. Score mentees before auto-matching.');
+    }
+
+    if (!mentorSnapshotSheet || mentorSnapshotSheet.getLastRow() <= 1) {
+      throw new Error('No mentor snapshot rows found. Run "Sync source snapshots from forms" first.');
+    }
+
+    if (!pairScoresSheet || pairScoresSheet.getLastRow() <= 1) {
+      throw new Error('No pair scores found. Run "Generate pair scores batch" before auto-matching.');
+    }
+
+    const mentees = getYdpEligibleMenteesForPairScoring_(menteeScoresSheet);
+    const mentors = getYdpMentorProfilesForPairScoring_(mentorSnapshotSheet);
+    const pairScores = getYdpPairScoreRowsForAutoMatching_(pairScoresSheet);
+    const result = selectYdpAutoMatchesFromPairScores_(mentees, mentors, pairScores);
+
+    writeYdpAutoMatchOutputs_(spreadsheet, result);
+
+    const message = [
+      'Auto-match complete.',
+      '',
+      'Matched pairs created: ' + result.matches.length,
+      'Skipped mentees: ' + result.skipped.length,
+      '',
+      result.skipped.length > 0
+        ? 'Some mentees still need more pair scores before they can be auto-matched.'
+        : 'All fully-scored eligible mentees were matched.'
+    ].join('\n');
+
+    logYdpMatchingRun_('AUTO_MATCH_FROM_PAIR_SCORES', result.skipped.length > 0 ? 'PARTIAL_SUCCESS' : 'SUCCESS', message);
+    SpreadsheetApp.getUi().alert(message);
+  } catch (error) {
+    logYdpMatchingRun_('AUTO_MATCH_FROM_PAIR_SCORES', 'ERROR', error.message);
+    SpreadsheetApp.getUi().alert('Auto-match failed:\n\n' + error.message);
+  }
 }
 
 function generateYdpPairScores_(maxPairsToScore, actionName) {
@@ -1015,6 +1064,256 @@ function buildYdpPairScoreBatchMessage_(summary) {
   }
 
   return lines.join('\n');
+}
+
+function getYdpPairScoreRowsForAutoMatching_(sheet) {
+  const headers = getYdpPairScoresHeaders_();
+
+  if (sheet.getLastRow() <= 1) {
+    return [];
+  }
+
+  const values = sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).getValues();
+  return values.map(function(row) {
+    return {
+      pairId: String(row[headers.indexOf('Pair ID')] || '').trim(),
+      menteeId: String(row[headers.indexOf('Mentee ID')] || '').trim(),
+      menteeName: String(row[headers.indexOf('Mentee Name')] || '').trim(),
+      menteeEmail: String(row[headers.indexOf('Mentee Email')] || '').trim(),
+      mentorId: String(row[headers.indexOf('Mentor ID')] || '').trim(),
+      mentorName: String(row[headers.indexOf('Mentor Name')] || '').trim(),
+      mentorEmail: String(row[headers.indexOf('Mentor Email')] || '').trim(),
+      skillFitScore: Number(row[headers.indexOf('Skill Fit Score')]),
+      careerFitScore: Number(row[headers.indexOf('Career Fit Score')]),
+      availabilityFitScore: Number(row[headers.indexOf('Availability Fit Score')]),
+      capacityFitScore: Number(row[headers.indexOf('Capacity Fit Score')]),
+      totalPairScore: Number(row[headers.indexOf('Total Pair Score')]),
+      reason: String(row[headers.indexOf('Gemini Reason')] || '').trim(),
+      concern: String(row[headers.indexOf('Gemini Concern')] || '').trim(),
+      status: String(row[headers.indexOf('Pair Score Status')] || '').trim()
+    };
+  });
+}
+
+function selectYdpAutoMatchesFromPairScores_(mentees, mentors, pairScores) {
+  const mentorMap = {};
+  const assignedCounts = {};
+  const matches = [];
+  const skipped = [];
+
+  mentors.forEach(function(mentor) {
+    if (!mentor || !mentor.id) {
+      return;
+    }
+
+    mentorMap[mentor.id] = mentor;
+    assignedCounts[mentor.id] = 0;
+  });
+
+  const expectedMentorCount = Object.keys(mentorMap).length;
+  const pairsByMentee = {};
+
+  (pairScores || []).forEach(function(pair) {
+    if (!pair || !pair.menteeId || !pair.mentorId || String(pair.status || '').trim().toLowerCase() !== 'scored') {
+      return;
+    }
+
+    if (!mentorMap[pair.mentorId] || isNaN(Number(pair.totalPairScore))) {
+      return;
+    }
+
+    if (!pairsByMentee[pair.menteeId]) {
+      pairsByMentee[pair.menteeId] = {};
+    }
+
+    const existingPair = pairsByMentee[pair.menteeId][pair.mentorId];
+    if (!existingPair || Number(pair.totalPairScore) > Number(existingPair.totalPairScore)) {
+      pairsByMentee[pair.menteeId][pair.mentorId] = pair;
+    }
+  });
+
+  (mentees || []).forEach(function(mentee) {
+    const menteePairs = pairsByMentee[mentee.id] || {};
+    const scoredMentorIds = Object.keys(menteePairs);
+
+    if (expectedMentorCount === 0) {
+      skipped.push({
+        mentee: mentee,
+        reason: 'No available mentors were found.'
+      });
+      return;
+    }
+
+    if (scoredMentorIds.length < expectedMentorCount) {
+      skipped.push({
+        mentee: mentee,
+        reason: 'Needs more pair scores: ' + scoredMentorIds.length + ' of ' + expectedMentorCount + ' mentors scored.'
+      });
+      return;
+    }
+
+    const candidates = scoredMentorIds.map(function(mentorId) {
+      const mentor = mentorMap[mentorId];
+      const flexibleCapacity = Math.max(1, Number(mentor.flexibleCapacity) || 1);
+
+      return {
+        mentor: mentor,
+        pair: menteePairs[mentorId],
+        availableSlots: flexibleCapacity - (assignedCounts[mentorId] || 0)
+      };
+    }).filter(function(candidate) {
+      return candidate.availableSlots > 0;
+    }).sort(function(a, b) {
+      const totalDifference = Number(b.pair.totalPairScore) - Number(a.pair.totalPairScore);
+
+      if (totalDifference !== 0) {
+        return totalDifference;
+      }
+
+      const skillDifference = Number(b.pair.skillFitScore || 0) - Number(a.pair.skillFitScore || 0);
+
+      if (skillDifference !== 0) {
+        return skillDifference;
+      }
+
+      return String(a.mentor.name || '').localeCompare(String(b.mentor.name || ''));
+    });
+
+    if (candidates.length === 0) {
+      skipped.push({
+        mentee: mentee,
+        reason: 'No mentor has remaining flexible capacity.'
+      });
+      return;
+    }
+
+    const selected = candidates[0];
+    assignedCounts[selected.mentor.id] = (assignedCounts[selected.mentor.id] || 0) + 1;
+    matches.push({
+      mentee: mentee,
+      mentor: selected.mentor,
+      pair: selected.pair
+    });
+  });
+
+  return {
+    matches: matches,
+    skipped: skipped,
+    assignedCounts: assignedCounts
+  };
+}
+
+function writeYdpAutoMatchOutputs_(spreadsheet, result) {
+  const recommendationSheet = ensureYdpSheetWithHeaders_(
+    spreadsheet,
+    YDP_MATCHING_CONFIG.sheets.matchRecommendations,
+    getYdpMatchRecommendationHeaders_()
+  );
+  const matchedPairsSheet = ensureYdpSheetWithHeaders_(
+    spreadsheet,
+    YDP_MATCHING_CONFIG.sheets.matchedPairs,
+    getYdpMatchedPairsHeaders_()
+  );
+  const recommendationRows = buildYdpMatchRecommendationRows_(result);
+  const matchedPairRows = buildYdpMatchedPairRows_(result);
+
+  clearYdpSheetBody_(recommendationSheet);
+  clearYdpSheetBody_(matchedPairsSheet);
+
+  if (recommendationRows.length > 0) {
+    recommendationSheet.getRange(2, 1, recommendationRows.length, getYdpMatchRecommendationHeaders_().length).setValues(recommendationRows);
+  }
+
+  if (matchedPairRows.length > 0) {
+    matchedPairsSheet.getRange(2, 1, matchedPairRows.length, getYdpMatchedPairsHeaders_().length).setValues(matchedPairRows);
+  }
+
+  recommendationSheet.autoResizeColumns(1, getYdpMatchRecommendationHeaders_().length);
+  matchedPairsSheet.autoResizeColumns(1, getYdpMatchedPairsHeaders_().length);
+}
+
+function buildYdpMatchRecommendationRows_(result) {
+  const rows = [];
+
+  (result.matches || []).forEach(function(match) {
+    rows.push([
+      buildYdpRecommendationId_(match.mentee.id),
+      match.mentee.id,
+      match.mentee.name,
+      match.mentee.careerPath,
+      match.mentor.id,
+      match.mentor.name,
+      Number(match.pair.totalPairScore),
+      match.pair.reason,
+      match.pair.reason,
+      'Availability score: ' + Number(match.pair.availabilityFitScore || 0) + '/15; capacity score: ' + Number(match.pair.capacityFitScore || 0) + '/15.',
+      match.pair.reason,
+      match.pair.concern,
+      'Auto-Selected',
+      ''
+    ]);
+  });
+
+  (result.skipped || []).forEach(function(skip) {
+    rows.push([
+      buildYdpRecommendationId_(skip.mentee.id),
+      skip.mentee.id,
+      skip.mentee.name,
+      skip.mentee.careerPath,
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      skip.reason,
+      '',
+      'Needs More Pair Scores',
+      ''
+    ]);
+  });
+
+  return rows;
+}
+
+function buildYdpMatchedPairRows_(result) {
+  return (result.matches || []).map(function(match) {
+    return [
+      buildYdpMatchId_(match.mentee.id, match.mentor.id),
+      match.mentee.id,
+      match.mentee.name,
+      match.mentee.email,
+      match.mentor.id,
+      match.mentor.name,
+      match.mentor.email,
+      match.mentee.careerPath,
+      'Auto-Matched',
+      'Pending Review',
+      '',
+      '',
+      0,
+      0,
+      '',
+      'Not Started',
+      'Auto-selected from Pair Scores. Total pair score: ' + Number(match.pair.totalPairScore) + '.'
+    ];
+  });
+}
+
+function buildYdpRecommendationId_(menteeId) {
+  return 'rec-' + normalizeYdpPairIdPart_(menteeId);
+}
+
+function buildYdpMatchId_(menteeId, mentorId) {
+  return 'match-' + normalizeYdpPairIdPart_(menteeId) + '-' + normalizeYdpPairIdPart_(mentorId);
+}
+
+function clearYdpSheetBody_(sheet) {
+  if (sheet.getLastRow() <= 1) {
+    return;
+  }
+
+  sheet.getRange(2, 1, sheet.getLastRow() - 1, Math.max(sheet.getLastColumn(), 1)).clearContent();
 }
 
 function upsertYdpPairScoreRow_(sheet, existingPair, rowValues) {

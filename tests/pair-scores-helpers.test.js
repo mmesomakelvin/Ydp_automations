@@ -86,4 +86,26 @@ assert.ok(menteeBatchMessage.includes('Generated mentee scores for 5 mentees.'))
 assert.ok(menteeBatchMessage.includes('Skipped already-scored rows: 12.'));
 assert.ok(menteeBatchMessage.includes('Errors: 0.'));
 
+assert.strictEqual(typeof context.selectYdpAutoMatchesFromPairScores_, 'function');
+const autoMatchResult = context.selectYdpAutoMatchesFromPairScores_(
+  [
+    { id: 'm1', name: 'Ada One', email: 'ada@example.com', careerPath: 'Data Analyst', finalScore: 95 },
+    { id: 'm2', name: 'Ben Two', email: 'ben@example.com', careerPath: 'Data Analyst', finalScore: 90 }
+  ],
+  [
+    { id: 'mentor-a', name: 'Mentor A', email: 'a@example.com', flexibleCapacity: 1 },
+    { id: 'mentor-b', name: 'Mentor B', email: 'b@example.com', flexibleCapacity: 3 }
+  ],
+  [
+    { menteeId: 'm1', mentorId: 'mentor-a', mentorName: 'Mentor A', mentorEmail: 'a@example.com', totalPairScore: 95, skillFitScore: 35, careerFitScore: 30, availabilityFitScore: 15, capacityFitScore: 15, reason: 'Best fit', concern: '', status: 'Scored' },
+    { menteeId: 'm1', mentorId: 'mentor-b', mentorName: 'Mentor B', mentorEmail: 'b@example.com', totalPairScore: 80, skillFitScore: 30, careerFitScore: 25, availabilityFitScore: 10, capacityFitScore: 15, reason: 'Good fit', concern: '', status: 'Scored' },
+    { menteeId: 'm2', mentorId: 'mentor-a', mentorName: 'Mentor A', mentorEmail: 'a@example.com', totalPairScore: 99, skillFitScore: 40, careerFitScore: 30, availabilityFitScore: 14, capacityFitScore: 15, reason: 'Strong but full', concern: '', status: 'Scored' },
+    { menteeId: 'm2', mentorId: 'mentor-b', mentorName: 'Mentor B', mentorEmail: 'b@example.com', totalPairScore: 70, skillFitScore: 25, careerFitScore: 20, availabilityFitScore: 10, capacityFitScore: 15, reason: 'Available fit', concern: '', status: 'Scored' }
+  ]
+);
+assert.strictEqual(autoMatchResult.matches.length, 2);
+assert.strictEqual(autoMatchResult.matches[0].mentor.id, 'mentor-a');
+assert.strictEqual(autoMatchResult.matches[1].mentor.id, 'mentor-b');
+assert.strictEqual(autoMatchResult.skipped.length, 0);
+
 console.log('pair score helper tests passed');

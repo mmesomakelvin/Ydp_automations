@@ -275,6 +275,7 @@ The setup creates these tabs:
 | `Generate mentee scores batch` | Uses Gemini to score up to 5 unscored mentees in one run and writes them into `Mentee Scores`. | Use after the one-mentee test works. This is the normal button for moving faster. | It may stop because of Gemini quota. Nothing already scored is deleted. Run it again later to continue. |
 | `Generate next pair score` | Uses Gemini to score one eligible mentee against one available mentor and writes the comparison into `Pair Scores`. | Use after mentee scores and mentor snapshots exist. Run it again later to continue pair scoring. | This can hit Gemini quota. Existing pair scores are preserved. If a row says `Error`, read `Gemini Concern`; running the button again retries that same pair. |
 | `Generate pair scores batch` | Uses Gemini to score up to 5 unscored mentee/mentor pairs in one run and writes them into `Pair Scores`. | Use after the one-pair test works. This is the normal button for moving faster. | It still may stop because of Gemini quota or Apps Script time limits. Nothing already scored is deleted. Run it again later to continue. |
+| `Auto-match from pair scores` | Uses saved pair scores to select the best available mentor for each fully scored mentee. | Use after enough pair scores have been generated. | It does not call Gemini. It replaces the current generated rows in `Match Recommendations` and `Matched Pairs`. |
 | `Test Gemini connection` | Checks that the Gemini API key is working. | Use after setting or changing the API key. | The API key must stay in Apps Script Script Properties, not in GitHub. |
 
 ## Data Dictionaries
@@ -339,7 +340,7 @@ For now, the crossing line is `Final Score >= 60`.
 
 If you see a quota message, do not delete the sheet. Wait for the quota window to reset, then run `Generate next mentee score` again. It will continue from the unscored or `ERROR` rows.
 
-The current build sets up the matching workbook, source snapshots, Gemini connection test, and mentee scoring. It does not finalize mentor-mentee matches yet.
+The current build sets up the matching workbook, source snapshots, Gemini connection test, mentee scoring, pair scoring, and auto-matching from saved pair scores.
 
 ## Pair Scoring
 
@@ -388,3 +389,35 @@ Testing order:
 7. Confirm several rows were added, or wait and retry if Gemini quota appears.
 
 If `Pair Score Status` says `Error`, the row is not final. The script saves the reason in `Gemini Concern` and also shows it in the popup. You can run `Generate next pair score` again after fixing the issue or waiting for Gemini to recover; it will retry that pair because only `Scored` rows are skipped.
+
+## Auto-Matching
+
+The `Auto-match from pair scores` button turns completed pair scores into actual match outputs.
+
+It reads:
+
+- `Mentee Scores`,
+- `Mentor Source Snapshot`,
+- `Pair Scores`.
+
+It writes:
+
+- recommendations into `Match Recommendations`,
+- final assignment rows into `Matched Pairs`.
+
+How it decides:
+
+- It only considers mentees marked `Gemini Review Status = Can Pair`.
+- It only auto-matches a mentee after that mentee has scored pair rows against all available mentors.
+- It chooses the highest `Total Pair Score`.
+- It respects each mentor's flexible capacity.
+- If a mentee does not have enough pair scores yet, it writes `Needs More Pair Scores` in `Match Recommendations` and does not create a final matched pair for that mentee yet.
+
+Testing order:
+
+1. Confirm `Mentee Scores` has at least one `Can Pair` mentee.
+2. Confirm `Pair Scores` has `Scored` rows for that mentee against all mentors.
+3. Run `YDP Matching > Auto-match from pair scores`.
+4. Open `Match Recommendations`.
+5. Open `Matched Pairs`.
+6. Confirm selected pairs appear there.
