@@ -12,9 +12,9 @@ Each numbered file is one automation capability, written in plain language befor
 | 2 | Mentor Registration Email Automation | Deployed | Mentor registration email automation is built and deployed in its own Apps Script project. It mirrors the mentee controls for tests, previews, bulk sends, selected-row sends, resends, tracking columns, and trigger installation. | Confirm the form-submit trigger is installed in the live sheet. Send tests after any future change. |
 | 3 | Reminders, Nudges, and Weekly KPI Digest | Brainstorming | Major version 1 decisions are captured: email-only, monthly mentee activities, reminder timing, no-show rules, feedback form rules, Google Sheets dashboard first, PDF report, chart snapshots, and Gemini-assisted write-up. | Finalize exact sheet names, sheet columns, stakeholder recipients, sender name, report check time, and Gemini privacy level. Then design/build the Apps Script and dashboard. |
 | 4 | YDP Program Control Center | Brainstorming | Internal Vercel portal direction is captured: Google login allowlist, hybrid Google Sheet + GitHub docs source, view-only first, status dashboard plus documentation library. | Finalize tracker columns, allowed users, website framework, page structure, and GitHub/Sheet reading method. Then build the tracker and portal. |
-| 5 | Mentor-Mentee Matching Criteria | Built / operational testing | Source Google Doc was read and converted into mentee selection criteria, weighted scoring, and mentor-mentee pairing priorities. Matching workbook setup, source snapshot sync, Gemini connection test, Gemini-assisted mentee scoring, pair scoring, pair score batching, and auto-matching from saved pair scores are built. | Continue operational scoring in the live workbook: score remaining mentees, generate remaining pair scores, then run auto-match when each eligible mentee has been scored against all available mentors. |
+| 5 | Mentor-Mentee Matching Criteria | Built / operational testing | Source Google Doc was read and converted into mentee selection criteria, weighted scoring, and mentor-mentee pairing priorities. Matching workbook setup, source snapshot sync, Gemini connection test, Gemini-assisted mentee scoring, pair scoring, pair score batching, auto-matching from saved pair scores, and match notification emails are built. | Continue operational scoring in the live workbook: score remaining mentees, generate remaining pair scores, run auto-match when each eligible mentee has been scored against all available mentors, then test one selected match email before bulk sending. |
 | 6 | Mentee Application Intake Automation | Brainstorming | Mentee-first intake design captured: same response sheet, intake score/status/recommendation/notes, email+phone duplicate checks, and `Intake Dictionary` helper tab. | Confirm required fields and phone-normalization rules, then extend the existing mentee Apps Script. |
-| 7 | Pair Scores Auto Matching | Built / operational testing | Final matching design is documented separately: every eligible mentee is compared against every available mentor, Gemini scores each pair, and the system selects final matches. `Pair Scores`, `Generate next pair score`, `Generate pair scores batch`, and `Auto-match from pair scores` are built in the matching Apps Script. | Use the batch scorer until pair scores are complete enough, then run auto-match. Next build after this is match notification email sending from `Matched Pairs`. |
+| 7 | Pair Scores Auto Matching | Built / operational testing | Final matching design is documented separately: every eligible mentee is compared against every available mentor, Gemini scores each pair, and the system selects final matches. `Pair Scores`, `Generate next pair score`, `Generate pair scores batch`, `Auto-match from pair scores`, and match notification email buttons are built in the matching Apps Script. | Use the batch scorer until pair scores are complete enough, run auto-match, preview one selected match email, then send selected before bulk sending. |
 
 ## Implementation Links
 
@@ -46,6 +46,7 @@ Built:
 - Gemini pair scoring into `Pair Scores`.
 - Batch pair scoring.
 - Auto-match from saved pair scores into `Match Recommendations` and `Matched Pairs`.
+- Match notification email preview, selected send, and bulk send from `Matched Pairs`.
 - Matching workbook data dictionary.
 
 Still to run in the live workbook:
@@ -53,12 +54,9 @@ Still to run in the live workbook:
 - Continue `Generate mentee scores batch` until all desired mentees are scored.
 - Continue `Generate pair scores batch` until each `Can Pair` mentee has scored rows against all available mentors.
 - Run `Auto-match from pair scores` after pair scoring is complete enough.
-
-Still to build next:
-
-- Match notification emails from the final `Matched Pairs` sheet.
-- Email tracking columns for match notifications.
-- Preview, selected-send, and bulk-send buttons for match emails.
+- Preview one selected match email from `Matched Pairs`.
+- Send one selected matched pair first.
+- Use the bulk match email sender only after the selected-row test works.
 
 ### For Reminders, Nudges, and KPI Digest
 

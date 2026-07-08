@@ -12,7 +12,7 @@ Use this as the build guardrail before implementation so we do not mix script ID
 | 2 | Mentor Registration Email Automation | Google Sheets + separate Apps Script project + MailApp + clasp | Built and deployed |
 | 3 | Reminders, Nudges, and Weekly KPI Digest | Google Sheets + Apps Script time triggers + MailApp + Google Sheets dashboard + Gemini API + PDF export | Design in progress |
 | 4 | YDP Program Control Center | Vercel web app + Google login allowlist + Google Sheets tracker + GitHub Markdown docs | Design in progress |
-| 5 | Mentor-Mentee Matching Criteria | Google Sheets + Apps Script + mentor/mentee IDs + Gemini scoring + auto-match review outputs | Built / operational testing |
+| 5 | Mentor-Mentee Matching Criteria | Google Sheets + Apps Script + mentor/mentee IDs + Gemini scoring + auto-match review outputs + match emails | Built / operational testing |
 | 6 | Mentee Application Intake Automation | Existing mentee Google Sheet + Apps Script form-submit trigger + rule-based scoring + intake dictionary tab | Design in progress |
 | 7 | Pair Scores Auto Matching | Matching workbook + Apps Script + Gemini pair scoring + resumable pair scores + auto-matched final pairs | Built / operational testing |
 
@@ -31,6 +31,9 @@ Use this as the build guardrail before implementation so we do not mix script ID
    - score remaining mentees,
    - generate remaining pair scores,
    - run auto-match after enough pair scores exist.
-2. Build match notification emails from `Matched Pairs`.
+2. Test match notification emails from `Matched Pairs`:
+   - preview one selected matched pair,
+   - send one selected matched pair,
+   - then bulk send unsent matched pairs only after the selected test works.
 3. Build reminders, nudges, and weekly KPI digest.
 4. Build the internal Vercel Program Control Center.

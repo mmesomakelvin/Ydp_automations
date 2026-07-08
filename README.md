@@ -276,6 +276,9 @@ The setup creates these tabs:
 | `Generate next pair score` | Uses Gemini to score one eligible mentee against one available mentor and writes the comparison into `Pair Scores`. | Use after mentee scores and mentor snapshots exist. Run it again later to continue pair scoring. | This can hit Gemini quota. Existing pair scores are preserved. If a row says `Error`, read `Gemini Concern`; running the button again retries that same pair. |
 | `Generate pair scores batch` | Uses Gemini to score up to 5 unscored mentee/mentor pairs in one run and writes them into `Pair Scores`. | Use after the one-pair test works. This is the normal button for moving faster. | It still may stop because of Gemini quota or Apps Script time limits. Nothing already scored is deleted. Run it again later to continue. |
 | `Auto-match from pair scores` | Uses saved pair scores to select the best available mentor for each fully scored mentee. | Use after enough pair scores have been generated. | It does not call Gemini. It replaces the current generated rows in `Match Recommendations` and `Matched Pairs`. |
+| `Preview selected match emails` | Shows the mentee and mentor match emails for the selected row in `Matched Pairs`. | Use before sending any match emails. | Select a real matched pair row, not the header row. |
+| `Send match emails to selected pair` | Sends match emails for one selected final pair if they have not already been sent. | Use first for controlled testing. | It writes separate `SENT` statuses for mentee and mentor. It skips sides already marked `SENT`. |
+| `Send match emails to all unsent matched pairs` | Sends match emails for every final matched pair that has not already been notified. | Use only after selected-row testing works. | This sends real emails in bulk. Status columns protect against duplicate sends. |
 | `Test Gemini connection` | Checks that the Gemini API key is working. | Use after setting or changing the API key. | The API key must stay in Apps Script Script Properties, not in GitHub. |
 
 ## Data Dictionaries
@@ -290,7 +293,7 @@ Run them here:
 | Mentor response sheet | `YDP Automation > Create data dictionary` |
 | Matching workbook | `YDP Matching > Create data dictionary` |
 
-This is safe to run. It only updates the `Data Dictionary` tab. It does not send emails, assign IDs, score mentees, score pairs, or change response data.
+This is safe to run. It only updates the `Data Dictionary` tab. It does not send emails, assign IDs, score mentees, score pairs, send match emails, or change response data.
 
 ## Mentee Scoring
 
@@ -421,3 +424,33 @@ Testing order:
 4. Open `Match Recommendations`.
 5. Open `Matched Pairs`.
 6. Confirm selected pairs appear there.
+
+## Match Notification Emails
+
+Match notification emails are sent from `Matched Pairs`, not from `Match Recommendations`.
+
+The script adds these tracking columns to `Matched Pairs`:
+
+- `Mentee Match Email Status`
+- `Mentee Match Email Sent At`
+- `Mentor Match Email Status`
+- `Mentor Match Email Sent At`
+- `Match Email Last Error`
+
+Plain-English rule:
+
+- A mentee match email tells the mentee who their mentor is.
+- A mentor match email tells the mentor who their mentee is.
+- The script skips any side already marked `SENT`.
+- If the mentee or mentor email address is missing/invalid, the row is not sent and the issue is written into `Match Email Last Error`.
+
+Testing order:
+
+1. Run `YDP Matching > Setup matching workbook`.
+2. Open `Matched Pairs` and confirm the match email tracking columns exist.
+3. Select one real matched pair row.
+4. Run `YDP Matching > Preview selected match emails`.
+5. Read both email previews.
+6. If the preview is correct, run `YDP Matching > Send match emails to selected pair`.
+7. Confirm the selected row gets `SENT` statuses and sent-at dates.
+8. Only after the selected-row test works, use `Send match emails to all unsent matched pairs`.
