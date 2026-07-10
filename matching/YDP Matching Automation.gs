@@ -7,8 +7,9 @@ const YDP_MATCHING_CONFIG = {
   defaultMentorSpreadsheetId: '1xKEca0gDJCkfkkI00QmhymfPfvn6o-fP-k8CF_LKaAU',
   defaultResponseTabName: 'Form_Responses',
   defaultGeminiModel: 'gemini-3.5-flash',
-  defaultMenteeScoringBatchSize: 5,
+  defaultMenteeScoringBatchSize: 3,
   defaultPairScoringBatchSize: 5,
+  maxMenteeScoringRunMilliseconds: 90000,
   maxManualRunMilliseconds: 240000,
   senderName: 'YDP Mentorship Team',
   statuses: {
@@ -161,7 +162,7 @@ function getYdpMatchingDataDictionaryRows_() {
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Sync source snapshots from forms', 'Copies latest mentor and mentee source rows into this workbook.', 'Run before scoring after new form responses arrive.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Create data dictionary', 'Creates this explanation tab.', 'Run whenever you want to refresh documentation.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Generate next mentee score', 'Scores one unscored mentee with Gemini.', 'Use as a safe one-row test.'],
-    ['Button', YDP_MATCHING_CONFIG.menuName, 'Generate mentee scores batch', 'Scores up to 5 unscored mentees with Gemini.', 'Use after the one-row test works.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Generate mentee scores batch', 'Scores up to 3 unscored mentees with Gemini.', 'Use after the one-row test works.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Generate next pair score', 'Scores one mentee/mentor pair with Gemini.', 'Use as a safe one-pair test.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Generate pair scores batch', 'Scores up to 5 unscored mentee/mentor pairs with Gemini.', 'Use to move matching comparisons forward.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Auto-match from pair scores', 'Selects the best available mentor for each fully scored eligible mentee.', 'Run after pair scores are complete enough for matching.'],
@@ -232,9 +233,11 @@ function generateYdpMenteeScores_(maxMenteesToScore, actionName) {
     let skippedCount = 0;
     let quotaHit = false;
     let quotaMessage = '';
+    let stoppedForTime = false;
 
     for (let rowIndex = 0; rowIndex < sourceValues.slice(1).length; rowIndex++) {
-      if (Date.now() - runStartedAt > YDP_MATCHING_CONFIG.maxManualRunMilliseconds) {
+      if (Date.now() - runStartedAt > getYdpMenteeScoringRunLimitMilliseconds_()) {
+        stoppedForTime = true;
         break;
       }
 
@@ -317,10 +320,11 @@ function generateYdpMenteeScores_(maxMenteesToScore, actionName) {
       errorCount: errorCount,
       quotaHit: quotaHit,
       quotaMessage: quotaMessage,
-      completedAll: successCount === 0 && !quotaHit && errorCount === 0
+      stoppedForTime: stoppedForTime,
+      completedAll: successCount === 0 && !quotaHit && !stoppedForTime && errorCount === 0
     });
 
-    logYdpMatchingRun_(actionName, quotaHit || errorCount ? 'PARTIAL_SUCCESS' : 'SUCCESS', message);
+    logYdpMatchingRun_(actionName, quotaHit || stoppedForTime || errorCount ? 'PARTIAL_SUCCESS' : 'SUCCESS', message);
     SpreadsheetApp.getUi().alert(message);
   } catch (error) {
     logYdpMatchingRun_(actionName, 'ERROR', error.message);
@@ -1803,6 +1807,11 @@ function getYdpDefaultMenteeScoringBatchSize_() {
   return YDP_MATCHING_CONFIG.defaultMenteeScoringBatchSize;
 }
 
+function getYdpMenteeScoringRunLimitMilliseconds_() {
+  return YDP_MATCHING_CONFIG.maxMenteeScoringRunMilliseconds ||
+    YDP_MATCHING_CONFIG.maxManualRunMilliseconds;
+}
+
 function getYdpGeminiReviewStatusForScore_(finalScore) {
   const numberValue = Number(finalScore);
 
@@ -1841,6 +1850,9 @@ function buildYdpMenteeScoreBatchMessage_(summary) {
     if (summary.quotaMessage) {
       lines.push(summary.quotaMessage);
     }
+  } else if (summary.stoppedForTime) {
+    lines.push('');
+    lines.push('Apps Script time was almost up, so mentee scoring stopped safely. Run the button again to continue.');
   } else if (summary.successCount === 1) {
     lines.push('');
     lines.push('One mentee was scored. Run this button again when you want to score the next unscored mentee.');

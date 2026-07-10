@@ -272,7 +272,7 @@ The setup creates these tabs:
 | `Setup matching workbook` | Creates the matching tabs and configuration area. | Use once at the start, or rerun if tabs are missing. | This does not import mentor/mentee data. |
 | `Sync source snapshots from forms` | Copies the latest rows from the live mentee and mentor form response sheets into this matching workbook. | Use before scoring or matching, especially after new people register. | For now this is manual. A scheduled auto-sync will be added after scoring/matching is stable. |
 | `Generate next mentee score` | Uses Gemini to score one unscored mentee against the YDP selection criteria and writes the result into `Mentee Scores`. | Use after the source snapshots have data. Run it again to continue scoring remaining mentees. | Gemini gives a review recommendation; it does not make the final decision for the team. If Gemini quota is reached, wait and run it again later. |
-| `Generate mentee scores batch` | Uses Gemini to score up to 5 unscored mentees in one run and writes them into `Mentee Scores`. | Use after the one-mentee test works. This is the normal button for moving faster. | It may stop because of Gemini quota. Nothing already scored is deleted. Run it again later to continue. |
+| `Generate mentee scores batch` | Uses Gemini to score up to 3 unscored mentees in one run and writes them into `Mentee Scores`. | Use after the one-mentee test works. This is the normal safer button for moving faster. | It may stop because of Gemini quota or Apps Script time limits. Nothing already scored is deleted. Run it again later to continue. |
 | `Generate next pair score` | Uses Gemini to score one eligible mentee against one available mentor and writes the comparison into `Pair Scores`. | Use after mentee scores and mentor snapshots exist. Run it again later to continue pair scoring. | This can hit Gemini quota. Existing pair scores are preserved. If a row says `Error`, read `Gemini Concern`; running the button again retries that same pair. |
 | `Generate pair scores batch` | Uses Gemini to score up to 5 unscored mentee/mentor pairs in one run and writes them into `Pair Scores`. | Use after the one-pair test works. This is the normal button for moving faster. | It still may stop because of Gemini quota or Apps Script time limits. Nothing already scored is deleted. Run it again later to continue. |
 | `Auto-match from pair scores` | Uses saved pair scores to select the best available mentor for each fully scored mentee. | Use after enough pair scores have been generated. | It does not call Gemini. It replaces the current generated rows in `Match Recommendations` and `Matched Pairs`. |
@@ -299,15 +299,15 @@ This is safe to run. It only updates the `Data Dictionary` tab. It does not send
 
 The `Generate next mentee score` button scores mentees in `Mentee Source Snapshot` one at a time.
 
-The `Generate mentee scores batch` button does the same work, but tries up to 5 mentees in one run. In plain English:
+The `Generate mentee scores batch` button does the same work, but tries up to 3 mentees in one run. In plain English:
 
 - `Generate next mentee score` = test or retry one mentee.
-- `Generate mentee scores batch` = move faster once the test works.
+- `Generate mentee scores batch` = move faster once the test works, without keeping Apps Script running too long.
 - Neither button deletes existing mentee scores.
 - Already-scored mentees are skipped.
 - Rows marked `ERROR` are retried, because the issue may have been temporary.
 
-The script keeps completed scores, skips already-scored mentees, retries rows marked `ERROR`, and stops safely when quota is reached.
+The script keeps completed scores, skips already-scored mentees, retries rows marked `ERROR`, and stops safely when quota or the Apps Script time window is reached.
 
 It writes these review columns into `Mentee Scores`:
 

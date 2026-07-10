@@ -55,7 +55,9 @@ assert.ok(describedError.length <= 900);
 assert.strictEqual(typeof context.getYdpDefaultPairScoringBatchSize_, 'function');
 assert.strictEqual(context.getYdpDefaultPairScoringBatchSize_(), 5);
 assert.strictEqual(typeof context.getYdpDefaultMenteeScoringBatchSize_, 'function');
-assert.strictEqual(context.getYdpDefaultMenteeScoringBatchSize_(), 5);
+assert.strictEqual(context.getYdpDefaultMenteeScoringBatchSize_(), 3);
+assert.strictEqual(typeof context.getYdpMenteeScoringRunLimitMilliseconds_, 'function');
+assert.strictEqual(context.getYdpMenteeScoringRunLimitMilliseconds_(), 90000);
 assert.strictEqual(typeof context.shouldYdpSkipExistingPairScore_, 'function');
 assert.strictEqual(context.shouldYdpSkipExistingPairScore_({ status: 'Scored' }), true);
 assert.strictEqual(context.shouldYdpSkipExistingPairScore_({ status: 'scored' }), true);
@@ -85,6 +87,17 @@ const menteeBatchMessage = context.buildYdpMenteeScoreBatchMessage_({
 assert.ok(menteeBatchMessage.includes('Generated mentee scores for 5 mentees.'));
 assert.ok(menteeBatchMessage.includes('Skipped already-scored rows: 12.'));
 assert.ok(menteeBatchMessage.includes('Errors: 0.'));
+
+const menteeStoppedForTimeMessage = context.buildYdpMenteeScoreBatchMessage_({
+  successCount: 2,
+  skippedCount: 30,
+  errorCount: 0,
+  quotaHit: false,
+  stoppedForTime: true,
+  completedAll: false
+});
+assert.ok(menteeStoppedForTimeMessage.includes('Generated mentee scores for 2 mentees.'));
+assert.ok(menteeStoppedForTimeMessage.includes('mentee scoring stopped safely'));
 
 assert.strictEqual(typeof context.selectYdpAutoMatchesFromPairScores_, 'function');
 const autoMatchResult = context.selectYdpAutoMatchesFromPairScores_(
