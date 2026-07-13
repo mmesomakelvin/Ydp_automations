@@ -100,13 +100,18 @@ cd matching
 clasp.cmd push --force
 ```
 
-The matching script reads the Gemini key from Apps Script Script Properties:
+The matching script reads Gemini keys from Apps Script Script Properties. The current key ownership is:
 
-```text
-GEMINI_API_KEY
-```
+| Script Property | Account that owns the key | Purpose |
+| --- | --- | --- |
+| `GEMINI_API_KEY` | YDP Mentorship account | Primary key used first. |
+| `GEMINI_API_KEY_2` | Mmesoma Okoronkwo account | First backup key. |
+| `GEMINI_API_KEY_3` | EduBridge Academy account | Second backup key. |
+| `GEMINI_ACTIVE_API_KEY_INDEX` | Managed automatically by the script | Remembers the last key slot that worked. Do not enter an API key in this property. |
 
-Do not store the Gemini API key in code or GitHub.
+When the active key reaches a Gemini quota or rate limit, the script tries the next configured key and remembers the working slot. It cycles through the configured slots in order and only shows a quota error after all available keys have been tried. Other errors, such as an invalid request, remain visible instead of being hidden by key rotation.
+
+Keep every API key value only in Apps Script Script Properties. Do not store key values in the code, README, screenshots committed to GitHub, or any other GitHub file. Each key still follows the quota, billing, and usage rules of the Google Cloud or AI Studio project that issued it.
 
 ## Sheet Menu Buttons
 
@@ -279,7 +284,7 @@ The setup creates these tabs:
 | `Preview selected match emails` | Shows the mentee and mentor match emails for the selected row in `Matched Pairs`. | Use before sending any match emails. | Select a real matched pair row, not the header row. |
 | `Send match emails to selected pair` | Sends match emails for one selected final pair if they have not already been sent. | Use first for controlled testing. | It writes separate `SENT` statuses for mentee and mentor. It skips sides already marked `SENT`. |
 | `Send match emails to all unsent matched pairs` | Sends match emails for every final matched pair that has not already been notified. | Use only after selected-row testing works. | This sends real emails in bulk. Status columns protect against duplicate sends. |
-| `Test Gemini connection` | Checks that the Gemini API key is working. | Use after setting or changing the API key. | The API key must stay in Apps Script Script Properties, not in GitHub. |
+| `Test Gemini connection` | Checks the configured Gemini keys and automatically moves to the next key if the active one is quota-limited. | Use after adding or changing any Gemini API key. | API key values must stay in Apps Script Script Properties, not in GitHub. |
 
 ## Data Dictionaries
 
