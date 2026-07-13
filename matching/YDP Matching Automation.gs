@@ -273,7 +273,6 @@ function generateYdpMenteeScores_(maxMenteesToScore, actionName) {
         const softSkillsScore = clampYdpScore_(scoring.softSkillsScore);
         const finalScore = learningScore * 8 + communityScore * 4 + careerScore * 4 + softSkillsScore * 4;
 
-        const readableError = shortenYdpErrorMessage_(error.message);
         existingScoreMap[menteeKey] = upsertYdpMenteeScoreRow_(scoreSheet, existingScore, [
           mentee.id,
           mentee.name,
@@ -298,6 +297,7 @@ function generateYdpMenteeScores_(maxMenteesToScore, actionName) {
           break;
         }
 
+        const readableError = shortenYdpErrorMessage_(error.message);
         existingScoreMap[menteeKey] = upsertYdpMenteeScoreRow_(scoreSheet, existingScore, [
           mentee.id,
           mentee.name,

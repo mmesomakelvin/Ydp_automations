@@ -12,6 +12,28 @@ const context = {
 vm.createContext(context);
 vm.runInContext(scriptSource, context);
 
+const menteeBatchFunctionSource = context.generateYdpMenteeScores_.toString();
+const menteeBatchTryBlock = menteeBatchFunctionSource.match(/try \{([\s\S]*?)\} catch \(error\) \{/);
+assert.ok(menteeBatchTryBlock, 'Mentee batch scoring should have a try/catch around each Gemini request.');
+assert.strictEqual(
+  menteeBatchTryBlock[1].includes('error.message'),
+  false,
+  'The success path must not reference the catch-only error variable.'
+);
+const menteeBatchCatchIndex = menteeBatchFunctionSource.indexOf('catch (error) {');
+const readableErrorDefinitionIndex = menteeBatchFunctionSource.indexOf(
+  'const readableError = shortenYdpErrorMessage_(error.message);',
+  menteeBatchCatchIndex
+);
+const errorRowUpsertIndex = menteeBatchFunctionSource.indexOf(
+  'existingScoreMap[menteeKey] = upsertYdpMenteeScoreRow_',
+  menteeBatchCatchIndex
+);
+assert.ok(
+  readableErrorDefinitionIndex > menteeBatchCatchIndex && readableErrorDefinitionIndex < errorRowUpsertIndex,
+  'The catch block should define readableError before saving an error row.'
+);
+
 assert.strictEqual(typeof context.getYdpPairScoresHeaders_, 'function');
 
 const headers = context.getYdpPairScoresHeaders_();
