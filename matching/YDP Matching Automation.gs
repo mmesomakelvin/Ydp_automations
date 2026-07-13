@@ -33,8 +33,11 @@ const YDP_MATCHING_CONFIG = {
     geminiModel: 'GEMINI_MODEL'
   },
   scriptProperties: {
-    geminiApiKey: 'GEMINI_API_KEY'
-  }
+    geminiApiKey: 'GEMINI_API_KEY',
+    geminiApiKeyPrefix: 'GEMINI_API_KEY_',
+    geminiActiveApiKeyIndex: 'GEMINI_ACTIVE_API_KEY_INDEX'
+  },
+  maxGeminiApiKeys: 10
 };
 
 function onOpen() {
@@ -1879,7 +1882,7 @@ function describeYdpPairScoreError_(error) {
   }
 
   if (message.indexOf('Missing Script Property') !== -1) {
-    return 'Gemini API key is missing from Script Properties. Add GEMINI_API_KEY in the matching Apps Script settings.';
+    return formatYdpGeminiMissingKeyMessage_();
   }
 
   if (message.indexOf('Gemini API HTTP') !== -1 || message.indexOf('Gemini quota') !== -1) {
@@ -1918,18 +1921,121 @@ function getYdpCurrentOrDefaultSourceId_(currentValue, defaultValue, oldValues) 
   return value;
 }
 
-function callYdpGemini_(prompt) {
-  const apiKey = PropertiesService.getScriptProperties().getProperty(
-    YDP_MATCHING_CONFIG.scriptProperties.geminiApiKey
-  );
+function getYdpGeminiApiKeySlotsFromMap_(propertyMap) {
+  const properties = propertyMap || {};
+  const primaryName = YDP_MATCHING_CONFIG.scriptProperties.geminiApiKey;
+  const prefix = YDP_MATCHING_CONFIG.scriptProperties.geminiApiKeyPrefix;
+  const primaryKey = String(properties[primaryName] || properties[prefix + '1'] || '').trim();
+  const slots = [];
 
-  if (!apiKey) {
-    throw new Error('Missing Script Property: ' + YDP_MATCHING_CONFIG.scriptProperties.geminiApiKey);
+  if (primaryKey) {
+    slots.push({
+      index: 1,
+      propertyName: properties[primaryName] ? primaryName : prefix + '1',
+      key: primaryKey
+    });
   }
 
+  for (let index = 2; index <= YDP_MATCHING_CONFIG.maxGeminiApiKeys; index++) {
+    const propertyName = prefix + index;
+    const key = String(properties[propertyName] || '').trim();
+
+    if (key) {
+      slots.push({
+        index: index,
+        propertyName: propertyName,
+        key: key
+      });
+    }
+  }
+
+  return slots;
+}
+
+function getYdpGeminiApiKeySlots_(scriptProperties) {
+  const properties = scriptProperties || PropertiesService.getScriptProperties();
+  return getYdpGeminiApiKeySlotsFromMap_(properties.getProperties());
+}
+
+function getYdpGeminiKeyAttemptOrder_(slots, activeIndex) {
+  const availableSlots = slots || [];
+
+  if (!availableSlots.length) {
+    return [];
+  }
+
+  const requestedIndex = parseInt(activeIndex, 10);
+  let startPosition = availableSlots.findIndex(function(slot) {
+    return slot.index === requestedIndex;
+  });
+
+  if (startPosition < 0) {
+    startPosition = 0;
+  }
+
+  return availableSlots.slice(startPosition).concat(availableSlots.slice(0, startPosition));
+}
+
+function formatYdpGeminiMissingKeyMessage_() {
+  return 'Missing Script Property: add GEMINI_API_KEY, with optional backup keys GEMINI_API_KEY_2, GEMINI_API_KEY_3, and so on in the matching Apps Script settings.';
+}
+
+function callYdpGeminiWithKeySlots_(slots, activeIndex, requestFunction, rememberFunction) {
+  const attemptOrder = getYdpGeminiKeyAttemptOrder_(slots, activeIndex);
+
+  if (!attemptOrder.length) {
+    throw new Error(formatYdpGeminiMissingKeyMessage_());
+  }
+
+  let lastQuotaError = '';
+
+  for (let index = 0; index < attemptOrder.length; index++) {
+    const slot = attemptOrder[index];
+
+    try {
+      const result = requestFunction(slot);
+      rememberFunction(slot.index);
+      return result;
+    } catch (error) {
+      if (!isYdpGeminiQuotaError_(error)) {
+        throw error;
+      }
+
+      lastQuotaError = String(error && error.message ? error.message : error || '');
+    }
+  }
+
+  throw new Error(
+    'Gemini quota/rate limit reached for all ' + attemptOrder.length +
+    ' configured API keys. Last error: ' + shortenYdpErrorMessage_(lastQuotaError, 500)
+  );
+}
+
+function callYdpGemini_(prompt) {
+  const scriptProperties = PropertiesService.getScriptProperties();
+  const slots = getYdpGeminiApiKeySlots_(scriptProperties);
+  const activeIndex = scriptProperties.getProperty(
+    YDP_MATCHING_CONFIG.scriptProperties.geminiActiveApiKeyIndex
+  );
   const config = getYdpMatchingRuntimeConfig_();
+  return callYdpGeminiWithKeySlots_(
+    slots,
+    activeIndex,
+    function(slot) {
+      return fetchYdpGeminiTextWithKey_(prompt, config.geminiModel, slot.key);
+    },
+    function(slotIndex) {
+      scriptProperties.setProperty(
+        YDP_MATCHING_CONFIG.scriptProperties.geminiActiveApiKeyIndex,
+        String(slotIndex)
+      );
+    }
+  );
+}
+
+function fetchYdpGeminiTextWithKey_(prompt, geminiModel, apiKey) {
   const endpoint = 'https://generativelanguage.googleapis.com/v1beta/models/' +
-    encodeURIComponent(config.geminiModel) +
+    encodeURIComponent(geminiModel) +
     ':generateContent?key=' +
     encodeURIComponent(apiKey);
   const payload = {

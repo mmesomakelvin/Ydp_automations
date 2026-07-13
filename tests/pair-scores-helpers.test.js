@@ -58,6 +58,80 @@ assert.strictEqual(typeof context.getYdpDefaultMenteeScoringBatchSize_, 'functio
 assert.strictEqual(context.getYdpDefaultMenteeScoringBatchSize_(), 3);
 assert.strictEqual(typeof context.getYdpMenteeScoringRunLimitMilliseconds_, 'function');
 assert.strictEqual(context.getYdpMenteeScoringRunLimitMilliseconds_(), 90000);
+
+assert.strictEqual(typeof context.getYdpGeminiApiKeySlotsFromMap_, 'function');
+const geminiKeySlots = context.getYdpGeminiApiKeySlotsFromMap_({
+  GEMINI_API_KEY: 'primary-key',
+  GEMINI_API_KEY_2: 'second-key',
+  GEMINI_API_KEY_3: 'third-key',
+  GEMINI_API_KEY_4: '   '
+});
+assert.strictEqual(JSON.stringify(geminiKeySlots.map(slot => ({
+  index: slot.index,
+  propertyName: slot.propertyName
+}))), JSON.stringify([
+  { index: 1, propertyName: 'GEMINI_API_KEY' },
+  { index: 2, propertyName: 'GEMINI_API_KEY_2' },
+  { index: 3, propertyName: 'GEMINI_API_KEY_3' }
+]));
+
+assert.strictEqual(typeof context.getYdpGeminiKeyAttemptOrder_, 'function');
+assert.strictEqual(
+  JSON.stringify(context.getYdpGeminiKeyAttemptOrder_(geminiKeySlots, '2').map(slot => slot.index)),
+  JSON.stringify([2, 3, 1])
+);
+assert.strictEqual(
+  JSON.stringify(context.getYdpGeminiKeyAttemptOrder_(geminiKeySlots, '99').map(slot => slot.index)),
+  JSON.stringify([1, 2, 3])
+);
+
+assert.strictEqual(typeof context.callYdpGeminiWithKeySlots_, 'function');
+const attemptedSlots = [];
+let rememberedSlot = null;
+const failoverResult = context.callYdpGeminiWithKeySlots_(
+  geminiKeySlots,
+  '1',
+  slot => {
+    attemptedSlots.push(slot.index);
+    if (slot.index === 1) {
+      throw new Error('Gemini quota/rate limit reached.');
+    }
+    return 'success from slot ' + slot.index;
+  },
+  index => {
+    rememberedSlot = index;
+  }
+);
+assert.strictEqual(failoverResult, 'success from slot 2');
+assert.strictEqual(JSON.stringify(attemptedSlots), JSON.stringify([1, 2]));
+assert.strictEqual(rememberedSlot, 2);
+
+assert.throws(
+  () => context.callYdpGeminiWithKeySlots_(
+    geminiKeySlots,
+    '1',
+    () => {
+      throw new Error('Gemini API HTTP 400 INVALID_ARGUMENT: bad request');
+    },
+    () => {}
+  ),
+  /INVALID_ARGUMENT/
+);
+
+assert.throws(
+  () => context.callYdpGeminiWithKeySlots_(
+    geminiKeySlots,
+    '1',
+    () => {
+      throw new Error('Gemini API HTTP 429 RESOURCE_EXHAUSTED');
+    },
+    () => {}
+  ),
+  /all 3 configured API keys/i
+);
+
+assert.strictEqual(typeof context.formatYdpGeminiMissingKeyMessage_, 'function');
+assert.ok(context.formatYdpGeminiMissingKeyMessage_().includes('GEMINI_API_KEY_2'));
 assert.strictEqual(typeof context.shouldYdpSkipExistingPairScore_, 'function');
 assert.strictEqual(context.shouldYdpSkipExistingPairScore_({ status: 'Scored' }), true);
 assert.strictEqual(context.shouldYdpSkipExistingPairScore_({ status: 'scored' }), true);
