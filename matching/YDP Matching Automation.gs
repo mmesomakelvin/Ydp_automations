@@ -236,6 +236,8 @@ function generateYdpMenteeScores_(maxMenteesToScore, actionName) {
     let skippedCount = 0;
     let quotaHit = false;
     let quotaMessage = '';
+    let serviceUnavailableHit = false;
+    let serviceUnavailableMessage = '';
     let stoppedForTime = false;
 
     for (let rowIndex = 0; rowIndex < sourceValues.slice(1).length; rowIndex++) {
@@ -271,6 +273,7 @@ function generateYdpMenteeScores_(maxMenteesToScore, actionName) {
         const softSkillsScore = clampYdpScore_(scoring.softSkillsScore);
         const finalScore = learningScore * 8 + communityScore * 4 + careerScore * 4 + softSkillsScore * 4;
 
+        const readableError = shortenYdpErrorMessage_(error.message);
         existingScoreMap[menteeKey] = upsertYdpMenteeScoreRow_(scoreSheet, existingScore, [
           mentee.id,
           mentee.name,
@@ -308,10 +311,16 @@ function generateYdpMenteeScores_(maxMenteesToScore, actionName) {
           'ERROR',
           '',
           '',
-          shortenYdpErrorMessage_(error.message),
+          readableError,
           new Date()
         ]);
         errorCount++;
+
+        if (isYdpGeminiServiceUnavailableError_(error)) {
+          serviceUnavailableHit = true;
+          serviceUnavailableMessage = readableError;
+          break;
+        }
       }
     }
 
@@ -323,8 +332,10 @@ function generateYdpMenteeScores_(maxMenteesToScore, actionName) {
       errorCount: errorCount,
       quotaHit: quotaHit,
       quotaMessage: quotaMessage,
+      serviceUnavailableHit: serviceUnavailableHit,
+      serviceUnavailableMessage: serviceUnavailableMessage,
       stoppedForTime: stoppedForTime,
-      completedAll: successCount === 0 && !quotaHit && !stoppedForTime && errorCount === 0
+      completedAll: successCount === 0 && !quotaHit && !serviceUnavailableHit && !stoppedForTime && errorCount === 0
     });
 
     logYdpMatchingRun_(actionName, quotaHit || stoppedForTime || errorCount ? 'PARTIAL_SUCCESS' : 'SUCCESS', message);
@@ -1853,6 +1864,13 @@ function buildYdpMenteeScoreBatchMessage_(summary) {
     if (summary.quotaMessage) {
       lines.push(summary.quotaMessage);
     }
+  } else if (summary.serviceUnavailableHit) {
+    lines.push('');
+    lines.push('Gemini is temporarily busy, so this batch stopped after the first failed request instead of waiting on more rows. Run the button again later.');
+
+    if (summary.serviceUnavailableMessage) {
+      lines.push(summary.serviceUnavailableMessage);
+    }
   } else if (summary.stoppedForTime) {
     lines.push('');
     lines.push('Apps Script time was almost up, so mentee scoring stopped safely. Run the button again to continue.');
@@ -1872,6 +1890,13 @@ function isYdpGeminiQuotaError_(error) {
   return message.indexOf('resource_exhausted') !== -1 ||
     message.indexOf('quota') !== -1 ||
     message.indexOf('http 429') !== -1;
+}
+
+function isYdpGeminiServiceUnavailableError_(error) {
+  const message = String(error && error.message ? error.message : error || '').toLowerCase();
+  return message.indexOf('http 503') !== -1 ||
+    message.indexOf('503 unavailable') !== -1 ||
+    message.indexOf('model is currently experiencing high demand') !== -1;
 }
 
 function describeYdpPairScoreError_(error) {

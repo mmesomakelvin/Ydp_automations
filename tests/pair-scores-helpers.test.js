@@ -132,6 +132,20 @@ assert.throws(
 
 assert.strictEqual(typeof context.formatYdpGeminiMissingKeyMessage_, 'function');
 assert.ok(context.formatYdpGeminiMissingKeyMessage_().includes('GEMINI_API_KEY_2'));
+
+assert.strictEqual(typeof context.isYdpGeminiServiceUnavailableError_, 'function');
+assert.strictEqual(
+  context.isYdpGeminiServiceUnavailableError_(new Error('Gemini API HTTP 503 UNAVAILABLE: This model is currently experiencing high demand.')),
+  true
+);
+assert.strictEqual(
+  context.isYdpGeminiServiceUnavailableError_(new Error('Gemini API HTTP 429 RESOURCE_EXHAUSTED')),
+  false
+);
+assert.strictEqual(
+  context.isYdpGeminiServiceUnavailableError_(new Error('Gemini returned invalid JSON.')),
+  false
+);
 assert.strictEqual(typeof context.shouldYdpSkipExistingPairScore_, 'function');
 assert.strictEqual(context.shouldYdpSkipExistingPairScore_({ status: 'Scored' }), true);
 assert.strictEqual(context.shouldYdpSkipExistingPairScore_({ status: 'scored' }), true);
@@ -172,6 +186,19 @@ const menteeStoppedForTimeMessage = context.buildYdpMenteeScoreBatchMessage_({
 });
 assert.ok(menteeStoppedForTimeMessage.includes('Generated mentee scores for 2 mentees.'));
 assert.ok(menteeStoppedForTimeMessage.includes('mentee scoring stopped safely'));
+
+const menteeServiceUnavailableMessage = context.buildYdpMenteeScoreBatchMessage_({
+  successCount: 0,
+  skippedCount: 80,
+  errorCount: 1,
+  quotaHit: false,
+  serviceUnavailableHit: true,
+  serviceUnavailableMessage: 'Gemini API HTTP 503 UNAVAILABLE: high demand',
+  stoppedForTime: false,
+  completedAll: false
+});
+assert.ok(menteeServiceUnavailableMessage.includes('stopped after the first failed request'));
+assert.ok(menteeServiceUnavailableMessage.includes('HTTP 503 UNAVAILABLE'));
 
 assert.strictEqual(typeof context.selectYdpAutoMatchesFromPairScores_, 'function');
 const autoMatchResult = context.selectYdpAutoMatchesFromPairScores_(
