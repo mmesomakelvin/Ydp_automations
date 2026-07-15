@@ -1,7 +1,7 @@
 const YDP_MENTEE_CONFIG = {
   sheetName: 'Form_Responses',
   senderName: 'YDP Mentorship Team',
-  startDateText: 'July 10, 2026',
+  startDateText: 'Saturday, July 18, 2026',
   menuName: 'YDP Automation',
   idPrefix: 'YDP-C2-Mentee-',
   duplicateColor: '#d9ead3',
@@ -17,6 +17,8 @@ const YDP_MENTEE_CONFIG = {
     registrationSentAt: 'Mentee Registration Email Sent At',
     alreadyRegisteredStatus: 'Already Registered Email Status',
     alreadyRegisteredSentAt: 'Already Registered Email Sent At',
+    onboardingReminderStatus: 'Onboarding Reminder Email Status',
+    onboardingReminderSentAt: 'Onboarding Reminder Email Sent At',
     lastError: 'Email Last Error'
   },
   statuses: {
@@ -40,6 +42,7 @@ function onOpen() {
     .addItem('Send mentee email to selected row', 'sendYdpMenteeRegistrationEmailToSelectedRow')
     .addItem('Send mentee email to all unsent rows', 'sendYdpMenteeRegistrationEmailsToAllUnsentRows')
     .addItem('Send already registered mentee update to all unsent rows', 'sendYdpAlreadyRegisteredMenteeEmailsToAllUnsentRows')
+    .addItem('Send onboarding reminder to all unsent rows', 'sendYdpMenteeOnboardingRemindersToAllUnsentRows')
     .addItem('Repair missing sent date for selected row', 'repairSelectedYdpMenteeSentDates')
     .addItem('Resend email to selected row', 'resendYdpMenteeEmailToSelectedRow')
     .addToUi();
@@ -94,6 +97,8 @@ function setupYdpMenteeEmailTrackingColumns() {
     YDP_MENTEE_CONFIG.headers.registrationSentAt,
     YDP_MENTEE_CONFIG.headers.alreadyRegisteredStatus,
     YDP_MENTEE_CONFIG.headers.alreadyRegisteredSentAt,
+    YDP_MENTEE_CONFIG.headers.onboardingReminderStatus,
+    YDP_MENTEE_CONFIG.headers.onboardingReminderSentAt,
     YDP_MENTEE_CONFIG.headers.lastError
   ];
 
@@ -165,6 +170,8 @@ function getYdpMenteeDataDictionaryRows_() {
     ['Sheet', YDP_MENTEE_CONFIG.sheetName, YDP_MENTEE_CONFIG.headers.registrationSentAt, 'Date/time the first registration email was sent.', 'Audit trail.'],
     ['Sheet', YDP_MENTEE_CONFIG.sheetName, YDP_MENTEE_CONFIG.headers.alreadyRegisteredStatus, 'Whether the already-registered update email was sent.', 'Used for older existing applicants.'],
     ['Sheet', YDP_MENTEE_CONFIG.sheetName, YDP_MENTEE_CONFIG.headers.alreadyRegisteredSentAt, 'Date/time the already-registered update email was sent.', 'Audit trail.'],
+    ['Sheet', YDP_MENTEE_CONFIG.sheetName, YDP_MENTEE_CONFIG.headers.onboardingReminderStatus, 'Whether the July 18 onboarding reminder was sent.', 'Prevents duplicate onboarding reminders.'],
+    ['Sheet', YDP_MENTEE_CONFIG.sheetName, YDP_MENTEE_CONFIG.headers.onboardingReminderSentAt, 'Date/time the onboarding reminder was sent.', 'Audit trail.'],
     ['Sheet', YDP_MENTEE_CONFIG.sheetName, YDP_MENTEE_CONFIG.headers.lastError, 'Last email error message for that row.', 'Check this if an email did not send.'],
     ['Button', YDP_MENTEE_CONFIG.menuName, 'Setup email tracking columns', 'Creates the email tracking columns if they are missing.', 'Run once, or if columns are missing.'],
     ['Button', YDP_MENTEE_CONFIG.menuName, 'Install form submit trigger', 'Makes the automation run when a new form response arrives.', 'Run once after deploying the script.'],
@@ -175,6 +182,7 @@ function getYdpMenteeDataDictionaryRows_() {
     ['Button', YDP_MENTEE_CONFIG.menuName, 'Send mentee email to selected row', 'Sends the registration email to one selected mentee if not already sent.', 'Use for a single controlled send.'],
     ['Button', YDP_MENTEE_CONFIG.menuName, 'Send mentee email to all unsent rows', 'Sends registration emails only to rows not already marked SENT.', 'Use carefully for bulk sends.'],
     ['Button', YDP_MENTEE_CONFIG.menuName, 'Send already registered mentee update to all unsent rows', 'Sends the already-registered update to older rows that have not received it.', 'Use for existing applicants.'],
+    ['Button', YDP_MENTEE_CONFIG.menuName, 'Send onboarding reminder to all unsent rows', 'Sends the July 18 onboarding reminder only to mentees who have not received this reminder.', 'Preview and test first, then use for the approved campaign.'],
     ['Button', YDP_MENTEE_CONFIG.menuName, 'Repair missing sent date for selected row', 'Adds a missing sent date where status already says SENT.', 'Use only to repair tracking.'],
     ['Button', YDP_MENTEE_CONFIG.menuName, 'Resend email to selected row', 'Force resends one selected row.', 'Use only when you intentionally want a duplicate email sent.']
   ];
@@ -206,7 +214,7 @@ function sendTestYdpMenteeEmail() {
     return;
   }
 
-  const type = promptForYdpEmailType_('Which test email should be sent? Type REGISTRATION or ALREADY.');
+  const type = promptForYdpEmailType_('Which test email should be sent? Type REGISTRATION, ALREADY, or ONBOARDING.');
   if (!type) {
     return;
   }
@@ -222,6 +230,7 @@ function previewSelectedYdpMenteeEmail() {
   const rowData = getYdpRowData_(sheet, row);
   const registrationEmail = buildYdpMenteeEmail_(rowData, 'REGISTRATION');
   const alreadyRegisteredEmail = buildYdpMenteeEmail_(rowData, 'ALREADY');
+  const onboardingReminderEmail = buildYdpMenteeEmail_(rowData, 'ONBOARDING');
   const html = [
     '<div style="font-family:Arial,sans-serif;line-height:1.5;padding:8px;">',
     '<h2>Registration Email</h2>',
@@ -230,11 +239,14 @@ function previewSelectedYdpMenteeEmail() {
     '<h2>Already Registered Update</h2>',
     '<p><strong>Subject:</strong> ' + escapeYdpHtml_(alreadyRegisteredEmail.subject) + '</p>',
     '<pre style="white-space:pre-wrap;background:#f6f8fa;padding:12px;border-radius:6px;">' + escapeYdpHtml_(alreadyRegisteredEmail.body) + '</pre>',
+    '<h2>Onboarding Reminder</h2>',
+    '<p><strong>Subject:</strong> ' + escapeYdpHtml_(onboardingReminderEmail.subject) + '</p>',
+    '<pre style="white-space:pre-wrap;background:#f6f8fa;padding:12px;border-radius:6px;">' + escapeYdpHtml_(onboardingReminderEmail.body) + '</pre>',
     '</div>'
   ].join('');
 
   SpreadsheetApp.getUi().showModalDialog(
-    HtmlService.createHtmlOutput(html).setWidth(720).setHeight(620),
+    HtmlService.createHtmlOutput(html).setWidth(720).setHeight(760),
     'YDP Mentee Email Preview'
   );
 }
@@ -254,6 +266,10 @@ function sendYdpAlreadyRegisteredMenteeEmailsToAllUnsentRows() {
   sendYdpMenteeBulkEmails_('ALREADY');
 }
 
+function sendYdpMenteeOnboardingRemindersToAllUnsentRows() {
+  sendYdpMenteeBulkEmails_('ONBOARDING');
+}
+
 function repairSelectedYdpMenteeSentDates() {
   const sheet = getYdpMenteeSheet_();
   const row = getSelectedYdpDataRow_(sheet);
@@ -267,7 +283,7 @@ function repairSelectedYdpMenteeSentDates() {
 }
 
 function resendYdpMenteeEmailToSelectedRow() {
-  const type = promptForYdpEmailType_('Which email should be resent? Type REGISTRATION or ALREADY.');
+  const type = promptForYdpEmailType_('Which email should be resent? Type REGISTRATION, ALREADY, or ONBOARDING.');
   if (!type) {
     return;
   }
@@ -323,11 +339,13 @@ function sendYdpMenteeEmailForRow_(sheet, row, type, options) {
   const sentAtColumn = getYdpHeaderColumn_(headerMap, sentAtHeader);
   const registrationStatusColumn = getYdpHeaderColumn_(headerMap, YDP_MENTEE_CONFIG.headers.registrationStatus);
   const alreadyRegisteredStatusColumn = getYdpHeaderColumn_(headerMap, YDP_MENTEE_CONFIG.headers.alreadyRegisteredStatus);
+  const onboardingReminderStatusColumn = getYdpHeaderColumn_(headerMap, YDP_MENTEE_CONFIG.headers.onboardingReminderStatus);
   const lastErrorColumn = getYdpHeaderColumn_(headerMap, YDP_MENTEE_CONFIG.headers.lastError);
   const rowData = getYdpRowData_(sheet, row);
   const recipient = String(rowData[YDP_MENTEE_CONFIG.headers.email] || '').trim();
   const registrationStatus = String(sheet.getRange(row, registrationStatusColumn).getValue() || '').trim();
   const alreadyRegisteredStatus = String(sheet.getRange(row, alreadyRegisteredStatusColumn).getValue() || '').trim();
+  const onboardingReminderStatus = String(sheet.getRange(row, onboardingReminderStatusColumn).getValue() || '').trim();
 
   if (!isValidYdpEmail_(recipient)) {
     sheet.getRange(row, statusColumn).setValue(YDP_MENTEE_CONFIG.statuses.error);
@@ -335,21 +353,24 @@ function sendYdpMenteeEmailForRow_(sheet, row, type, options) {
     return { row: row, sent: false, skipped: false, error: 'Missing or invalid email address.' };
   }
 
-  if (!settings.force &&
-      (registrationStatus === YDP_MENTEE_CONFIG.statuses.sent ||
-        alreadyRegisteredStatus === YDP_MENTEE_CONFIG.statuses.sent)) {
+  const currentCampaignWasSent = type === 'ONBOARDING'
+    ? onboardingReminderStatus === YDP_MENTEE_CONFIG.statuses.sent
+    : registrationStatus === YDP_MENTEE_CONFIG.statuses.sent ||
+      alreadyRegisteredStatus === YDP_MENTEE_CONFIG.statuses.sent;
+
+  if (!settings.force && currentCampaignWasSent) {
     const repaired = repairYdpMenteeSentDatesForRow_(sheet, row);
     return {
       row: row,
       sent: false,
       skipped: true,
       reason: repaired > 0
-        ? 'A mentee email has already been sent for this row. Repaired ' + repaired + ' missing sent date(s).'
-        : 'A mentee email has already been sent for this row.'
+        ? 'This mentee campaign email has already been sent for this row. Repaired ' + repaired + ' missing sent date(s).'
+        : 'This mentee campaign email has already been sent for this row.'
     };
   }
 
-  if (!settings.force && hasYdpMenteeEmailAlreadyBeenSent_(sheet, recipient, row)) {
+  if (!settings.force && hasYdpMenteeEmailAlreadyBeenSent_(sheet, recipient, row, type)) {
     sheet.getRange(row, statusColumn).setValue(YDP_MENTEE_CONFIG.statuses.skippedDuplicate);
     sheet.getRange(row, lastErrorColumn).setValue('');
     return { row: row, sent: false, skipped: true, reason: 'Duplicate email address already received a mentee email.' };
@@ -372,6 +393,26 @@ function sendYdpMenteeEmailForRow_(sheet, row, type, options) {
 
 function buildYdpMenteeEmail_(rowData, type) {
   const firstName = String(rowData.firstName || rowData[YDP_MENTEE_CONFIG.headers.firstName] || '').trim() || 'there';
+
+  if (type === 'ONBOARDING') {
+    return {
+      subject: 'YDP Mentorship onboarding is this Saturday',
+      body: [
+        'Hi ' + firstName + ',',
+        '',
+        'Thank you for coming this far with the YDP Mentorship Program.',
+        '',
+        'Our onboarding session is this Saturday, July 18, 2026.',
+        '',
+        'Before the onboarding session, we will let you know whether you have been selected for the program. If selected, you will also receive your mentor details before then.',
+        '',
+        'Please keep an eye on your email for this update and the onboarding details.',
+        '',
+        'Warm regards,',
+        YDP_MENTEE_CONFIG.senderName
+      ].join('\n')
+    };
+  }
 
   if (type === 'ALREADY') {
     return {
@@ -515,22 +556,27 @@ function getSelectedYdpDataRow_(sheet) {
 }
 
 function getYdpStatusHeaderForType_(type) {
-  return type === 'ALREADY'
-    ? YDP_MENTEE_CONFIG.headers.alreadyRegisteredStatus
-    : YDP_MENTEE_CONFIG.headers.registrationStatus;
+  if (type === 'ONBOARDING') {
+    return YDP_MENTEE_CONFIG.headers.onboardingReminderStatus;
+  }
+
+  return type === 'ALREADY' ? YDP_MENTEE_CONFIG.headers.alreadyRegisteredStatus : YDP_MENTEE_CONFIG.headers.registrationStatus;
 }
 
 function getYdpSentAtHeaderForType_(type) {
-  return type === 'ALREADY'
-    ? YDP_MENTEE_CONFIG.headers.alreadyRegisteredSentAt
-    : YDP_MENTEE_CONFIG.headers.registrationSentAt;
+  if (type === 'ONBOARDING') {
+    return YDP_MENTEE_CONFIG.headers.onboardingReminderSentAt;
+  }
+
+  return type === 'ALREADY' ? YDP_MENTEE_CONFIG.headers.alreadyRegisteredSentAt : YDP_MENTEE_CONFIG.headers.registrationSentAt;
 }
 
-function hasYdpMenteeEmailAlreadyBeenSent_(sheet, recipient, currentRow) {
+function hasYdpMenteeEmailAlreadyBeenSent_(sheet, recipient, currentRow, type) {
   const headerMap = getYdpHeaderMap_(sheet);
   const emailColumn = getYdpHeaderColumn_(headerMap, YDP_MENTEE_CONFIG.headers.email);
   const registrationStatusColumn = getYdpHeaderColumn_(headerMap, YDP_MENTEE_CONFIG.headers.registrationStatus);
   const alreadyRegisteredStatusColumn = getYdpHeaderColumn_(headerMap, YDP_MENTEE_CONFIG.headers.alreadyRegisteredStatus);
+  const onboardingReminderStatusColumn = getYdpHeaderColumn_(headerMap, YDP_MENTEE_CONFIG.headers.onboardingReminderStatus);
   const lastRow = sheet.getLastRow();
   const normalizedRecipient = recipient.toLowerCase();
 
@@ -550,6 +596,11 @@ function hasYdpMenteeEmailAlreadyBeenSent_(sheet, recipient, currentRow) {
     const email = String(rowValues[emailColumn - 1] || '').trim().toLowerCase();
     const registrationStatus = String(rowValues[registrationStatusColumn - 1] || '').trim();
     const alreadyRegisteredStatus = String(rowValues[alreadyRegisteredStatusColumn - 1] || '').trim();
+    const onboardingReminderStatus = String(rowValues[onboardingReminderStatusColumn - 1] || '').trim();
+
+    if (type === 'ONBOARDING') {
+      return email === normalizedRecipient && onboardingReminderStatus === YDP_MENTEE_CONFIG.statuses.sent;
+    }
 
     return email === normalizedRecipient &&
       (registrationStatus === YDP_MENTEE_CONFIG.statuses.sent ||
@@ -656,6 +707,8 @@ function repairYdpMenteeSentDatesForRow_(sheet, row) {
   const registrationSentAtColumn = getYdpHeaderColumn_(headerMap, YDP_MENTEE_CONFIG.headers.registrationSentAt);
   const alreadyRegisteredStatusColumn = getYdpHeaderColumn_(headerMap, YDP_MENTEE_CONFIG.headers.alreadyRegisteredStatus);
   const alreadyRegisteredSentAtColumn = getYdpHeaderColumn_(headerMap, YDP_MENTEE_CONFIG.headers.alreadyRegisteredSentAt);
+  const onboardingReminderStatusColumn = getYdpHeaderColumn_(headerMap, YDP_MENTEE_CONFIG.headers.onboardingReminderStatus);
+  const onboardingReminderSentAtColumn = getYdpHeaderColumn_(headerMap, YDP_MENTEE_CONFIG.headers.onboardingReminderSentAt);
   const now = new Date();
   let repaired = 0;
 
@@ -663,6 +716,8 @@ function repairYdpMenteeSentDatesForRow_(sheet, row) {
   const registrationSentAt = sheet.getRange(row, registrationSentAtColumn).getValue();
   const alreadyRegisteredStatus = String(sheet.getRange(row, alreadyRegisteredStatusColumn).getValue() || '').trim();
   const alreadyRegisteredSentAt = sheet.getRange(row, alreadyRegisteredSentAtColumn).getValue();
+  const onboardingReminderStatus = String(sheet.getRange(row, onboardingReminderStatusColumn).getValue() || '').trim();
+  const onboardingReminderSentAt = sheet.getRange(row, onboardingReminderSentAtColumn).getValue();
 
   if (registrationStatus === YDP_MENTEE_CONFIG.statuses.sent && !registrationSentAt) {
     sheet.getRange(row, registrationSentAtColumn).setValue(now);
@@ -671,6 +726,11 @@ function repairYdpMenteeSentDatesForRow_(sheet, row) {
 
   if (alreadyRegisteredStatus === YDP_MENTEE_CONFIG.statuses.sent && !alreadyRegisteredSentAt) {
     sheet.getRange(row, alreadyRegisteredSentAtColumn).setValue(now);
+    repaired += 1;
+  }
+
+  if (onboardingReminderStatus === YDP_MENTEE_CONFIG.statuses.sent && !onboardingReminderSentAt) {
+    sheet.getRange(row, onboardingReminderSentAtColumn).setValue(now);
     repaired += 1;
   }
 
@@ -686,8 +746,8 @@ function promptForYdpEmailType_(message) {
   }
 
   const type = response.getResponseText().trim().toUpperCase();
-  if (type !== 'REGISTRATION' && type !== 'ALREADY') {
-    ui.alert('Please type REGISTRATION or ALREADY.');
+  if (type !== 'REGISTRATION' && type !== 'ALREADY' && type !== 'ONBOARDING') {
+    ui.alert('Please type REGISTRATION, ALREADY, or ONBOARDING.');
     return null;
   }
 

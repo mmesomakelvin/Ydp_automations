@@ -4,6 +4,9 @@ docs/**
 matching/**
 mentor/**
 tests/**
+deliverables/**
+scripts/**
+*.pdf
 .git/**
 .codex/**
 .agents/**
