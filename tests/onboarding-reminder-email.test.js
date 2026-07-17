@@ -34,10 +34,13 @@ assert.strictEqual(mentor.context.getYdpStatusHeaderForType_('ONBOARDING'), 'Onb
 assert.strictEqual(mentor.context.getYdpSentAtHeaderForType_('ONBOARDING'), 'Onboarding Reminder Email Sent At');
 assert.strictEqual(typeof mentor.context.sendYdpMentorOnboardingRemindersToAllUnsentRows, 'function');
 assert.ok(mentor.source.includes(".addItem('Send onboarding reminder to all unsent rows'"));
-assert.ok(mentorEmail.subject.includes('onboarding is this Saturday'));
-assert.ok(mentorEmail.body.includes('Thank you for coming this far'));
+assert.ok(mentorEmail.subject.includes('onboarding is tomorrow'));
+assert.ok(mentorEmail.body.includes('sincere apologies for the delay'));
 assert.ok(mentorEmail.body.includes('Saturday, July 18, 2026'));
-assert.ok(mentorEmail.body.includes('assigned mentee details'));
+assert.ok(mentorEmail.body.includes('deeply valued'));
+assert.ok(mentorEmail.body.includes('important part of this program'));
+assert.ok(mentorEmail.body.includes('full onboarding details will be shared with you shortly'));
+assert.ok(mentorEmail.body.includes('look forward to beginning this journey with you'));
 assert.ok(mentorEmail.body.includes('YDP Mentorship Team'));
 assert.ok(mentor.context.getYdpMentorDataDictionaryRows_().some((row) => row.includes('Onboarding Reminder Email Status')));
 

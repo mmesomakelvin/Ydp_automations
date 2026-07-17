@@ -402,17 +402,19 @@ function buildYdpMentorEmail_(rowData, type) {
 
   if (type === 'ONBOARDING') {
     return {
-      subject: 'YDP Mentorship onboarding is this Saturday',
+      subject: 'Your YDP Mentorship Program onboarding is tomorrow',
       body: [
         'Hi ' + firstName + ',',
         '',
-        'Thank you for coming this far with the YDP Mentorship Program.',
+        'Thank you for your patience, and please accept our sincere apologies for the delay in sharing this update.',
         '',
-        'Our onboarding session is this Saturday, July 18, 2026.',
+        'We are pleased to inform you that the mentor onboarding session for the YDP Mentorship Program will take place tomorrow, Saturday, July 18, 2026.',
         '',
-        'Before the onboarding session, you will receive your assigned mentee details, including information for every mentee assigned to you.',
+        'Your willingness to share your knowledge, experience, and time with emerging data professionals is deeply valued. You are an important part of this program, and we are grateful to have you join us as we proceed with this mentorship cohort.',
         '',
-        'Please keep an eye on your email for the assignment update and the onboarding details.',
+        'The full onboarding details will be shared with you shortly. Please keep an eye on your email for the next update.',
+        '',
+        'Thank you again for choosing to be part of the YDP Mentorship Program. We look forward to beginning this journey with you.',
         '',
         'Warm regards,',
         YDP_MENTOR_CONFIG.senderName
