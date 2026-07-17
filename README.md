@@ -291,10 +291,39 @@ The setup creates these tabs:
 | `Generate next pair score` | Uses Gemini to score one eligible mentee against one available mentor and writes the comparison into `Pair Scores`. | Use after mentee scores and mentor snapshots exist. Run it again later to continue pair scoring. | This can hit Gemini quota. Existing pair scores are preserved. If a row says `Error`, read `Gemini Concern`; running the button again retries that same pair. |
 | `Generate pair scores batch` | Uses Gemini to score up to 5 unscored mentee/mentor pairs in one run and writes them into `Pair Scores`. | Use after the one-pair test works. This is the normal button for moving faster. | It still may stop because of Gemini quota or Apps Script time limits. Nothing already scored is deleted. Run it again later to continue. |
 | `Auto-match from pair scores` | Uses saved pair scores to select the best available mentor for each fully scored mentee. | Use after enough pair scores have been generated. | It does not call Gemini. It replaces the current generated rows in `Match Recommendations` and `Matched Pairs`. |
+| `Preview selected selection email` | Shows the program-selection email for one selected `Can Pair` mentee without sending it. | Use first to review the wording and recipient. | Select a data row in `Mentee Scores`, not the header. |
+| `Send test selection email` | Sends the selected mentee's personalized template to an email address you enter. | Use after previewing and before any live participant send. | It does not update the mentee's selection-email status or sent date. |
+| `Send selection email to selected mentee` | Sends the real selection email to one selected `Can Pair` mentee. | Use as the first controlled live send. | It records `SENT` and will not send the same campaign twice. |
+| `Send selection emails to all eligible unsent mentees` | Sends the real selection email to every valid `Can Pair` mentee not already marked `SENT`. | Use only after the preview, test copy, and selected live send succeed. | `Do Not Pair`, `ERROR`, invalid-email, and already-sent rows are not emailed. |
 | `Preview selected match emails` | Shows the mentee and mentor match emails for the selected row in `Matched Pairs`. | Use before sending any match emails. | Select a real matched pair row, not the header row. |
 | `Send match emails to selected pair` | Sends match emails for one selected final pair if they have not already been sent. | Use first for controlled testing. | It writes separate `SENT` statuses for mentee and mentor. It skips sides already marked `SENT`. |
 | `Send match emails to all unsent matched pairs` | Sends match emails for every final matched pair that has not already been notified. | Use only after selected-row testing works. | This sends real emails in bulk. Status columns protect against duplicate sends. |
 | `Test Gemini connection` | Checks the configured Gemini keys and automatically moves to the next key if the active one is quota-limited. | Use after adding or changing any Gemini API key. | API key values must stay in Apps Script Script Properties, not in GitHub. |
+
+## Mentee Selection Emails
+
+Selection emails are controlled from `Mentee Scores`, because this is where the final `Gemini Review Status` is stored. The campaign does not change scores, source snapshots, pair scores, or matches.
+
+Running `Setup matching workbook` adds these columns without clearing existing data:
+
+- `Selection Email Status`: blank before sending, briefly `SENDING` during delivery, `SENT` after success, or `ERROR` after a confirmed failure.
+- `Selection Email Sent At`: the successful send date and time.
+- `Selection Email Last Error`: the latest sending problem for that row.
+
+Safe testing order:
+
+1. Open `Mentee Scores` and select one row marked `Can Pair`.
+2. Run `YDP Matching > Preview selected selection email`. This sends nothing.
+3. Run `YDP Matching > Send test selection email` and enter your own email address. This does not change participant tracking.
+4. Check the test message in your inbox.
+5. Keep the same eligible row selected and run `Send selection email to selected mentee`.
+6. Confirm that row shows `SENT` and a value in `Selection Email Sent At`.
+7. Try the selected-row action again and confirm it is skipped as already sent.
+8. Run `Send selection emails to all eligible unsent mentees` only after those checks pass.
+
+The bulk action counts eligible recipients and shows a confirmation before sending. It also checks the remaining Apps Script email quota before sending anything.
+
+`SENDING` is a duplicate-send safety state. If it remains after an interrupted run, read `Selection Email Last Error` and verify the recipient's delivery before manually clearing or retrying that row.
 
 ## Data Dictionaries
 

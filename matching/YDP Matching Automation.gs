@@ -13,6 +13,7 @@ const YDP_MATCHING_CONFIG = {
   maxManualRunMilliseconds: 240000,
   senderName: 'YDP Mentorship Team',
   statuses: {
+    sending: 'SENDING',
     sent: 'SENT',
     error: 'ERROR'
   },
@@ -53,6 +54,11 @@ function onOpen() {
     .addItem('Generate pair scores batch', 'generateYdpPairScoresBatch')
     .addItem('Auto-match from pair scores', 'autoMatchYdpFromPairScores')
     .addSeparator()
+    .addItem('Preview selected selection email', 'previewSelectedYdpMenteeSelectionEmail')
+    .addItem('Send test selection email', 'sendTestYdpMenteeSelectionEmail')
+    .addItem('Send selection email to selected mentee', 'sendYdpMenteeSelectionEmailToSelectedRow')
+    .addItem('Send selection emails to all eligible unsent mentees', 'sendYdpMenteeSelectionEmailsToAllEligibleUnsent')
+    .addSeparator()
     .addItem('Preview selected match emails', 'previewSelectedYdpMatchEmails')
     .addItem('Send match emails to selected pair', 'sendYdpMatchEmailsToSelectedPair')
     .addItem('Send match emails to all unsent matched pairs', 'sendYdpMatchEmailsToAllUnsentPairs')
@@ -73,9 +79,13 @@ function setupYdpMatchingWorkbookTabs_(spreadsheet) {
   setupYdpSourceConfigSheet_(spreadsheet);
   ensureYdpSheetWithHeaders_(spreadsheet, YDP_MATCHING_CONFIG.sheets.menteeSnapshot, []);
   ensureYdpSheetWithHeaders_(spreadsheet, YDP_MATCHING_CONFIG.sheets.mentorSnapshot, []);
-  migrateYdpMenteeScoreReviewStatus_(
-    ensureYdpSheetWithHeaders_(spreadsheet, YDP_MATCHING_CONFIG.sheets.menteeScores, getYdpMenteeScoresHeaders_())
+  const menteeScoresSheet = ensureYdpSheetWithHeaders_(
+    spreadsheet,
+    YDP_MATCHING_CONFIG.sheets.menteeScores,
+    getYdpMenteeScoresHeaders_()
   );
+  migrateYdpMenteeScoreReviewStatus_(menteeScoresSheet);
+  ensureYdpAdditionalHeaders_(menteeScoresSheet, getYdpMenteeSelectionEmailTrackingHeaders_());
   ensureYdpSheetWithHeaders_(spreadsheet, YDP_MATCHING_CONFIG.sheets.pairScores, getYdpPairScoresHeaders_());
   ensureYdpSheetWithHeaders_(spreadsheet, YDP_MATCHING_CONFIG.sheets.matchRecommendations, getYdpMatchRecommendationHeaders_());
   ensureYdpSheetWithHeaders_(spreadsheet, YDP_MATCHING_CONFIG.sheets.matchedPairs, getYdpMatchedPairsHeaders_());
@@ -136,6 +146,9 @@ function getYdpMatchingDataDictionaryRows_() {
     ['Sheet', YDP_MATCHING_CONFIG.sheets.menteeScores, 'Gemini Summary', 'Gemini explanation of the mentee score.', 'Read for context.'],
     ['Sheet', YDP_MATCHING_CONFIG.sheets.menteeScores, 'Gemini Concerns', 'Gemini concern or risk note.', 'Check before final decisions.'],
     ['Sheet', YDP_MATCHING_CONFIG.sheets.menteeScores, 'Scored At', 'When Gemini scored the row.', 'Audit trail.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.menteeScores, 'Selection Email Status', 'Whether the program selection email was sent.', 'SENDING is protected from retries; SENT prevents duplicates; ERROR means sending failed.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.menteeScores, 'Selection Email Sent At', 'When the selection email was successfully sent.', 'Use as the communication audit date.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.menteeScores, 'Selection Email Last Error', 'The latest selection-email sending error for this mentee.', 'Check when Selection Email Status is ERROR.'],
     ['Sheet', YDP_MATCHING_CONFIG.sheets.pairScores, 'Pair ID', 'Unique ID for one mentee plus one mentor comparison.', 'Audit trail.'],
     ['Sheet', YDP_MATCHING_CONFIG.sheets.pairScores, 'Skill Fit Score', 'Score out of 40 for mentor skill fit.', 'Part of total pair score.'],
     ['Sheet', YDP_MATCHING_CONFIG.sheets.pairScores, 'Career Fit Score', 'Score out of 30 for career/background fit.', 'Part of total pair score.'],
@@ -169,6 +182,10 @@ function getYdpMatchingDataDictionaryRows_() {
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Generate next pair score', 'Scores one mentee/mentor pair with Gemini.', 'Use as a safe one-pair test.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Generate pair scores batch', 'Scores up to 5 unscored mentee/mentor pairs with Gemini.', 'Use to move matching comparisons forward.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Auto-match from pair scores', 'Selects the best available mentor for each fully scored eligible mentee.', 'Run after pair scores are complete enough for matching.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Preview selected selection email', 'Shows the selection email for one selected Can Pair mentee without sending it.', 'Use before any live selection email.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Send test selection email', 'Sends the selected Can Pair mentee template to an email address you enter without updating participant status.', 'Use to inspect the real inbox version safely.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Send selection email to selected mentee', 'Sends the live selection email to one selected Can Pair mentee and records SENT.', 'Use as the controlled first live send.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Send selection emails to all eligible unsent mentees', 'Sends only to Can Pair mentees whose Selection Email Status is not SENT.', 'Use after preview, test, and one-row live verification.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Preview selected match emails', 'Shows the mentee and mentor match emails for one selected row.', 'Use before sending match emails.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Send match emails to selected pair', 'Sends match emails for one selected final pair if not already sent.', 'Use for controlled testing or one-off sends.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Send match emails to all unsent matched pairs', 'Sends match emails for every final pair that has not already been notified.', 'Use only after selected-row testing works.'],
@@ -399,6 +416,391 @@ function autoMatchYdpFromPairScores() {
     logYdpMatchingRun_('AUTO_MATCH_FROM_PAIR_SCORES', 'ERROR', error.message);
     SpreadsheetApp.getUi().alert('Auto-match failed:\n\n' + error.message);
   }
+}
+
+function getYdpMenteeSelectionEmailTrackingHeaders_() {
+  return [
+    'Selection Email Status',
+    'Selection Email Sent At',
+    'Selection Email Last Error'
+  ];
+}
+
+function isYdpMenteeEligibleForSelectionEmail_(mentee) {
+  return String(mentee && mentee.geminiReviewStatus || '').trim() === 'Can Pair';
+}
+
+function buildYdpMenteeSelectionEmail_(mentee) {
+  const menteeName = String(mentee.menteeName || '').trim() || 'Mentee';
+  const firstName = getYdpFirstName_(menteeName);
+  const body = [
+    'Hi ' + firstName + ',',
+    '',
+    'Congratulations! We are pleased to let you know that you have been selected as a mentee for the YDP Mentorship Program.',
+    '',
+    'Thank you for the time and effort you put into your application and for coming this far in the process. We are happy to have you join this cohort.',
+    '',
+    'Our onboarding session takes place on Saturday, July 18, 2026. Please be prepared to participate fully and commit to the mentorship journey.',
+    '',
+    'Your mentor match is currently being finalized. You will receive your mentor details and the next steps in a separate email.',
+    '',
+    'Please keep an eye on your email for the onboarding information and further updates.',
+    '',
+    'Warm regards,',
+    YDP_MATCHING_CONFIG.senderName
+  ].join('\n');
+
+  return {
+    to: String(mentee.menteeEmail || '').trim(),
+    subject: "You've been selected for the YDP Mentorship Program",
+    body: body,
+    htmlBody: convertYdpPlainTextToHtml_(body)
+  };
+}
+
+function buildYdpMenteeSelectionEmailSendPlan_(mentee) {
+  if (!isYdpMenteeEligibleForSelectionEmail_(mentee)) {
+    return {
+      send: false,
+      skippedReason: 'This mentee is not marked Can Pair.'
+    };
+  }
+
+  const selectionEmailStatus = String(mentee.selectionEmailStatus || '').trim().toUpperCase();
+
+  if (selectionEmailStatus === YDP_MATCHING_CONFIG.statuses.sent) {
+    return {
+      send: false,
+      skippedReason: 'The selection email has already been sent.'
+    };
+  }
+
+  if (selectionEmailStatus === YDP_MATCHING_CONFIG.statuses.sending) {
+    return {
+      send: false,
+      skippedReason: 'The selection email is currently being processed. Review the row before retrying.'
+    };
+  }
+
+  if (!isValidYdpEmail_(mentee.menteeEmail)) {
+    return {
+      send: false,
+      skippedReason: 'Missing or invalid mentee email address.'
+    };
+  }
+
+  return {
+    send: true,
+    skippedReason: ''
+  };
+}
+
+function previewSelectedYdpMenteeSelectionEmail() {
+  setupYdpMatchingWorkbookTabs_(SpreadsheetApp.getActive());
+
+  const sheet = getYdpMenteeScoresSheet_();
+  const row = getSelectedYdpMenteeScoreRow_(sheet);
+  const mentee = getYdpMenteeScoreDataForRow_(sheet, row);
+
+  if (!isYdpMenteeEligibleForSelectionEmail_(mentee)) {
+    SpreadsheetApp.getUi().alert('This row is not marked Can Pair. No selection email can be previewed for it.');
+    return;
+  }
+
+  if (!isValidYdpEmail_(mentee.menteeEmail)) {
+    SpreadsheetApp.getUi().alert('This mentee has a missing or invalid email address.');
+    return;
+  }
+
+  const email = buildYdpMenteeSelectionEmail_(mentee);
+  const html = [
+    '<div style="font-family:Arial,sans-serif;line-height:1.5;padding:8px;">',
+    '<p><strong>To:</strong> ' + escapeYdpHtml_(email.to) + '</p>',
+    '<p><strong>Subject:</strong> ' + escapeYdpHtml_(email.subject) + '</p>',
+    '<pre style="white-space:pre-wrap;background:#f6f8fa;padding:12px;border-radius:6px;">' + escapeYdpHtml_(email.body) + '</pre>',
+    '</div>'
+  ].join('');
+
+  SpreadsheetApp.getUi().showModalDialog(
+    HtmlService.createHtmlOutput(html).setWidth(720).setHeight(620),
+    'Mentee Selection Email Preview'
+  );
+}
+
+function sendTestYdpMenteeSelectionEmail() {
+  setupYdpMatchingWorkbookTabs_(SpreadsheetApp.getActive());
+
+  const sheet = getYdpMenteeScoresSheet_();
+  const row = getSelectedYdpMenteeScoreRow_(sheet);
+  const mentee = getYdpMenteeScoreDataForRow_(sheet, row);
+  const ui = SpreadsheetApp.getUi();
+
+  if (!isYdpMenteeEligibleForSelectionEmail_(mentee)) {
+    ui.alert('Select a row marked Can Pair before sending a test selection email.');
+    return;
+  }
+
+  const response = ui.prompt(
+    'Send Test Selection Email',
+    'Enter the email address that should receive the test copy:',
+    ui.ButtonSet.OK_CANCEL
+  );
+
+  if (response.getSelectedButton() !== ui.Button.OK) {
+    return;
+  }
+
+  const testRecipient = String(response.getResponseText() || '').trim();
+
+  if (!isValidYdpEmail_(testRecipient)) {
+    ui.alert('Enter a valid test email address. No email was sent.');
+    return;
+  }
+
+  const email = buildYdpMenteeSelectionEmail_(mentee);
+  email.to = testRecipient;
+  email.subject = '[TEST] ' + email.subject;
+  sendYdpMenteeSelectionEmail_(email);
+
+  ui.alert(
+    'Test selection email sent to ' + testRecipient + '.\n\n' +
+    'No participant status or sent date was changed.'
+  );
+}
+
+function sendYdpMenteeSelectionEmailToSelectedRow() {
+  setupYdpMatchingWorkbookTabs_(SpreadsheetApp.getActive());
+
+  const sheet = getYdpMenteeScoresSheet_();
+  const row = getSelectedYdpMenteeScoreRow_(sheet);
+  const mentee = getYdpMenteeScoreDataForRow_(sheet, row);
+  const plan = buildYdpMenteeSelectionEmailSendPlan_(mentee);
+  const ui = SpreadsheetApp.getUi();
+
+  if (!plan.send) {
+    ui.alert('Selection email not sent:\n\n' + plan.skippedReason);
+    return;
+  }
+
+  const confirmation = ui.alert(
+    'Send Live Selection Email',
+    'Send the real selection email to ' + mentee.menteeName + ' at ' + mentee.menteeEmail + '?',
+    ui.ButtonSet.YES_NO
+  );
+
+  if (confirmation !== ui.Button.YES) {
+    return;
+  }
+
+  const lock = LockService.getDocumentLock();
+
+  if (!lock.tryLock(5000)) {
+    ui.alert('Another selection-email send is already running. Wait for it to finish, then try again.');
+    return;
+  }
+
+  try {
+    const result = sendYdpMenteeSelectionEmailForRow_(sheet, row);
+    logYdpMatchingRun_('SEND_SELECTED_MENTEE_SELECTION_EMAIL', result.error ? 'ERROR' : 'SUCCESS', buildYdpMenteeSelectionEmailSingleSendMessage_(result));
+    ui.alert(buildYdpMenteeSelectionEmailSingleSendMessage_(result));
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function sendYdpMenteeSelectionEmailsToAllEligibleUnsent() {
+  setupYdpMatchingWorkbookTabs_(SpreadsheetApp.getActive());
+
+  const sheet = getYdpMenteeScoresSheet_();
+  const lastRow = sheet.getLastRow();
+  const ui = SpreadsheetApp.getUi();
+  const pendingRows = [];
+  let validRecipientCount = 0;
+
+  for (let row = 2; row <= lastRow; row += 1) {
+    const mentee = getYdpMenteeScoreDataForRow_(sheet, row);
+    const currentStatus = String(mentee.selectionEmailStatus || '').trim().toUpperCase();
+    const isProtectedFromResend = currentStatus === YDP_MATCHING_CONFIG.statuses.sent ||
+      currentStatus === YDP_MATCHING_CONFIG.statuses.sending;
+
+    if (isYdpMenteeEligibleForSelectionEmail_(mentee) && !isProtectedFromResend) {
+      pendingRows.push(row);
+      validRecipientCount += isValidYdpEmail_(mentee.menteeEmail) ? 1 : 0;
+    }
+  }
+
+  if (pendingRows.length === 0) {
+    ui.alert('No eligible unsent mentees were found. Only Can Pair rows without a SENT status qualify.');
+    return;
+  }
+
+  const remainingQuota = MailApp.getRemainingDailyQuota();
+  if (validRecipientCount > remainingQuota) {
+    ui.alert(
+      'Bulk selection email stopped before sending.\n\n' +
+      'Valid eligible recipients: ' + validRecipientCount + '\n' +
+      'Remaining email quota today: ' + remainingQuota + '\n\n' +
+      'Wait for the email quota to reset before trying again.'
+    );
+    return;
+  }
+
+  const confirmation = ui.alert(
+    'Send Live Selection Emails',
+    'This will send the real selection email to ' + validRecipientCount + ' eligible unsent mentees marked Can Pair. ' +
+    (pendingRows.length - validRecipientCount) + ' invalid email row(s) will be marked ERROR. Continue?',
+    ui.ButtonSet.YES_NO
+  );
+
+  if (confirmation !== ui.Button.YES) {
+    return;
+  }
+
+  const lock = LockService.getDocumentLock();
+
+  if (!lock.tryLock(5000)) {
+    ui.alert('Another selection-email send is already running. Wait for it to finish, then try again.');
+    return;
+  }
+
+  const summary = {
+    sent: 0,
+    skipped: 0,
+    errors: 0
+  };
+
+  try {
+    pendingRows.forEach(function(row) {
+      const result = sendYdpMenteeSelectionEmailForRow_(sheet, row);
+
+      if (result.sent) {
+        summary.sent++;
+      } else if (result.error) {
+        summary.errors++;
+      } else {
+        summary.skipped++;
+      }
+    });
+  } finally {
+    lock.releaseLock();
+  }
+
+  const message = [
+    'YDP mentee selection email send complete.',
+    '',
+    'Emails sent: ' + summary.sent,
+    'Skipped rows: ' + summary.skipped,
+    'Errors: ' + summary.errors
+  ].join('\n');
+
+  logYdpMatchingRun_('SEND_ALL_ELIGIBLE_MENTEE_SELECTION_EMAILS', summary.errors ? 'PARTIAL_SUCCESS' : 'SUCCESS', message);
+  ui.alert(message);
+}
+
+function getYdpMenteeScoresSheet_() {
+  const sheet = SpreadsheetApp.getActive().getSheetByName(YDP_MATCHING_CONFIG.sheets.menteeScores);
+
+  if (!sheet) {
+    throw new Error('Mentee Scores sheet not found. Run "Setup matching workbook" first.');
+  }
+
+  return sheet;
+}
+
+function getSelectedYdpMenteeScoreRow_(sheet) {
+  const activeSheet = SpreadsheetApp.getActive().getActiveSheet();
+  const activeRange = activeSheet ? activeSheet.getActiveRange() : null;
+
+  if (!activeSheet || activeSheet.getName() !== sheet.getName() || !activeRange) {
+    throw new Error('Select a row inside the Mentee Scores sheet first.');
+  }
+
+  const row = activeRange.getRow();
+  if (row <= 1) {
+    throw new Error('Select a mentee data row, not the header row.');
+  }
+
+  return row;
+}
+
+function getYdpMenteeScoreDataForRow_(sheet, row) {
+  const headerMap = getYdpMatchingHeaderMap_(sheet);
+  const values = sheet.getRange(row, 1, 1, Math.max(sheet.getLastColumn(), 1)).getValues()[0];
+
+  return {
+    menteeId: getYdpRowValueByHeader_(values, headerMap, 'Mentee ID'),
+    menteeName: getYdpRowValueByHeader_(values, headerMap, 'Mentee Name'),
+    menteeEmail: getYdpRowValueByHeader_(values, headerMap, 'Mentee Email'),
+    geminiReviewStatus: getYdpRowValueByHeader_(values, headerMap, 'Gemini Review Status'),
+    selectionEmailStatus: getYdpRowValueByHeader_(values, headerMap, 'Selection Email Status')
+  };
+}
+
+function sendYdpMenteeSelectionEmailForRow_(sheet, row) {
+  const headerMap = getYdpMatchingHeaderMap_(sheet);
+  const mentee = getYdpMenteeScoreDataForRow_(sheet, row);
+  const plan = buildYdpMenteeSelectionEmailSendPlan_(mentee);
+  const statusColumn = getYdpMatchingHeaderColumn_(headerMap, 'Selection Email Status');
+  const sentAtColumn = getYdpMatchingHeaderColumn_(headerMap, 'Selection Email Sent At');
+  const lastErrorColumn = getYdpMatchingHeaderColumn_(headerMap, 'Selection Email Last Error');
+
+  if (!plan.send) {
+    if (plan.skippedReason === 'Missing or invalid mentee email address.') {
+      sheet.getRange(row, statusColumn).setValue(YDP_MATCHING_CONFIG.statuses.error);
+      sheet.getRange(row, lastErrorColumn).setValue(plan.skippedReason);
+      return { row: row, sent: false, skipped: false, error: plan.skippedReason };
+    }
+
+    return { row: row, sent: false, skipped: true, reason: plan.skippedReason };
+  }
+
+  let emailDispatched = false;
+
+  try {
+    sheet.getRange(row, statusColumn).setValue(YDP_MATCHING_CONFIG.statuses.sending);
+    sheet.getRange(row, lastErrorColumn).setValue('');
+    sendYdpMenteeSelectionEmail_(buildYdpMenteeSelectionEmail_(mentee));
+    emailDispatched = true;
+    sheet.getRange(row, sentAtColumn).setValue(new Date());
+    sheet.getRange(row, statusColumn).setValue(YDP_MATCHING_CONFIG.statuses.sent);
+    sheet.getRange(row, lastErrorColumn).setValue('');
+    return { row: row, sent: true, skipped: false };
+  } catch (error) {
+    const errorMessage = String(error.message || error);
+
+    if (emailDispatched) {
+      sheet.getRange(row, lastErrorColumn).setValue(
+        'The email was dispatched, but the final tracking update failed. Review this SENDING row before retrying. ' + errorMessage
+      );
+    } else {
+      sheet.getRange(row, statusColumn).setValue(YDP_MATCHING_CONFIG.statuses.error);
+      sheet.getRange(row, lastErrorColumn).setValue(errorMessage);
+    }
+
+    return { row: row, sent: false, skipped: false, error: errorMessage };
+  }
+}
+
+function sendYdpMenteeSelectionEmail_(email) {
+  MailApp.sendEmail({
+    to: email.to,
+    subject: email.subject,
+    body: email.body,
+    htmlBody: email.htmlBody,
+    name: YDP_MATCHING_CONFIG.senderName
+  });
+}
+
+function buildYdpMenteeSelectionEmailSingleSendMessage_(result) {
+  if (result.error) {
+    return 'Selection email failed for row ' + result.row + ':\n\n' + result.error;
+  }
+
+  if (result.skipped) {
+    return 'Selection email skipped for row ' + result.row + ':\n\n' + result.reason;
+  }
+
+  return 'Selection email sent successfully for row ' + result.row + '.';
 }
 
 function previewSelectedYdpMatchEmails() {
@@ -2190,6 +2592,21 @@ function ensureYdpSheetWithHeaders_(spreadsheet, sheetName, headers) {
   }
 
   return sheet;
+}
+
+function ensureYdpAdditionalHeaders_(sheet, headers) {
+  const existingHeaders = getYdpMatchingHeaderMap_(sheet);
+  let nextColumn = Math.max(sheet.getLastColumn(), 0) + 1;
+
+  headers.forEach(function(header) {
+    if (existingHeaders[header]) {
+      return;
+    }
+
+    sheet.getRange(1, nextColumn).setValue(header);
+    existingHeaders[header] = nextColumn;
+    nextColumn++;
+  });
 }
 
 function migrateYdpMenteeScoreReviewStatus_(sheet) {

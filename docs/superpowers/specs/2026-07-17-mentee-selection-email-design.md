@@ -14,7 +14,7 @@ The feature does not modify Gemini scores, review decisions, source snapshots, p
 
 The setup process adds these columns to `Mentee Scores` without clearing existing data:
 
-- `Selection Email Status`: blank before sending, `SENT` after success, or `ERROR` after failure.
+- `Selection Email Status`: blank before sending, `SENDING` while protected by the send lock, `SENT` after success, or `ERROR` after a confirmed failure. A stale `SENDING` row must be reviewed before retrying.
 - `Selection Email Sent At`: the date and time of a successful send.
 - `Selection Email Last Error`: the latest send error for that row.
 
@@ -25,7 +25,7 @@ The setup process adds these columns to `Mentee Scores` without clearing existin
 - `Send selection email to selected mentee`: sends to one selected eligible mentee and updates tracking.
 - `Send selection emails to all eligible unsent mentees`: sends to all `Can Pair` rows that are not already marked `SENT`.
 
-The selected-row and bulk actions skip ineligible rows. The bulk action also skips rows already marked `SENT`. Invalid recipient addresses and send failures are recorded as `ERROR` with a readable message.
+The selected-row and bulk actions skip ineligible rows. The bulk action also skips rows marked `SENT` or `SENDING`. A document lock prevents overlapping live-send runs. Invalid recipient addresses and confirmed send failures are recorded as `ERROR` with a readable message.
 
 ## Email
 
@@ -42,4 +42,3 @@ Sender name: `YDP Mentorship Team`.
 3. Send to one selected eligible mentee; verify `SENT` and the sent timestamp.
 4. Run the selected-row send again; verify it is skipped as already sent.
 5. Only then run the bulk action.
-

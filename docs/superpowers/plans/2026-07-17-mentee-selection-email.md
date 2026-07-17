@@ -12,6 +12,7 @@
 
 - Send only when `Gemini Review Status` is exactly `Can Pair`.
 - Bulk sends must skip rows already marked `SENT`.
+- Live sends must use a document lock, and `SENDING` must prevent an uncertain delivery from being retried automatically.
 - Preview and test sends must not update participant tracking columns.
 - Setup must preserve all existing workbook data.
 - Do not expose participant data or API keys in documentation or tests.
@@ -63,4 +64,3 @@
 - [ ] Inspect `git diff` to confirm no unrelated files or secrets are included.
 - [ ] Push the `matching` project with clasp.
 - [ ] Commit only the feature files and push `main` to GitHub.
-
