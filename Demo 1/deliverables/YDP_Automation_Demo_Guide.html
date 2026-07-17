@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>YDP Mentorship Automation Demo Guide</title>
+<style>
+:root{--ink:#18211d;--muted:#5b6760;--line:#d7dfda;--soft:#f4f7f5;--green:#177245;--green2:#e7f4ec;--blue:#2559a7;--blue2:#eaf1fb;--amber:#a45e00;--amber2:#fff2d9;--red:#a43e35;--red2:#fbeceb}
+*{box-sizing:border-box}html,body{margin:0;background:#dfe5e1;color:var(--ink);font-family:"Segoe UI",Arial,sans-serif;letter-spacing:0}@page{size:A4 landscape;margin:0}
+.page{width:297mm;height:210mm;margin:0 auto 8mm;padding:10mm 12mm 9mm;background:#fff;page-break-after:always;position:relative;overflow:hidden}.page:last-child{page-break-after:auto}
+h1,h2,h3,p{margin-top:0}h1{font-size:27pt;line-height:1.08;margin-bottom:3mm}h2{font-size:16pt;margin-bottom:3mm}h3{font-size:12.5pt;margin-bottom:1.5mm}p,li{font-size:9.8pt;line-height:1.3}ul,ol{margin:1.5mm 0 0;padding-left:5mm}li{margin-bottom:1mm}.eyebrow{font-size:8.5pt;font-weight:800;color:var(--green);text-transform:uppercase;margin-bottom:2mm}.lede{font-size:13pt;color:var(--muted);max-width:260mm}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:5mm}.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:4mm}.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:3mm}.panel{border:1px solid var(--line);border-radius:4px;padding:3.5mm;background:#fff}.soft{background:var(--soft)}.green{background:var(--green2);border-color:#bddac9}.blue{background:var(--blue2);border-color:#c6d6ef}.amber{background:var(--amber2);border-color:#ecd3a4}.red{background:var(--red2);border-color:#ebc8c5}
+.flow{display:grid;grid-template-columns:repeat(5,1fr);gap:3mm}.step{border-left:4px solid var(--green);background:var(--soft);padding:3mm;min-height:22mm}.step:nth-child(2),.step:nth-child(4){border-color:var(--blue)}.step:nth-child(3){border-color:var(--amber)}.num{font-size:7.5pt;text-transform:uppercase;font-weight:800;color:var(--green)}.stitle{font-size:10pt;font-weight:750;margin:1mm 0}.scopy{font-size:8.2pt;line-height:1.25;color:var(--muted)}
+.prompt{display:grid;grid-template-columns:18mm 1fr;gap:2mm;margin-bottom:1.7mm}.label{font-size:7.5pt;font-weight:800;text-transform:uppercase;color:var(--green)}.copy{font-size:9.2pt;line-height:1.28}.rule{height:1px;background:var(--line);margin:3mm 0}
+.timeline{display:grid;grid-template-columns:23mm 1fr}.time{font-size:8.5pt;font-weight:800;color:var(--green);padding:1.5mm 3mm 1.5mm 0;border-right:2px solid var(--line)}.action{font-size:8.8pt;line-height:1.23;padding:1.5mm 0 1.5mm 3mm;border-bottom:1px solid var(--line)}
+.command{font:8pt/1.35 Consolas,"Courier New",monospace;background:#1f2723;color:#f7f9f8;padding:3mm;border-radius:4px;white-space:pre-wrap}.tag{display:inline-block;font-size:7.5pt;font-weight:800;padding:1mm 2mm;border-radius:3px;background:var(--green2);color:var(--green);margin-right:1mm}.warning{border-left:4px solid var(--amber);background:var(--amber2);padding:2.5mm 3mm;font-size:8.7pt;line-height:1.25}
+table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid var(--line);padding:1.6mm 2mm;text-align:left;vertical-align:top}th{font-size:7.5pt;text-transform:uppercase;color:var(--muted);background:var(--soft)}td{font-size:8.3pt;line-height:1.2}.footer{position:absolute;left:12mm;right:12mm;bottom:3.5mm;border-top:1px solid var(--line);padding-top:1.5mm;display:flex;justify-content:space-between;font-size:7pt;color:#77827c}
+.page2 h2{font-size:15pt;margin-bottom:2mm}.page2 .panel{padding:3mm}.page2 p,.page2 li{font-size:9pt;line-height:1.2}.page2 .prompt{margin-bottom:1mm}.page2 .command{font-size:7.5pt;line-height:1.3}.page2 th,.page2 td{padding:1mm 1.5mm}.page2 td{font-size:7.8pt}
+@media print{html,body{background:#fff}.page{margin:0}}
+</style>
+</head>
+<body>
+<section class="page">
+<div class="eyebrow">YDP Mentorship Program | Two-page presenter guide</div>
+<h1>From Manual Work to a Controlled Mentorship System</h1>
+<p class="lede">How YDP automated registration communication, participant identity, Gemini-assisted scoring, mentor matching, deployment, and audit controls.</p>
+<div class="grid2" style="margin-top:4mm">
+<div>
+<h2>What We Built and Why</h2>
+<div class="grid3">
+<div class="panel red"><h3>Before</h3><p>Manual acknowledgements, repeated checking, duplicate-email risk, and matching decisions spread across form answers and memory.</p></div>
+<div class="panel green"><h3>Now</h3><p>Google Sheets is the operating surface. Apps Script handles repeatable work. Statuses, dates, IDs, and logs preserve the audit trail.</p></div>
+<div class="panel blue"><h3>Principle</h3><p>Automate repetition, keep decisions visible, and test one row before any bulk action.</p></div>
+</div>
+<h2 style="margin-top:4mm">Three Apps Script Projects</h2>
+<table>
+<thead><tr><th>Project</th><th>What it handles</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td><strong>Mentee registration</strong></td><td>Acknowledgement emails, stable IDs, duplicates, triggers, status tracking, previews, selected sends, and resends.</td><td><span class="tag">Deployed</span></td></tr>
+<tr><td><strong>Mentor registration</strong></td><td>The same safe control pattern in a separate mentor workbook and script project.</td><td><span class="tag">Deployed</span></td></tr>
+<tr><td><strong>Matching automation</strong></td><td>Source snapshots, mentee scores, pair scores, recommendations, matched pairs, and match-notification emails.</td><td><span class="tag">Testing</span></td></tr>
+</tbody>
+</table>
+<div class="prompt" style="margin-top:3mm"><span class="label">Say</span><span class="copy">"The projects share one operating pattern but use separate script IDs and deployment folders. That separation is a safety control."</span></div>
+<div class="prompt"><span class="label">Show</span><span class="copy">Open the repository root, then the <strong>mentor</strong> and <strong>matching</strong> folders. Show README and the workbook Data Dictionary tabs.</span></div>
+</div>
+<div>
+<h2>Registration Flow</h2>
+<div class="flow">
+<div class="step"><div class="num">1. Prepare</div><div class="stitle">Setup email tracking columns</div><div class="scopy">Creates the statuses and sent-at dates.</div></div>
+<div class="step"><div class="num">2. Identify</div><div class="stitle">Assign IDs and mark duplicates</div><div class="scopy">One stable ID per unique email.</div></div>
+<div class="step"><div class="num">3. Automate</div><div class="stitle">Install form submit trigger</div><div class="scopy">Future registrations run automatically.</div></div>
+<div class="step"><div class="num">4. Test</div><div class="stitle">Preview or selected send</div><div class="scopy">Validate one row before scaling.</div></div>
+<div class="step"><div class="num">5. Scale</div><div class="stitle">Unsent-only bulk action</div><div class="scopy">Rows already marked SENT are skipped.</div></div>
+</div>
+<h2 style="margin-top:4mm">How the Matching Flow Works</h2>
+<div class="flow">
+<div class="step"><div class="num">1. Sync</div><div class="stitle">Source snapshots</div><div class="scopy">Copy latest mentee and mentor applications.</div></div>
+<div class="step"><div class="num">2. Score</div><div class="stitle">Mentee Scores</div><div class="scopy">Gemini explains evidence; Apps Script applies fixed weights.</div></div>
+<div class="step"><div class="num">3. Compare</div><div class="stitle">Pair Scores</div><div class="scopy">Every eligible mentee is compared with every mentor.</div></div>
+<div class="step"><div class="num">4. Select</div><div class="stitle">Auto-match</div><div class="scopy">Highest score wins within mentor capacity.</div></div>
+<div class="step"><div class="num">5. Notify</div><div class="stitle">Matched Pairs</div><div class="scopy">Preview one pair, send one pair, then bulk send.</div></div>
+</div>
+<div class="grid2" style="margin-top:4mm">
+<div class="panel green"><h3>Mentee scoring</h3><p><strong>40%</strong> learning commitment; <strong>20%</strong> each for community, goals, and soft skills. Final score <strong>60+</strong> means Can Pair.</p></div>
+<div class="panel amber"><h3>Pair scoring</h3><p><strong>40</strong> skill fit; <strong>30</strong> career fit; <strong>15</strong> availability; <strong>15</strong> capacity. Total is out of 100.</p></div>
+</div>
+</div>
+</div>
+<div class="footer"><span>YDP Mentorship Automation Program</span><span>Page 1 of 2</span></div>
+</section>
+
+<section class="page page2">
+<div class="eyebrow">YDP Mentorship Program | Live-demo runbook</div>
+<div class="grid2">
+<div>
+<h2>20-30 Minute Demo Run Sheet</h2>
+<div class="timeline">
+<div class="time">0-3 min</div><div class="action"><strong>Frame the problem.</strong> Manual follow-up, duplicate risk, scattered decisions, limited visibility.</div>
+<div class="time">3-7 min</div><div class="action"><strong>Show registration.</strong> Open mentee and mentor menus. Explain setup, IDs, triggers, preview, and SENT protection.</div>
+<div class="time">7-10 min</div><div class="action"><strong>Show the repository.</strong> Explain three project folders, artifacts, architects, README, tests, and Git history.</div>
+<div class="time">10-14 min</div><div class="action"><strong>Show matching setup.</strong> Source Config, snapshots, Mentee Scores, Pair Scores, Match Recommendations, Matched Pairs, Run Log.</div>
+<div class="time">14-18 min</div><div class="action"><strong>Demonstrate scoring.</strong> Use <strong>Generate mentee scores batch</strong> or explain a saved completed row.</div>
+<div class="time">18-22 min</div><div class="action"><strong>Demonstrate comparison.</strong> Explain <strong>Generate pair scores batch</strong> and the all-mentors comparison rule.</div>
+<div class="time">22-25 min</div><div class="action"><strong>Explain assignment.</strong> Run <strong>Auto-match from pair scores</strong> only when comparisons are complete enough.</div>
+<div class="time">25-27 min</div><div class="action"><strong>Show notifications.</strong> Use <strong>Preview selected match emails</strong>. Only use <strong>Send match emails to selected pair</strong> with approval.</div>
+<div class="time">27-30 min</div><div class="action"><strong>Close.</strong> Explain Git/clasp, current status, leadership value, and next priorities.</div>
+</div>
+<h2 style="margin-top:4mm">Exact Matching Order</h2>
+<ol>
+<li>Sync source snapshots from the two form workbooks.</li>
+<li>Test Gemini connection.</li>
+<li>Finish mentee scores; completed rows are skipped and ERROR rows are retried.</li>
+<li>Finish all required pair scores for each Can Pair mentee.</li>
+<li>Run auto-match and review Match Recommendations plus Matched Pairs.</li>
+<li>Preview one matched pair, send one selected pair, then use bulk sending only after the test.</li>
+</ol>
+</div>
+<div>
+<h2>GitHub and clasp</h2>
+<div class="grid2">
+<div class="panel soft"><h3>What each tool does</h3><p><strong>clasp</strong> sends local Apps Script files to the correct Google project.</p><p><strong>Git</strong> records each verified change.</p><p><strong>GitHub</strong> keeps the shared source and history.</p></div>
+<div class="command"># Mentee: repository root
+clasp push --force
+
+# Mentor
+cd mentor
+clasp push --force
+
+# Matching
+cd matching
+clasp push --force
+
+# Save verified work
+git status --short
+git add &lt;files&gt;
+git commit -m "Describe change"
+git push origin main</div>
+</div>
+<div class="prompt" style="margin-top:3mm"><span class="label">Do</span><span class="copy">Edit the correct local file, run tests, push with clasp from the correct folder, commit, then push to GitHub.</span></div>
+<div class="prompt"><span class="label">Safety</span><span class="copy">Each folder has its own <strong>.clasp.json</strong>. Running clasp from the wrong folder can update the wrong Apps Script project.</span></div>
+<h2 style="margin-top:3mm">Safe Demo Rules</h2>
+<div class="grid2">
+<div class="panel red"><h3>Do not expose</h3><ul><li>Gemini API key values</li><li>Participant phone numbers</li><li>Private application answers</li><li>Participant emails on a shared screen</li></ul></div>
+<div class="panel amber"><h3>Do not bulk send</h3><ul><li>Preview first.</li><li>Test one selected row.</li><li>Confirm SENT statuses and dates.</li><li>Bulk send only after approval.</li></ul></div>
+</div>
+<h2 style="margin-top:3mm">If Something Goes Wrong</h2>
+<table>
+<thead><tr><th>Message</th><th>Meaning</th><th>Response</th></tr></thead>
+<tbody>
+<tr><td>503 UNAVAILABLE</td><td>The Gemini model is temporarily overloaded.</td><td>Wait and rerun. Completed work stays saved.</td></tr>
+<tr><td>Quota reached</td><td>Configured keys cannot make another request now.</td><td>Wait for reset; resume later.</td></tr>
+<tr><td>Needs More Pair Scores</td><td>Not every available mentor has been scored.</td><td>Continue pair scoring.</td></tr>
+<tr><td>SENT, date blank</td><td>Tracking date is missing.</td><td>Repair the date; do not resend.</td></tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="footer"><span>YDP Mentorship Automation Program</span><span>Page 2 of 2</span></div>
+</section>
+</body>
+</html>
