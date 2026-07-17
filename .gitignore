@@ -1,0 +1,17 @@
+# JavaScript dependencies and generated build output
+**/node_modules/
+**/.vite/
+**/.next/
+**/dist/
+**/coverage/
+**/.vercel/
+
+# Local environment files and logs
+**/.env
+**/.env.*
+!**/.env.example
+**/*.log
+
+# Operating system files
+**/.DS_Store
+**/Thumbs.db
