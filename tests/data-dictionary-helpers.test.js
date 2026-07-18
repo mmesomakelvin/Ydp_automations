@@ -103,6 +103,118 @@ function assertWorkbookDocumentation(options) {
   assert.ok(options.source.includes("'Button Guide'"), 'Documentation refresh must create a Button Guide tab.');
 }
 
+function createFakeSpreadsheet(initialSheets) {
+  class FakeRange {
+    constructor(sheet, row, column, rowCount, columnCount) {
+      this.sheet = sheet;
+      this.row = row;
+      this.column = column;
+      this.rowCount = rowCount;
+      this.columnCount = columnCount;
+    }
+
+    getValues() {
+      return Array.from({ length: this.rowCount }, (_, rowOffset) =>
+        Array.from({ length: this.columnCount }, (_, columnOffset) =>
+          (this.sheet.values[this.row - 1 + rowOffset] || [])[this.column - 1 + columnOffset] || ''
+        )
+      );
+    }
+
+    setValues(values) {
+      values.forEach((sourceRow, rowOffset) => {
+        const targetRow = this.row - 1 + rowOffset;
+        this.sheet.values[targetRow] = this.sheet.values[targetRow] || [];
+        sourceRow.forEach((value, columnOffset) => {
+          this.sheet.values[targetRow][this.column - 1 + columnOffset] = value;
+        });
+      });
+      this.sheet.writeCount += 1;
+      return this;
+    }
+
+    setBackgrounds(backgrounds) {
+      this.sheet.backgroundWrites.push(backgrounds.map((row) => Array.from(row)));
+      return this;
+    }
+
+    setWrap() { return this; }
+    setVerticalAlignment() { return this; }
+    setFontWeight() { return this; }
+    setFontColor() { return this; }
+    setBackground() { return this; }
+    createFilter() {
+      this.sheet.filter = { remove: () => { this.sheet.filter = null; } };
+      return this.sheet.filter;
+    }
+  }
+
+  class FakeSheet {
+    constructor(name, values = [[]], protectedParticipantData = false) {
+      this.name = name;
+      this.values = values.map((row) => Array.from(row));
+      this.protectedParticipantData = protectedParticipantData;
+      this.writeCount = 0;
+      this.backgroundWrites = [];
+      this.filter = null;
+    }
+
+    getName() { return this.name; }
+    getLastRow() { return this.values.length; }
+    getLastColumn() { return this.values.reduce((maximum, row) => Math.max(maximum, row.length), 0); }
+    getRange(row, column, rowCount = 1, columnCount = 1) { return new FakeRange(this, row, column, rowCount, columnCount); }
+    getFilter() { return this.filter; }
+    clearContents() {
+      assert.ok(!this.protectedParticipantData, `Documentation refresh must not clear ${this.name}.`);
+      this.values = [];
+      this.writeCount += 1;
+      return this;
+    }
+    clearFormats() { return this; }
+    setFrozenRows() { return this; }
+    setColumnWidth() { return this; }
+  }
+
+  const sheets = initialSheets.map((specification) =>
+    new FakeSheet(specification.name, specification.values, specification.protectedParticipantData)
+  );
+  const spreadsheet = {
+    getSheetByName: (name) => sheets.find((sheet) => sheet.name === name) || null,
+    insertSheet: (name) => {
+      const sheet = new FakeSheet(name);
+      sheets.push(sheet);
+      return sheet;
+    },
+    getActiveSheet: () => sheets.find((sheet) => sheet.protectedParticipantData) || sheets[0],
+    getSheets: () => sheets
+  };
+
+  return { spreadsheet, sheets };
+}
+
+function assertDocumentationRefresh(options) {
+  const fake = createFakeSpreadsheet(options.initialSheets);
+  const alerts = [];
+  options.context.SpreadsheetApp = {
+    getActive: () => fake.spreadsheet,
+    getUi: () => ({ alert: (message) => alerts.push(message) })
+  };
+
+  options.context[options.createFunction]();
+
+  const dictionarySheet = fake.spreadsheet.getSheetByName('Data Dictionary');
+  const guideSheet = fake.spreadsheet.getSheetByName('Button Guide');
+  assert.ok(dictionarySheet && dictionarySheet.writeCount > 0, 'Documentation refresh must write Data Dictionary.');
+  assert.ok(guideSheet && guideSheet.writeCount > 0, 'Documentation refresh must write Button Guide.');
+  assert.ok(dictionarySheet.backgroundWrites.length > 0, 'Data Dictionary must use alternating body shading.');
+  assert.ok(guideSheet.backgroundWrites.length > 0, 'Button Guide must color full safety rows.');
+  assert.ok(alerts.some((message) => /not changed/i.test(message)), 'Refresh alert must confirm operational data was not changed.');
+  options.initialSheets.filter((sheet) => sheet.protectedParticipantData).forEach((sourceSheet) => {
+    const runtimeSheet = fake.spreadsheet.getSheetByName(sourceSheet.name);
+    assert.strictEqual(runtimeSheet.writeCount, 0, `Documentation refresh must not write ${sourceSheet.name}.`);
+  });
+}
+
 assertWorkbookDocumentation({
   context: mentee.context,
   source: mentee.source,
@@ -125,6 +237,27 @@ assertWorkbookDocumentation({
   dictionaryFunction: 'getYdpMatchingDataDictionaryRows_',
   guideFunction: 'getYdpMatchingButtonGuideRows_',
   colorFunction: 'getYdpMatchingButtonGuideColor_'
+});
+
+assertDocumentationRefresh({
+  context: mentee.context,
+  createFunction: 'createYdpMenteeDataDictionary',
+  initialSheets: [{ name: 'Form_Responses', values: [['Timestamp', 'Email Address', 'First Name']], protectedParticipantData: true }]
+});
+
+assertDocumentationRefresh({
+  context: mentor.context,
+  createFunction: 'createYdpMentorDataDictionary',
+  initialSheets: [{ name: 'Form_Responses', values: [['Timestamp', 'Email Address', 'First Name']], protectedParticipantData: true }]
+});
+
+assertDocumentationRefresh({
+  context: matching.context,
+  createFunction: 'createYdpMatchingDataDictionary',
+  initialSheets: [
+    { name: 'Mentee Source Snapshot', values: [['Timestamp', 'Email Address']], protectedParticipantData: true },
+    { name: 'Mentor Source Snapshot', values: [['Timestamp', 'Email Address']], protectedParticipantData: true }
+  ]
 });
 
 console.log('data dictionary helper tests passed');

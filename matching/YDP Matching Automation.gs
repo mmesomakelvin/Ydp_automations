@@ -204,8 +204,19 @@ function writeYdpMatchingDataDictionary_(sheet, rows) {
   resetYdpMatchingDocumentationSheet_(sheet);
   sheet.getRange(1, 1, rows.length, rows[0].length).setValues(rows).setWrap(true).setVerticalAlignment('top');
   formatYdpMatchingDocumentationHeader_(sheet, rows[0].length);
+  applyYdpMatchingDictionaryShading_(sheet, rows);
   applyYdpMatchingDocumentationFilter_(sheet, rows);
   [180, 310, 240, 400, 360, 180, 380].forEach(function(width, index) { sheet.setColumnWidth(index + 1, width); });
+}
+
+function applyYdpMatchingDictionaryShading_(sheet, rows) {
+  if (rows.length <= 1) {
+    return;
+  }
+  const backgrounds = rows.slice(1).map(function(row, index) {
+    return new Array(rows[0].length).fill(index % 2 === 0 ? '#ffffff' : '#f3f6f4');
+  });
+  sheet.getRange(2, 1, backgrounds.length, rows[0].length).setBackgrounds(backgrounds);
 }
 
 function getYdpMatchingDataDictionaryRows_(snapshotHeaders) {
@@ -218,7 +229,7 @@ function getYdpMatchingDataDictionaryRows_(snapshotHeaders) {
     ['Setting', 'Value', 'Notes'], {
       Setting: ['Configuration name.', 'Identifies the value the script must read.', 'No - use setup unless instructed', 'Includes source spreadsheet IDs, source tab name, and Gemini model.'],
       Value: ['Current configuration value.', 'Controls where data comes from and which Gemini model is used.', 'Only with technical approval', 'A wrong value can stop source sync or Gemini scoring.'],
-      Notes: ['Plain-language explanation of the setting.', 'Helps operators understand configuration.', 'Yes', 'Documentation only.']
+      Notes: ['Plain-language explanation of the setting.', 'Helps operators understand configuration.', 'No - setup managed', 'Setup rewrites the known configuration rows and their standard notes.']
     });
 
   addYdpMatchingSnapshotDictionaryRows_(rows, YDP_MATCHING_CONFIG.sheets.menteeSnapshot,
@@ -387,14 +398,14 @@ function getYdpMatchingButtonGuideRows_() {
   const menu = YDP_MATCHING_CONFIG.menuName;
   return [
     ['Safety Level', 'Menu Name', 'Button Name', 'What It Does', 'When To Run', 'Before Running', 'What It Changes', 'Recommended Frequency'],
-    ['SAFE', menu, 'Setup matching workbook', 'Creates missing matching tabs and headers without clearing completed score rows.', 'During initial setup or when a required tab/header is missing.', 'Confirm this is the YDP Matching Automation workbook.', 'Adds or repairs workbook structure; does not send emails.', 'Once, then only for repair'],
-    ['CAUTION', menu, 'Sync source snapshots from forms', 'Refreshes mentor and mentee snapshot tabs from the live form workbooks.', 'After new form responses arrive and before new scoring.', 'Confirm Source Config IDs and response tab settings.', 'Replaces snapshot contents only; completed Mentee Scores and Pair Scores remain.', 'After new applications'],
+    ['SAFE', menu, 'Setup matching workbook', 'Creates missing tabs and headers, rewrites the four known Source Config rows, and normalizes blank or old Pending Review statuses from saved final scores.', 'During initial setup or when a required tab/header is missing.', 'Confirm this is the YDP Matching Automation workbook and that Source Config contains only the supported settings.', 'Repairs structure, rewrites standard Source Config rows while preserving their current known values, and may normalize old review-status wording; it does not send emails.', 'Once, then only for repair'],
+    ['CAUTION', menu, 'Sync source snapshots from forms', 'Runs workbook setup, then replaces mentor and mentee snapshot tabs from the live form workbooks.', 'After new form responses arrive and before new scoring.', 'Confirm Source Config IDs and response tab settings; do not store unsupported custom settings there.', 'Rewrites standard Source Config rows, may normalize old review statuses, and replaces both snapshots; completed score rows remain.', 'After new applications'],
     ['SAFE', menu, 'Create data dictionary', 'Refreshes the Data Dictionary and Button Guide tabs.', 'When documentation is missing or automation changes.', 'No preparation is required.', 'Rebuilds documentation tabs only.', 'After each automation update'],
     ['CAUTION', menu, 'Generate next mentee score', 'Uses Gemini to score the next one unscored mentee.', 'For a controlled scoring test or a single retry.', 'Sync sources and confirm Gemini connection.', 'Adds or retries one Mentee Scores row; skips completed scores.', 'As needed'],
-    ['CAUTION', menu, 'Generate mentee scores batch', 'Uses Gemini to score a small batch of unscored mentees.', 'After the one-row test works.', 'Sync sources and confirm Gemini connection and quota.', 'Adds or retries the next batch; reruns continue from remaining rows.', 'Repeat until complete'],
+    ['CAUTION', menu, 'Generate mentee scores batch', 'Uses Gemini to score a small batch of unscored mentees.', 'After the one-row test works.', 'Sync sources and confirm Gemini connection and quota.', 'Adds or retries the next batch; reruns continue from remaining rows and may pause when Gemini quota or service limits are reached.', 'Repeat until complete'],
     ['CAUTION', menu, 'Generate next pair score', 'Compares one eligible mentee with one mentor using Gemini.', 'For a controlled pair-scoring test or retry.', 'Finish mentee scoring and confirm mentor snapshot data.', 'Adds or retries one Pair Scores row.', 'As needed'],
-    ['CAUTION', menu, 'Generate pair scores batch', 'Scores a small batch of unscored mentee and mentor comparisons.', 'After the one-pair test works.', 'Ensure Can Pair mentees and mentors have IDs; confirm Gemini quota.', 'Adds or retries pair rows; reruns continue until every eligible mentee has every mentor scored.', 'Repeat until complete'],
-    ['LIVE ACTION', menu, 'Auto-match from pair scores', 'Selects the highest-scoring available mentor for each fully scored eligible mentee.', 'Only after all available mentors are scored for each mentee.', 'Review Pair Scores and confirm mentor capacity data.', 'Rebuilds Match Recommendations and Matched Pairs; fills stated capacity first, then permits at most +2 overflow.', 'Once per approved matching round'],
+    ['CAUTION', menu, 'Generate pair scores batch', 'Scores a small batch of unscored mentee and mentor comparisons.', 'After the one-pair test works.', 'Ensure Can Pair mentees and mentors have IDs; confirm Gemini quota.', 'Adds or retries pair rows; reruns continue until every eligible mentee has every mentor scored and may pause when Gemini quota or service limits are reached.', 'Repeat until complete'],
+    ['LIVE ACTION', menu, 'Auto-match from pair scores', 'Selects the highest-scoring available mentor for each fully scored eligible mentee.', 'Only after all available mentors are scored for each mentee and before live match emails are sent.', 'Export or back up existing Match Recommendations and Matched Pairs, confirm no statuses, dates, notes, or email history must be preserved, review Pair Scores, and verify capacity data.', 'Clears and rebuilds Match Recommendations and Matched Pairs, including operational and email-tracking fields; fills stated capacity first, then permits at most +2 overflow.', 'Once per approved matching round'],
     ['SAFE', menu, 'Preview selected selection email', 'Shows the personalized selection email for one Can Pair mentee.', 'Before test or live selection sends.', 'Select a row in Mentee Scores with Can Pair status.', 'Opens a preview only; no email or tracking changes.', 'Before every selection campaign'],
     ['SAFE', menu, 'Send test selection email', 'Sends the selected mentee template to an internal test address.', 'After preview and before live selection sends.', 'Select a Can Pair mentee and use an internal email address.', 'Sends one test email; participant tracking is not updated.', 'Before every selection campaign'],
     ['LIVE ACTION', menu, 'Send selection email to selected mentee', 'Sends the live program-selection email to one selected eligible mentee.', 'For the controlled first live send or a one-off recipient.', 'Preview, test, and select the intended Can Pair row.', 'Sends one live email and updates selection-email tracking.', 'As needed'],

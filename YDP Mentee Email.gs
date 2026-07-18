@@ -295,10 +295,21 @@ function writeYdpMenteeDataDictionary_(sheet, rows) {
   const range = sheet.getRange(1, 1, rows.length, rows[0].length);
   range.setValues(rows).setWrap(true).setVerticalAlignment('top');
   formatYdpMenteeDocumentationHeader_(sheet, rows[0].length);
+  applyYdpMenteeDictionaryShading_(sheet, rows);
   applyYdpMenteeDocumentationFilter_(sheet, rows);
   [170, 270, 230, 380, 340, 180, 360].forEach(function(width, index) {
     sheet.setColumnWidth(index + 1, width);
   });
+}
+
+function applyYdpMenteeDictionaryShading_(sheet, rows) {
+  if (rows.length <= 1) {
+    return;
+  }
+  const backgrounds = rows.slice(1).map(function(row, index) {
+    return new Array(rows[0].length).fill(index % 2 === 0 ? '#ffffff' : '#f3f6f4');
+  });
+  sheet.getRange(2, 1, backgrounds.length, rows[0].length).setBackgrounds(backgrounds);
 }
 
 function writeYdpMenteeButtonGuide_(sheet, rows) {
