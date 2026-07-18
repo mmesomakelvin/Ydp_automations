@@ -1,0 +1,160 @@
+{
+  "_meta": {
+    "models": {
+      "mentor": "A mentor with their ID, name, email, and track, plus a load summary (mentee count, average pair score) and the list of mentees matched to them.",
+      "menteeMatch": "One mentee a mentor is matched with, carrying the pair score, rank, track, contact email, and the status of that pairing."
+    },
+    "relationships": [
+      "each mentor has many menteeMatches (ordered by pair score, highest first).",
+      "each menteeMatch references one mentee and belongs to one mentor."
+    ]
+  },
+  "initialMentorId": "YDP-C2-Mentor-004",
+  "mentors": [
+    {
+      "mentorId": "YDP-C2-Mentor-004",
+      "mentorName": "Adeyemi Adenuga",
+      "mentorEmail": "pearlxta@gmail.com",
+      "track": "Data Analyst",
+      "menteeCount": 3,
+      "averagePairScore": 91,
+      "matches": [
+        {
+          "matchId": "match-ydp-c2-mentee-023-ydp-c2-mentor-004",
+          "menteeId": "YDP-C2-Mentee-023",
+          "menteeName": "Olaide Daramola",
+          "menteeEmail": "kehindeolaide24@gmail.com",
+          "track": "Data Analyst",
+          "pairScore": 100,
+          "rank": 1,
+          "activeStatus": "Pending Review",
+          "riskStatus": "Not Started",
+          "emailStatus": "Sent"
+        },
+        {
+          "matchId": "match-ydp-c2-mentee-025-ydp-c2-mentor-004",
+          "menteeId": "YDP-C2-Mentee-025",
+          "menteeName": "Ibukun Egwuogu",
+          "menteeEmail": "ibk.egwu@gmail.com",
+          "track": "Data Analyst",
+          "pairScore": 89,
+          "rank": 2,
+          "activeStatus": "Active",
+          "riskStatus": "At Risk",
+          "emailStatus": "Sent"
+        },
+        {
+          "matchId": "match-ydp-c2-mentee-006-ydp-c2-mentor-004",
+          "menteeId": "YDP-C2-Mentee-006",
+          "menteeName": "Chibuike Omenukor",
+          "menteeEmail": "omenukorchibuike@gmail.com",
+          "track": "Data Engineer",
+          "pairScore": 84,
+          "rank": 3,
+          "activeStatus": "Active",
+          "riskStatus": "On Track",
+          "emailStatus": "Sent"
+        }
+      ]
+    },
+    {
+      "mentorId": "YDP-C2-Mentor-007",
+      "mentorName": "Joseph Abubakar",
+      "mentorEmail": "joseph.itopaa@gmail.com",
+      "track": "Data Engineer",
+      "menteeCount": 2,
+      "averagePairScore": 89,
+      "matches": [
+        {
+          "matchId": "match-ydp-c2-mentee-006-ydp-c2-mentor-007",
+          "menteeId": "YDP-C2-Mentee-006",
+          "menteeName": "Chibuike Omenukor",
+          "menteeEmail": "omenukorchibuike@gmail.com",
+          "track": "Data Engineer",
+          "pairScore": 97,
+          "rank": 1,
+          "activeStatus": "Pending Review",
+          "riskStatus": "Not Started",
+          "emailStatus": "Sent"
+        },
+        {
+          "matchId": "match-ydp-c2-mentee-043-ydp-c2-mentor-007",
+          "menteeId": "YDP-C2-Mentee-043",
+          "menteeName": "Abdullah Bankole",
+          "menteeEmail": "abdullahbankole17@gmail.com",
+          "track": "Analytics Engineer",
+          "pairScore": 81,
+          "rank": 2,
+          "activeStatus": "Active",
+          "riskStatus": "On Track",
+          "emailStatus": "Sent"
+        }
+      ]
+    },
+    {
+      "mentorId": "YDP-C2-Mentor-001",
+      "mentorName": "Israel Odeajo",
+      "mentorEmail": "iodeajo@gmail.com",
+      "track": "Machine Learning/AI Engineer",
+      "menteeCount": 2,
+      "averagePairScore": 95,
+      "matches": [
+        {
+          "matchId": "match-ydp-c2-mentee-015-ydp-c2-mentor-001",
+          "menteeId": "YDP-C2-Mentee-015",
+          "menteeName": "Tiamiyu Hamzat",
+          "menteeEmail": "hamzattiamiyu@gmail.com",
+          "track": "Machine Learning/AI Engineer",
+          "pairScore": 100,
+          "rank": 1,
+          "activeStatus": "Pending Review",
+          "riskStatus": "Not Started",
+          "emailStatus": "Failed"
+        },
+        {
+          "matchId": "match-ydp-c2-mentee-007-ydp-c2-mentor-001",
+          "menteeId": "YDP-C2-Mentee-007",
+          "menteeName": "Joshua Emeghai",
+          "menteeEmail": "emeghaijoshua@gmail.com",
+          "track": "Machine Learning/AI Engineer",
+          "pairScore": 90,
+          "rank": 2,
+          "activeStatus": "Active",
+          "riskStatus": "Off Track",
+          "emailStatus": "Sent"
+        }
+      ]
+    },
+    {
+      "mentorId": "YDP-C2-Mentor-016",
+      "mentorName": "Emmanuel Ugochukwu",
+      "mentorEmail": "hemma.ugo@gmail.com",
+      "track": "Data Scientist",
+      "menteeCount": 1,
+      "averagePairScore": 99,
+      "matches": [
+        {
+          "matchId": "match-ydp-c2-mentee-007-ydp-c2-mentor-016",
+          "menteeId": "YDP-C2-Mentee-007",
+          "menteeName": "Joshua Emeghai",
+          "menteeEmail": "emeghaijoshua@gmail.com",
+          "track": "Data Scientist",
+          "pairScore": 99,
+          "rank": 1,
+          "activeStatus": "Active",
+          "riskStatus": "On Track",
+          "emailStatus": "Sent"
+        }
+      ]
+    },
+    {
+      "mentorId": "YDP-C2-Mentor-010",
+      "mentorName": "Tina Okonkwo",
+      "mentorEmail": "tina.okonkwo@gmail.com",
+      "track": "Data Scientist",
+      "menteeCount": 0,
+      "averagePairScore": 0,
+      "matches": []
+    }
+  ]
+}
