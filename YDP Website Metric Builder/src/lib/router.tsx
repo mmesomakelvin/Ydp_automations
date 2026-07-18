@@ -7,6 +7,7 @@ import { SectionPage } from '@/components/SectionPage'
 import { ScreenDesignPage, ScreenDesignFullscreen } from '@/components/ScreenDesignPage'
 import { ShellDesignPage, ShellDesignFullscreen } from '@/components/ShellDesignPage'
 import { ExportPage } from '@/components/ExportPage'
+import LiveApp from '@/app/LiveApp'
 
 export const router = createBrowserRouter([
   {
@@ -48,5 +49,10 @@ export const router = createBrowserRouter([
   {
     path: '/export',
     element: <ExportPage />,
+  },
+  {
+    // The live product itself (Supabase-backed, sample-data fallback).
+    path: '/app',
+    element: <LiveApp />,
   },
 ])
