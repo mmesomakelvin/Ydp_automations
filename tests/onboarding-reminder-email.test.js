@@ -30,10 +30,10 @@ assert.ok(mentee.context.getYdpMenteeDataDictionaryRows_().some((row) => row.inc
 const mentor = loadScript(path.join('mentor', 'YDP Mentor Email.gs'));
 const mentorEmail = mentor.context.buildYdpMentorEmail_({ firstName: 'Musa' }, 'ONBOARDING');
 
-assert.strictEqual(mentor.context.getYdpStatusHeaderForType_('ONBOARDING'), 'Onboarding Reminder Email Status');
-assert.strictEqual(mentor.context.getYdpSentAtHeaderForType_('ONBOARDING'), 'Onboarding Reminder Email Sent At');
+assert.strictEqual(mentor.context.getYdpStatusHeaderForType_('ONBOARDING'), 'Onboarding Details Email Status');
+assert.strictEqual(mentor.context.getYdpSentAtHeaderForType_('ONBOARDING'), 'Onboarding Details Email Sent At');
 assert.strictEqual(typeof mentor.context.sendYdpMentorOnboardingRemindersToAllUnsentRows, 'function');
-assert.ok(mentor.source.includes(".addItem('Send onboarding reminder to all unsent rows'"));
+assert.ok(mentor.source.includes(".addItem(\"Send today's onboarding details to all unsent rows\""));
 assert.ok(mentorEmail.subject.includes('onboarding is today'));
 assert.ok(mentorEmail.body.includes('sincere apologies for the delay'));
 assert.ok(mentorEmail.body.includes('Saturday, July 18, 2026'));
@@ -50,6 +50,6 @@ assert.ok(mentorEmail.body.includes('YDP Mentorship Team'));
 const mentorEmailHtml = mentor.context.convertYdpPlainTextToHtml_(mentorEmail.body);
 assert.ok(mentorEmailHtml.includes('<a href="https://meet.google.com/sdy-fnow-sdn"'));
 assert.ok(mentorEmailHtml.includes('<a href="https://parallel-energy-ffe.notion.site/YDP-Mentoring-Program-Cohort-II-39a03cfeb35b80ecbf89daaaf6059f3d"'));
-assert.ok(mentor.context.getYdpMentorDataDictionaryRows_().some((row) => row.includes('Onboarding Reminder Email Status')));
+assert.ok(mentor.context.getYdpMentorDataDictionaryRows_().some((row) => row.includes('Onboarding Details Email Status')));
 
 console.log('onboarding reminder email tests passed');

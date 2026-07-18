@@ -17,8 +17,8 @@
     registrationSentAt: 'Mentor Registration Email Sent At',
     alreadyRegisteredStatus: 'Already Registered Email Status',
     alreadyRegisteredSentAt: 'Already Registered Email Sent At',
-    onboardingReminderStatus: 'Onboarding Reminder Email Status',
-    onboardingReminderSentAt: 'Onboarding Reminder Email Sent At',
+    onboardingReminderStatus: 'Onboarding Details Email Status',
+    onboardingReminderSentAt: 'Onboarding Details Email Sent At',
     lastError: 'Email Last Error'
   },
   statuses: {
@@ -42,7 +42,7 @@ function onOpen() {
     .addItem('Send mentor email to selected row', 'sendYdpMentorRegistrationEmailToSelectedRow')
     .addItem('Send mentor email to all unsent rows', 'sendYdpMentorRegistrationEmailsToAllUnsentRows')
     .addItem('Send already registered mentor update to all unsent rows', 'sendYdpAlreadyRegisteredMentorEmailsToAllUnsentRows')
-    .addItem('Send onboarding reminder to all unsent rows', 'sendYdpMentorOnboardingRemindersToAllUnsentRows')
+    .addItem("Send today's onboarding details to all unsent rows", 'sendYdpMentorOnboardingRemindersToAllUnsentRows')
     .addItem('Repair missing sent date for selected row', 'repairSelectedYdpMentorSentDates')
     .addItem('Resend email to selected row', 'resendYdpMentorEmailToSelectedRow')
     .addToUi();
@@ -176,8 +176,8 @@ function getYdpMentorDataDictionaryRows_() {
     ['Sheet', YDP_MENTOR_CONFIG.sheetName, YDP_MENTOR_CONFIG.headers.registrationSentAt, 'Date/time the first registration email was sent.', 'Audit trail.'],
     ['Sheet', YDP_MENTOR_CONFIG.sheetName, YDP_MENTOR_CONFIG.headers.alreadyRegisteredStatus, 'Whether the already-registered update email was sent.', 'Used for older existing applicants.'],
     ['Sheet', YDP_MENTOR_CONFIG.sheetName, YDP_MENTOR_CONFIG.headers.alreadyRegisteredSentAt, 'Date/time the already-registered update email was sent.', 'Audit trail.'],
-    ['Sheet', YDP_MENTOR_CONFIG.sheetName, YDP_MENTOR_CONFIG.headers.onboardingReminderStatus, 'Whether the July 18 onboarding reminder was sent.', 'Prevents duplicate onboarding reminders.'],
-    ['Sheet', YDP_MENTOR_CONFIG.sheetName, YDP_MENTOR_CONFIG.headers.onboardingReminderSentAt, 'Date/time the onboarding reminder was sent.', 'Audit trail.'],
+    ['Sheet', YDP_MENTOR_CONFIG.sheetName, YDP_MENTOR_CONFIG.headers.onboardingReminderStatus, "Whether today's July 18 onboarding details email was sent.", "Prevents duplicate sends without changing the earlier reminder's history."],
+    ['Sheet', YDP_MENTOR_CONFIG.sheetName, YDP_MENTOR_CONFIG.headers.onboardingReminderSentAt, "Date/time today's onboarding details email was sent.", 'Audit trail for this campaign.'],
     ['Sheet', YDP_MENTOR_CONFIG.sheetName, YDP_MENTOR_CONFIG.headers.lastError, 'Last email error message for that row.', 'Check this if an email did not send.'],
     ['Button', YDP_MENTOR_CONFIG.menuName, 'Setup email tracking columns', 'Creates the email tracking columns if they are missing.', 'Run once, or if columns are missing.'],
     ['Button', YDP_MENTOR_CONFIG.menuName, 'Install form submit trigger', 'Makes the automation run when a new form response arrives.', 'Run once after deploying the script.'],
@@ -188,7 +188,7 @@ function getYdpMentorDataDictionaryRows_() {
     ['Button', YDP_MENTOR_CONFIG.menuName, 'Send mentor email to selected row', 'Sends the registration email to one selected mentor if not already sent.', 'Use for a single controlled send.'],
     ['Button', YDP_MENTOR_CONFIG.menuName, 'Send mentor email to all unsent rows', 'Sends registration emails only to rows not already marked SENT.', 'Use carefully for bulk sends.'],
     ['Button', YDP_MENTOR_CONFIG.menuName, 'Send already registered mentor update to all unsent rows', 'Sends the already-registered update to older rows that have not received it.', 'Use for existing applicants.'],
-    ['Button', YDP_MENTOR_CONFIG.menuName, 'Send onboarding reminder to all unsent rows', 'Sends the July 18 onboarding reminder only to mentors who have not received this reminder.', 'Preview and test first, then use for the approved campaign.'],
+    ['Button', YDP_MENTOR_CONFIG.menuName, "Send today's onboarding details to all unsent rows", "Sends today's July 18 onboarding details only to mentors who have not received this campaign.", 'Preview and test first, then use for the approved campaign.'],
     ['Button', YDP_MENTOR_CONFIG.menuName, 'Repair missing sent date for selected row', 'Adds a missing sent date where status already says SENT.', 'Use only to repair tracking.'],
     ['Button', YDP_MENTOR_CONFIG.menuName, 'Resend email to selected row', 'Force resends one selected row.', 'Use only when you intentionally want a duplicate email sent.']
   ];
@@ -245,7 +245,7 @@ function previewSelectedYdpMentorEmail() {
     '<h2>Already Registered Update</h2>',
     '<p><strong>Subject:</strong> ' + escapeYdpHtml_(alreadyRegisteredEmail.subject) + '</p>',
     '<pre style="white-space:pre-wrap;background:#f6f8fa;padding:12px;border-radius:6px;">' + escapeYdpHtml_(alreadyRegisteredEmail.body) + '</pre>',
-    '<h2>Onboarding Reminder</h2>',
+    "<h2>Today's Onboarding Details</h2>",
     '<p><strong>Subject:</strong> ' + escapeYdpHtml_(onboardingReminderEmail.subject) + '</p>',
     '<pre style="white-space:pre-wrap;background:#f6f8fa;padding:12px;border-radius:6px;">' + escapeYdpHtml_(onboardingReminderEmail.body) + '</pre>',
     '</div>'
