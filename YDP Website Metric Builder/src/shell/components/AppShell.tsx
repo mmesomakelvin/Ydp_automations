@@ -2,12 +2,15 @@ import { useState, type ReactNode } from 'react'
 import { Menu, X, Sparkles } from 'lucide-react'
 import { MainNav, type NavigationItem } from './MainNav'
 import { UserMenu, type ShellUser } from './UserMenu'
+import { CountdownBanner } from './CountdownBanner'
 
 interface AppShellProps {
   children: ReactNode
   navigationItems: NavigationItem[]
   user?: ShellUser
   cohortLabel?: string
+  /** ISO datetime matching is sent; drives the countdown banner. */
+  matchingDate?: string
   onNavigate?: (href: string) => void
   onLogout?: () => void
 }
@@ -45,6 +48,7 @@ export function AppShell({
   navigationItems,
   user,
   cohortLabel = 'C2',
+  matchingDate = '2026-07-21T23:59:59',
   onNavigate,
   onLogout,
 }: AppShellProps) {
@@ -99,6 +103,9 @@ export function AppShell({
 
       {/* Main column */}
       <div className="flex min-w-0 flex-1 flex-col">
+        {/* Countdown to matching send-out (persists across all pages) */}
+        <CountdownBanner targetDate={matchingDate} cohortLabel="Cohort 2" />
+
         {/* Mobile top bar */}
         <header className="flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-3 lg:hidden dark:border-slate-800 dark:bg-slate-900">
           <button
