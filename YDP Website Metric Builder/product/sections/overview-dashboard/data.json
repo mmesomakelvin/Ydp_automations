@@ -1,0 +1,260 @@
+{
+  "_meta": {
+    "models": {
+      "summary": "Program-wide headline metrics derived from the matches sheet: distinct mentees, distinct mentors, total matches, average pair score, and counts for each attention category.",
+      "track": "A mentorship domain (e.g. Data Analyst) with the number of matches, mentees, and mentors it contains.",
+      "scoreBand": "A bucket of matches grouped by pair-score range, used to summarize match quality.",
+      "match": "A single mentee-to-mentor pairing with its track, pair score, and status fields (match/active/risk/email).",
+      "attention": "Groups of matches that need a coordinator's attention: at-risk, pending review, email delivery issues, and low score."
+    },
+    "relationships": [
+      "summary aggregates all matches across the cohort.",
+      "each match belongs to exactly one track.",
+      "each attention list contains a subset of matches flagged for a specific reason.",
+      "scoreBands partition all matches by pair-score range."
+    ]
+  },
+  "cohortLabel": "Cohort 2",
+  "lowScoreThreshold": 80,
+  "filtersApplied": [],
+  "summary": {
+    "totalMentees": 42,
+    "totalMentors": 21,
+    "totalMatches": 126,
+    "averagePairScore": 91,
+    "atRiskCount": 4,
+    "pendingReviewCount": 118,
+    "emailIssueCount": 3,
+    "lowScoreCount": 5
+  },
+  "tracks": [
+    { "name": "Data Analyst", "matchCount": 38, "menteeCount": 13, "mentorCount": 6 },
+    { "name": "Data Scientist", "matchCount": 27, "menteeCount": 9, "mentorCount": 5 },
+    { "name": "Data Engineer", "matchCount": 24, "menteeCount": 8, "mentorCount": 4 },
+    { "name": "Analytics Engineer", "matchCount": 19, "menteeCount": 7, "mentorCount": 3 },
+    { "name": "Machine Learning/AI Engineer", "matchCount": 18, "menteeCount": 5, "mentorCount": 3 }
+  ],
+  "scoreBands": [
+    { "band": "90–100", "count": 78 },
+    { "band": "80–89", "count": 43 },
+    { "band": "Below 80", "count": 5 }
+  ],
+  "attention": {
+    "atRisk": [
+      {
+        "matchId": "match-ydp-c2-mentee-012-ydp-c2-mentor-004",
+        "menteeId": "YDP-C2-Mentee-012",
+        "menteeName": "Ibukun Egwuogu",
+        "mentorId": "YDP-C2-Mentor-004",
+        "mentorName": "Adeyemi Adenuga",
+        "track": "Data Analyst",
+        "pairScore": 84,
+        "matchStatus": "Auto-Matched",
+        "activeStatus": "Active",
+        "riskStatus": "At Risk",
+        "emailStatus": "Sent",
+        "missedSessions": 3,
+        "lastCheckInDate": "2026-06-14",
+        "notes": "Two consecutive sessions missed and no response to the last check-in email. Mentor flagged a possible timezone clash; coordinator should confirm the mentee is still active before the mid-cohort review."
+      },
+      {
+        "matchId": "match-ydp-c2-mentee-031-ydp-c2-mentor-016",
+        "menteeId": "YDP-C2-Mentee-031",
+        "menteeName": "Nurudeen Ibrahim",
+        "mentorId": "YDP-C2-Mentor-016",
+        "mentorName": "Emmanuel Ugochukwu",
+        "track": "Data Scientist",
+        "pairScore": 88,
+        "matchStatus": "Auto-Matched",
+        "activeStatus": "Active",
+        "riskStatus": "At Risk",
+        "emailStatus": "Sent",
+        "missedSessions": 2,
+        "lastCheckInDate": "2026-06-20",
+        "notes": "Mentee reported project blockers; mentor requested a re-scope of the capstone."
+      },
+      {
+        "matchId": "match-ydp-c2-mentee-007-ydp-c2-mentor-001",
+        "menteeId": "YDP-C2-Mentee-007",
+        "menteeName": "Joshua Emeghai",
+        "mentorId": "YDP-C2-Mentor-001",
+        "mentorName": "Israel Odeajo",
+        "track": "Machine Learning/AI Engineer",
+        "pairScore": 90,
+        "matchStatus": "Auto-Matched",
+        "activeStatus": "Active",
+        "riskStatus": "Off Track",
+        "emailStatus": "Sent",
+        "missedSessions": 4,
+        "lastCheckInDate": "2026-05-30",
+        "notes": "No check-in logged in over three weeks."
+      },
+      {
+        "matchId": "match-ydp-c2-mentee-025-ydp-c2-mentor-004",
+        "menteeId": "YDP-C2-Mentee-025",
+        "menteeName": "Ibukun Egwuogu",
+        "mentorId": "YDP-C2-Mentor-004",
+        "mentorName": "Adeyemi Adenuga",
+        "track": "Analytics Engineer",
+        "pairScore": 95,
+        "matchStatus": "Auto-Matched",
+        "activeStatus": "Active",
+        "riskStatus": "At Risk",
+        "emailStatus": "Sent",
+        "missedSessions": 2,
+        "lastCheckInDate": "2026-06-18",
+        "notes": "Attendance dropped after the first month."
+      }
+    ],
+    "pendingReview": [
+      {
+        "matchId": "match-ydp-c2-mentee-006-ydp-c2-mentor-007",
+        "menteeId": "YDP-C2-Mentee-006",
+        "menteeName": "Chibuike Omenukor",
+        "mentorId": "YDP-C2-Mentor-007",
+        "mentorName": "Joseph Abubakar",
+        "track": "Data Engineer",
+        "pairScore": 97,
+        "matchStatus": "Auto-Matched",
+        "activeStatus": "Pending Review",
+        "riskStatus": "Not Started",
+        "emailStatus": "Sent",
+        "missedSessions": 0,
+        "lastCheckInDate": null,
+        "notes": "Auto-selected from Pair Scores. Total pair score: 97."
+      },
+      {
+        "matchId": "match-ydp-c2-mentee-023-ydp-c2-mentor-004",
+        "menteeId": "YDP-C2-Mentee-023",
+        "menteeName": "Olaide Daramola",
+        "mentorId": "YDP-C2-Mentor-004",
+        "mentorName": "Adeyemi Adenuga",
+        "track": "Data Analyst",
+        "pairScore": 100,
+        "matchStatus": "Auto-Matched",
+        "activeStatus": "Pending Review",
+        "riskStatus": "Not Started",
+        "emailStatus": "Sent",
+        "missedSessions": 0,
+        "lastCheckInDate": null,
+        "notes": "Auto-selected from Pair Scores. Total pair score: 100."
+      },
+      {
+        "matchId": "match-ydp-c2-mentee-043-ydp-c2-mentor-018",
+        "menteeId": "YDP-C2-Mentee-043",
+        "menteeName": "Abdullah Bankole",
+        "mentorId": "YDP-C2-Mentor-018",
+        "mentorName": "Oluwatobi Ojo",
+        "track": "Analytics Engineer",
+        "pairScore": 95,
+        "matchStatus": "Auto-Matched",
+        "activeStatus": "Pending Review",
+        "riskStatus": "Not Started",
+        "emailStatus": "Sent",
+        "missedSessions": 0,
+        "lastCheckInDate": null,
+        "notes": "Auto-selected from Pair Scores. Total pair score: 95."
+      }
+    ],
+    "emailIssues": [
+      {
+        "matchId": "match-ydp-c2-mentee-015-ydp-c2-mentor-001",
+        "menteeId": "YDP-C2-Mentee-015",
+        "menteeName": "Tiamiyu Hamzat",
+        "mentorId": "YDP-C2-Mentor-001",
+        "mentorName": "Israel Odeajo",
+        "track": "Machine Learning/AI Engineer",
+        "pairScore": 100,
+        "matchStatus": "Auto-Matched",
+        "activeStatus": "Pending Review",
+        "riskStatus": "Not Started",
+        "emailStatus": "Failed",
+        "missedSessions": 0,
+        "lastCheckInDate": null,
+        "notes": "Mentee match email bounced: mailbox full."
+      },
+      {
+        "matchId": "match-ydp-c2-mentee-009-ydp-c2-mentor-007",
+        "menteeId": "YDP-C2-Mentee-009",
+        "menteeName": "Nurudeen Ibrahim",
+        "mentorId": "YDP-C2-Mentor-007",
+        "mentorName": "Joseph Abubakar",
+        "track": "Data Analyst",
+        "pairScore": 100,
+        "matchStatus": "Auto-Matched",
+        "activeStatus": "Pending Review",
+        "riskStatus": "Not Started",
+        "emailStatus": "Not Sent",
+        "missedSessions": 0,
+        "lastCheckInDate": null,
+        "notes": "Mentor match email not yet sent — awaiting send batch."
+      },
+      {
+        "matchId": "match-ydp-c2-mentee-038-ydp-c2-mentor-013",
+        "menteeId": "YDP-C2-Mentee-038",
+        "menteeName": "Kolawole Fashola",
+        "mentorId": "YDP-C2-Mentor-013",
+        "mentorName": "Oluwatomisin Aluko",
+        "track": "Data Engineer",
+        "pairScore": 92,
+        "matchStatus": "Auto-Matched",
+        "activeStatus": "Pending Review",
+        "riskStatus": "Not Started",
+        "emailStatus": "Failed",
+        "missedSessions": 0,
+        "lastCheckInDate": null,
+        "notes": "Match email last error: invalid recipient address."
+      }
+    ],
+    "lowScore": [
+      {
+        "matchId": "match-ydp-c2-mentee-012-ydp-c2-mentor-004",
+        "menteeId": "YDP-C2-Mentee-012",
+        "menteeName": "Ibukun Egwuogu",
+        "mentorId": "YDP-C2-Mentor-004",
+        "mentorName": "Adeyemi Adenuga",
+        "track": "Data Analyst",
+        "pairScore": 74,
+        "matchStatus": "Auto-Matched",
+        "activeStatus": "Pending Review",
+        "riskStatus": "Not Started",
+        "emailStatus": "Sent",
+        "missedSessions": 0,
+        "lastCheckInDate": null,
+        "notes": "Below threshold — limited overlap in skills and availability."
+      },
+      {
+        "matchId": "match-ydp-c2-mentee-030-ydp-c2-mentor-010",
+        "menteeId": "YDP-C2-Mentee-030",
+        "menteeName": "Rhoda Akinlade",
+        "mentorId": "YDP-C2-Mentor-010",
+        "mentorName": "Tina Okonkwo",
+        "track": "Data Scientist",
+        "pairScore": 71,
+        "matchStatus": "Auto-Matched",
+        "activeStatus": "Pending Review",
+        "riskStatus": "Not Started",
+        "emailStatus": "Sent",
+        "missedSessions": 0,
+        "lastCheckInDate": null,
+        "notes": "Consider re-matching; mentor is near capacity."
+      },
+      {
+        "matchId": "match-ydp-c2-mentee-041-ydp-c2-mentor-018",
+        "menteeId": "YDP-C2-Mentee-041",
+        "menteeName": "Emmanuel Okafor",
+        "mentorId": "YDP-C2-Mentor-018",
+        "mentorName": "Oluwatobi Ojo",
+        "track": "Analytics Engineer",
+        "pairScore": 78,
+        "matchStatus": "Auto-Matched",
+        "activeStatus": "Pending Review",
+        "riskStatus": "Not Started",
+        "emailStatus": "Sent",
+        "missedSessions": 0,
+        "lastCheckInDate": null,
+        "notes": "Slightly below threshold; acceptable if no better mentor is available."
+      }
+    ]
+  }
+}
