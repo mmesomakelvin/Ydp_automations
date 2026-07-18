@@ -457,7 +457,8 @@ How it decides:
 - It only considers mentees marked `Gemini Review Status = Can Pair`.
 - It only auto-matches a mentee after that mentee has scored pair rows against all available mentors.
 - It chooses the highest `Total Pair Score`.
-- It respects each mentor's flexible capacity.
+- It fills mentors up to their stated capacity before using any overflow slots.
+- If mentees remain after the normal-capacity pass, each mentor may receive up to two additional mentees, but never more than `stated capacity + 2`.
 - If a mentee does not have enough pair scores yet, it writes `Needs More Pair Scores` in `Match Recommendations` and does not create a final matched pair for that mentee yet.
 
 Testing order:

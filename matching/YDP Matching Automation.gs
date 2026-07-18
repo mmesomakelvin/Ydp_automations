@@ -1612,6 +1612,8 @@ function selectYdpAutoMatchesFromPairScores_(mentees, mentors, pairScores) {
   const assignedCounts = {};
   const matches = [];
   const skipped = [];
+  const eligibleMentees = [];
+  const overflowMentees = [];
 
   mentors.forEach(function(mentor) {
     if (!mentor || !mentor.id) {
@@ -1664,14 +1666,25 @@ function selectYdpAutoMatchesFromPairScores_(mentees, mentors, pairScores) {
       return;
     }
 
-    const candidates = scoredMentorIds.map(function(mentorId) {
+    eligibleMentees.push(mentee);
+  });
+
+  function getCandidatesForMentee(mentee, useOverflowCapacity) {
+    const menteePairs = pairsByMentee[mentee.id] || {};
+
+    return Object.keys(menteePairs).map(function(mentorId) {
       const mentor = mentorMap[mentorId];
-      const flexibleCapacity = Math.max(1, Number(mentor.flexibleCapacity) || 1);
+      const statedCapacity = Math.max(1, Number(mentor.statedCapacity) || 1);
+      const flexibleCapacity = Math.max(
+        statedCapacity,
+        Number(mentor.flexibleCapacity) || statedCapacity + 2
+      );
+      const capacityLimit = useOverflowCapacity ? flexibleCapacity : statedCapacity;
 
       return {
         mentor: mentor,
         pair: menteePairs[mentorId],
-        availableSlots: flexibleCapacity - (assignedCounts[mentorId] || 0)
+        availableSlots: capacityLimit - (assignedCounts[mentorId] || 0)
       };
     }).filter(function(candidate) {
       return candidate.availableSlots > 0;
@@ -1690,6 +1703,31 @@ function selectYdpAutoMatchesFromPairScores_(mentees, mentors, pairScores) {
 
       return String(a.mentor.name || '').localeCompare(String(b.mentor.name || ''));
     });
+  }
+
+  function assignCandidate(mentee, selected, capacityStage) {
+    assignedCounts[selected.mentor.id] = (assignedCounts[selected.mentor.id] || 0) + 1;
+    matches.push({
+      mentee: mentee,
+      mentor: selected.mentor,
+      pair: selected.pair,
+      capacityStage: capacityStage
+    });
+  }
+
+  eligibleMentees.forEach(function(mentee) {
+    const candidates = getCandidatesForMentee(mentee, false);
+
+    if (candidates.length === 0) {
+      overflowMentees.push(mentee);
+      return;
+    }
+
+    assignCandidate(mentee, candidates[0], 'STATED');
+  });
+
+  overflowMentees.forEach(function(mentee) {
+    const candidates = getCandidatesForMentee(mentee, true);
 
     if (candidates.length === 0) {
       skipped.push({
@@ -1699,13 +1737,7 @@ function selectYdpAutoMatchesFromPairScores_(mentees, mentors, pairScores) {
       return;
     }
 
-    const selected = candidates[0];
-    assignedCounts[selected.mentor.id] = (assignedCounts[selected.mentor.id] || 0) + 1;
-    matches.push({
-      mentee: mentee,
-      mentor: selected.mentor,
-      pair: selected.pair
-    });
+    assignCandidate(mentee, candidates[0], 'OVERFLOW');
   });
 
   return {

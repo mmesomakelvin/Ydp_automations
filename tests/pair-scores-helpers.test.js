@@ -229,8 +229,8 @@ const autoMatchResult = context.selectYdpAutoMatchesFromPairScores_(
     { id: 'm2', name: 'Ben Two', email: 'ben@example.com', careerPath: 'Data Analyst', finalScore: 90 }
   ],
   [
-    { id: 'mentor-a', name: 'Mentor A', email: 'a@example.com', flexibleCapacity: 1 },
-    { id: 'mentor-b', name: 'Mentor B', email: 'b@example.com', flexibleCapacity: 3 }
+    { id: 'mentor-a', name: 'Mentor A', email: 'a@example.com', statedCapacity: 1, flexibleCapacity: 3 },
+    { id: 'mentor-b', name: 'Mentor B', email: 'b@example.com', statedCapacity: 3, flexibleCapacity: 5 }
   ],
   [
     { menteeId: 'm1', mentorId: 'mentor-a', mentorName: 'Mentor A', mentorEmail: 'a@example.com', totalPairScore: 95, skillFitScore: 35, careerFitScore: 30, availabilityFitScore: 15, capacityFitScore: 15, reason: 'Best fit', concern: '', status: 'Scored' },
@@ -243,5 +243,55 @@ assert.strictEqual(autoMatchResult.matches.length, 2);
 assert.strictEqual(autoMatchResult.matches[0].mentor.id, 'mentor-a');
 assert.strictEqual(autoMatchResult.matches[1].mentor.id, 'mentor-b');
 assert.strictEqual(autoMatchResult.skipped.length, 0);
+
+const twoStageMentees = Array.from({ length: 10 }, (_, index) => ({
+  id: 'two-stage-' + (index + 1),
+  name: 'Two Stage ' + (index + 1),
+  email: 'two-stage-' + (index + 1) + '@example.com',
+  careerPath: 'Data Analyst',
+  finalScore: 80
+}));
+const twoStageMentors = [
+  { id: 'capacity-a', name: 'Capacity A', email: 'capacity-a@example.com', statedCapacity: 1, flexibleCapacity: 3 },
+  { id: 'capacity-b', name: 'Capacity B', email: 'capacity-b@example.com', statedCapacity: 1, flexibleCapacity: 3 },
+  { id: 'capacity-c', name: 'Capacity C', email: 'capacity-c@example.com', statedCapacity: 1, flexibleCapacity: 3 }
+];
+const twoStagePairs = [];
+
+twoStageMentees.forEach((mentee, menteeIndex) => {
+  twoStageMentors.forEach((mentor, mentorIndex) => {
+    twoStagePairs.push({
+      menteeId: mentee.id,
+      mentorId: mentor.id,
+      mentorName: mentor.name,
+      mentorEmail: mentor.email,
+      totalPairScore: 100 - mentorIndex - menteeIndex,
+      skillFitScore: 40 - mentorIndex,
+      careerFitScore: 30,
+      availabilityFitScore: 15,
+      capacityFitScore: 15,
+      reason: 'Capacity test',
+      concern: '',
+      status: 'Scored'
+    });
+  });
+});
+
+const twoStageResult = context.selectYdpAutoMatchesFromPairScores_(
+  twoStageMentees,
+  twoStageMentors,
+  twoStagePairs
+);
+assert.strictEqual(twoStageResult.matches.length, 9);
+assert.strictEqual(twoStageResult.matches[0].mentor.id, 'capacity-a');
+assert.strictEqual(twoStageResult.matches[1].mentor.id, 'capacity-b');
+assert.strictEqual(twoStageResult.matches[2].mentor.id, 'capacity-c');
+assert.strictEqual(twoStageResult.matches[3].mentor.id, 'capacity-a');
+assert.strictEqual(twoStageResult.assignedCounts['capacity-a'], 3);
+assert.strictEqual(twoStageResult.assignedCounts['capacity-b'], 3);
+assert.strictEqual(twoStageResult.assignedCounts['capacity-c'], 3);
+assert.strictEqual(twoStageResult.skipped.length, 1);
+assert.strictEqual(twoStageResult.skipped[0].mentee.id, 'two-stage-10');
+assert.ok(twoStageResult.skipped[0].reason.includes('remaining flexible capacity'));
 
 console.log('pair score helper tests passed');
