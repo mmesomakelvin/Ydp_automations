@@ -402,17 +402,29 @@ function buildYdpMentorEmail_(rowData, type) {
 
   if (type === 'ONBOARDING') {
     return {
-      subject: 'Your YDP Mentorship Program onboarding is tomorrow',
+      subject: 'Your YDP Mentorship Program mentor onboarding is today',
       body: [
         'Hi ' + firstName + ',',
         '',
         'Thank you for your patience, and please accept our sincere apologies for the delay in sharing this update.',
         '',
-        'We are pleased to inform you that the mentor onboarding session for the YDP Mentorship Program will take place tomorrow, Saturday, July 18, 2026.',
+        'We are pleased to proceed with the YDP Mentorship Program and to welcome you to the mentor onboarding session taking place today, Saturday, July 18, 2026.',
         '',
         'Your willingness to share your knowledge, experience, and time with emerging data professionals is deeply valued. You are an important part of this program, and we are grateful to have you join us as we proceed with this mentorship cohort.',
         '',
-        'The full onboarding details will be shared with you shortly. Please keep an eye on your email for the next update.',
+        'Session details:',
+        'YDP Mentor Onboarding - Cohort 2',
+        'Date: Saturday, July 18, 2026',
+        'Time: 4:00 PM - 4:30 PM',
+        'Time zone: Africa/Lagos',
+        'Google Meet: https://meet.google.com/sdy-fnow-sdn',
+        '',
+        'For more information about the program, please visit:',
+        'https://parallel-energy-ffe.notion.site/YDP-Mentoring-Program-Cohort-II-39a03cfeb35b80ecbf89daaaf6059f3d',
+        '',
+        'We will continue to update this page, so please bookmark it and check it regularly for new information and resources.',
+        '',
+        'Please join the session a few minutes early so we can begin promptly.',
         '',
         'Thank you again for choosing to be part of the YDP Mentorship Program. We look forward to beginning this journey with you.',
         '',
@@ -782,7 +794,12 @@ function convertYdpPlainTextToHtml_(text) {
   return String(text)
     .split('\n\n')
     .map(function(paragraph) {
-      return '<p>' + escapeYdpHtml_(paragraph).replace(/\n/g, '<br>') + '</p>';
+      const escapedParagraph = escapeYdpHtml_(paragraph);
+      const linkedParagraph = escapedParagraph.replace(
+        /(https:\/\/[^\s<]+)/g,
+        '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
+      );
+      return '<p>' + linkedParagraph.replace(/\n/g, '<br>') + '</p>';
     })
     .join('');
 }
