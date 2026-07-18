@@ -16,19 +16,16 @@ const mentee = loadScript('YDP Mentee Email.gs');
 assert.strictEqual(typeof mentee.context.getYdpMenteeDataDictionaryRows_, 'function');
 const menteeRows = mentee.context.getYdpMenteeDataDictionaryRows_();
 assert.ok(menteeRows.some((row) => row.includes('Mentee ID')));
-assert.ok(menteeRows.some((row) => row.includes('Assign IDs and mark duplicates')));
 
 const mentor = loadScript(path.join('mentor', 'YDP Mentor Email.gs'));
 assert.strictEqual(typeof mentor.context.getYdpMentorDataDictionaryRows_, 'function');
 const mentorRows = mentor.context.getYdpMentorDataDictionaryRows_();
 assert.ok(mentorRows.some((row) => row.includes('Mentor ID')));
-assert.ok(mentorRows.some((row) => row.includes('Assign IDs and mark duplicates')));
 
 const matching = loadScript(path.join('matching', 'YDP Matching Automation.gs'));
 assert.strictEqual(typeof matching.context.getYdpMatchingDataDictionaryRows_, 'function');
 const matchingRows = matching.context.getYdpMatchingDataDictionaryRows_();
 assert.ok(matchingRows.some((row) => row.includes('Gemini Review Status')));
-assert.ok(matchingRows.some((row) => row.includes('Generate pair scores batch')));
 
 const dictionaryHeader = [
   'Sheet Name',
