@@ -146,64 +146,186 @@ function assignYdpMentorIdsAndMarkDuplicates(options) {
 }
 
 function createYdpMentorDataDictionary() {
-  const sheet = getOrCreateYdpMentorDictionarySheet_();
-  writeYdpMentorDataDictionary_(sheet, getYdpMentorDataDictionaryRows_());
-  SpreadsheetApp.getUi().alert('Mentor data dictionary created/updated in the "Data Dictionary" tab.');
+  const dictionarySheet = getOrCreateYdpMentorDictionarySheet_();
+  const buttonGuideSheet = getOrCreateYdpMentorButtonGuideSheet_();
+  const sourceHeaders = getYdpMentorSourceHeadersForDictionary_();
+
+  writeYdpMentorDataDictionary_(dictionarySheet, getYdpMentorDataDictionaryRows_(sourceHeaders));
+  writeYdpMentorButtonGuide_(buttonGuideSheet, getYdpMentorButtonGuideRows_());
+  SpreadsheetApp.getUi().alert(
+    'Mentor documentation was refreshed in the "Data Dictionary" and "Button Guide" tabs. Participant data was not changed.'
+  );
 }
 
-function getYdpMentorDataDictionaryRows_() {
-  return [
-    ['Section', 'Sheet / Button', 'Column / Action', 'Plain English Meaning', 'When To Use'],
-    ['Sheet', YDP_MENTOR_CONFIG.sheetName, 'Timestamp', 'When the mentor submitted the application form.', 'Reference only.'],
-    ['Sheet', YDP_MENTOR_CONFIG.sheetName, 'Email Address', 'The mentor email address. This is used as the unique identity key.', 'Required for IDs and emails.'],
-    ['Sheet', YDP_MENTOR_CONFIG.sheetName, 'First Name', 'The mentor first name used for email personalization.', 'Required for cleaner emails.'],
-    ['Sheet', YDP_MENTOR_CONFIG.sheetName, 'Last Name', 'The mentor last name used for records and matching.', 'Reference and matching.'],
-    ['Sheet', YDP_MENTOR_CONFIG.sheetName, 'Phone Number', 'The mentor phone number from the form.', 'Reference only for now.'],
-    ['Sheet', YDP_MENTOR_CONFIG.sheetName, 'Location (city, country)', 'Where the mentor is based.', 'Useful later for timezone or cohort context.'],
-    ['Sheet', YDP_MENTOR_CONFIG.sheetName, 'LinkedIn Profile URL', 'The mentor LinkedIn profile link.', 'Reference for review.'],
-    ['Sheet', YDP_MENTOR_CONFIG.sheetName, 'Preferred Communication Method', 'How the mentor prefers to be contacted.', 'Useful later for engagement planning.'],
-    ['Sheet', YDP_MENTOR_CONFIG.sheetName, 'Years of Experience in Data', 'Mentor experience range.', 'Used by matching.'],
-    ['Sheet', YDP_MENTOR_CONFIG.sheetName, 'Current Role', 'Current job title or professional role.', 'Used by matching.'],
-    ['Sheet', YDP_MENTOR_CONFIG.sheetName, 'Areas of Expertise', 'Skills or data areas the mentor can support.', 'Used heavily by matching.'],
-    ['Sheet', YDP_MENTOR_CONFIG.sheetName, 'How many mentees are you willing to take on', 'Stated mentor capacity.', 'Matching uses this plus a flexible buffer of 2.'],
-    ['Sheet', YDP_MENTOR_CONFIG.sheetName, 'Availability', 'How many hours the mentor can give.', 'Used by matching.'],
-    ['Sheet', YDP_MENTOR_CONFIG.sheetName, 'Preferred Days and Times for Session', 'When the mentor prefers to meet.', 'Used by matching if available.'],
-    ['Sheet', YDP_MENTOR_CONFIG.sheetName, YDP_MENTOR_CONFIG.headers.personId, 'Stable mentor ID created by the automation.', 'Use this instead of names when matching or tracking.'],
-    ['Sheet', YDP_MENTOR_CONFIG.sheetName, YDP_MENTOR_CONFIG.headers.duplicateStatus, 'Shows ORIGINAL for first application and DUPLICATE for repeated email submissions.', 'Use this to avoid counting the same mentor twice.'],
-    ['Sheet', YDP_MENTOR_CONFIG.sheetName, YDP_MENTOR_CONFIG.headers.originalRow, 'For duplicate rows, this points back to the original row number.', 'Use when cleaning duplicate applications.'],
-    ['Sheet', YDP_MENTOR_CONFIG.sheetName, YDP_MENTOR_CONFIG.headers.idAssignedAt, 'Timestamp when the mentor ID was assigned.', 'Audit trail.'],
-    ['Sheet', YDP_MENTOR_CONFIG.sheetName, YDP_MENTOR_CONFIG.headers.registrationStatus, 'Whether the first registration email was sent.', 'Do not edit unless correcting a mistake.'],
-    ['Sheet', YDP_MENTOR_CONFIG.sheetName, YDP_MENTOR_CONFIG.headers.registrationSentAt, 'Date/time the first registration email was sent.', 'Audit trail.'],
-    ['Sheet', YDP_MENTOR_CONFIG.sheetName, YDP_MENTOR_CONFIG.headers.alreadyRegisteredStatus, 'Whether the already-registered update email was sent.', 'Used for older existing applicants.'],
-    ['Sheet', YDP_MENTOR_CONFIG.sheetName, YDP_MENTOR_CONFIG.headers.alreadyRegisteredSentAt, 'Date/time the already-registered update email was sent.', 'Audit trail.'],
-    ['Sheet', YDP_MENTOR_CONFIG.sheetName, YDP_MENTOR_CONFIG.headers.onboardingReminderStatus, "Whether today's July 18 onboarding details email was sent.", "Prevents duplicate sends without changing the earlier reminder's history."],
-    ['Sheet', YDP_MENTOR_CONFIG.sheetName, YDP_MENTOR_CONFIG.headers.onboardingReminderSentAt, "Date/time today's onboarding details email was sent.", 'Audit trail for this campaign.'],
-    ['Sheet', YDP_MENTOR_CONFIG.sheetName, YDP_MENTOR_CONFIG.headers.lastError, 'Last email error message for that row.', 'Check this if an email did not send.'],
-    ['Button', YDP_MENTOR_CONFIG.menuName, 'Setup email tracking columns', 'Creates the email tracking columns if they are missing.', 'Run once, or if columns are missing.'],
-    ['Button', YDP_MENTOR_CONFIG.menuName, 'Install form submit trigger', 'Makes the automation run when a new form response arrives.', 'Run once after deploying the script.'],
-    ['Button', YDP_MENTOR_CONFIG.menuName, 'Assign IDs and mark duplicates', 'Creates mentor IDs and marks repeated email submissions as duplicates.', 'Run after importing or receiving new form rows.'],
-    ['Button', YDP_MENTOR_CONFIG.menuName, 'Create data dictionary', 'Creates this explanation tab.', 'Run whenever you want to refresh documentation.'],
-    ['Button', YDP_MENTOR_CONFIG.menuName, 'Send test mentor email', 'Sends a test email to an address you enter.', 'Use before real sends.'],
-    ['Button', YDP_MENTOR_CONFIG.menuName, 'Preview selected row email', 'Shows the email content for the selected row without sending.', 'Use when checking wording.'],
-    ['Button', YDP_MENTOR_CONFIG.menuName, 'Send mentor email to selected row', 'Sends the registration email to one selected mentor if not already sent.', 'Use for a single controlled send.'],
-    ['Button', YDP_MENTOR_CONFIG.menuName, 'Send mentor email to all unsent rows', 'Sends registration emails only to rows not already marked SENT.', 'Use carefully for bulk sends.'],
-    ['Button', YDP_MENTOR_CONFIG.menuName, 'Send already registered mentor update to all unsent rows', 'Sends the already-registered update to older rows that have not received it.', 'Use for existing applicants.'],
-    ['Button', YDP_MENTOR_CONFIG.menuName, "Send today's onboarding details to all unsent rows", "Sends today's July 18 onboarding details only to mentors who have not received this campaign.", 'Preview and test first, then use for the approved campaign.'],
-    ['Button', YDP_MENTOR_CONFIG.menuName, 'Repair missing sent date for selected row', 'Adds a missing sent date where status already says SENT.', 'Use only to repair tracking.'],
-    ['Button', YDP_MENTOR_CONFIG.menuName, 'Resend email to selected row', 'Force resends one selected row.', 'Use only when you intentionally want a duplicate email sent.']
+function getYdpMentorDataDictionaryRows_(sourceHeaders) {
+  const responsePurpose = 'Stores live mentor applications, matching preferences, and email tracking fields.';
+  const rows = [
+    ['Sheet Name', 'Sheet Purpose', 'Column Name', 'Column Meaning', 'Automation Use', 'Can Team Edit?', 'Notes'],
+    [YDP_MENTOR_CONFIG.sheetName, responsePurpose, 'Timestamp', 'Date and time the mentor submitted the form.', 'Used as the original application audit time.', 'No - use the form', 'Reference field from Google Forms.'],
+    [YDP_MENTOR_CONFIG.sheetName, responsePurpose, 'Email Address', 'Mentor email address and unique identity key.', 'Used for IDs, duplicate checks, matching, and email delivery.', 'Only to correct a confirmed typo', 'Changing this can affect identity and duplicate detection.'],
+    [YDP_MENTOR_CONFIG.sheetName, responsePurpose, 'First Name', 'Mentor first name.', 'Personalizes mentor emails.', 'Only to correct a confirmed typo', 'The email greeting uses this value.'],
+    [YDP_MENTOR_CONFIG.sheetName, responsePurpose, 'Last Name', 'Mentor surname.', 'Used in records and matching.', 'Only to correct a confirmed typo', 'Keep the mentor spelling.'],
+    [YDP_MENTOR_CONFIG.sheetName, responsePurpose, 'Phone Number', 'Mentor phone number.', 'Available for contact and duplicate review.', 'Only to correct a confirmed typo', 'Email remains the primary unique key.'],
+    [YDP_MENTOR_CONFIG.sheetName, responsePurpose, 'Location (city, country)', 'Where the mentor is based.', 'Supports timezone and location-aware matching.', 'Only to correct a confirmed typo', 'Use city and country where possible.'],
+    [YDP_MENTOR_CONFIG.sheetName, responsePurpose, 'LinkedIn Profile URL', 'Link to the mentor LinkedIn profile.', 'Supports mentor review.', 'Only to correct a confirmed typo', 'May be blank or invalid if entered incorrectly.'],
+    [YDP_MENTOR_CONFIG.sheetName, responsePurpose, 'Preferred Communication Method', 'How the mentor prefers to communicate.', 'Used as matching and engagement context.', 'No - use the form', 'A preference, not a guaranteed channel.'],
+    [YDP_MENTOR_CONFIG.sheetName, responsePurpose, 'Years of Experience in Data', 'Mentor experience range.', 'Contributes to career and seniority fit.', 'No - use the form', 'Used by matching.'],
+    [YDP_MENTOR_CONFIG.sheetName, responsePurpose, 'Current Role', 'Current job title or professional role.', 'Contributes to career-path matching.', 'No - use the form', 'Used by matching.'],
+    [YDP_MENTOR_CONFIG.sheetName, responsePurpose, 'Areas of Expertise', 'Skills and data areas the mentor can support.', 'Contributes strongly to skill fit.', 'No - use the form', 'Used heavily by pair scoring.'],
+    [YDP_MENTOR_CONFIG.sheetName, responsePurpose, 'How many mentees are you willing to take on', 'Number of mentees requested by the mentor.', 'Sets stated matching capacity.', 'No - use the form', 'Auto-match fills stated capacity first, then permits at most 2 overflow mentees.'],
+    [YDP_MENTOR_CONFIG.sheetName, responsePurpose, 'Availability', 'Hours the mentor can commit.', 'Contributes to practical availability fit.', 'No - use the form', 'Used by matching.'],
+    [YDP_MENTOR_CONFIG.sheetName, responsePurpose, 'Preferred Days and Times for Session', 'Days and times the mentor prefers to meet.', 'Contributes to scheduling compatibility.', 'No - use the form', 'Used when available in source data.'],
+    [YDP_MENTOR_CONFIG.sheetName, responsePurpose, YDP_MENTOR_CONFIG.headers.personId, 'Stable ID assigned to the first application for each unique email.', 'Links the mentor across matching and program tracking.', 'No - automation managed', 'Duplicate submissions receive the original ID.'],
+    [YDP_MENTOR_CONFIG.sheetName, responsePurpose, YDP_MENTOR_CONFIG.headers.duplicateStatus, 'Shows ORIGINAL or DUPLICATE.', 'Prevents the same mentor from being counted twice.', 'No - automation managed', 'Duplicate rows are also colored green.'],
+    [YDP_MENTOR_CONFIG.sheetName, responsePurpose, YDP_MENTOR_CONFIG.headers.originalRow, 'Row number of the first application for this email.', 'Connects duplicate submissions to the original row.', 'No - automation managed', 'Original rows point to themselves.'],
+    [YDP_MENTOR_CONFIG.sheetName, responsePurpose, YDP_MENTOR_CONFIG.headers.idAssignedAt, 'Date and time the mentor ID was assigned.', 'Provides an ID-assignment audit trail.', 'No - automation managed', 'Do not clear this value.'],
+    [YDP_MENTOR_CONFIG.sheetName, responsePurpose, YDP_MENTOR_CONFIG.headers.registrationStatus, 'Status of the first registration email.', 'SENT prevents duplicates; ERROR marks a failure.', 'No - automation managed', 'Use the resend command for an intentional duplicate send.'],
+    [YDP_MENTOR_CONFIG.sheetName, responsePurpose, YDP_MENTOR_CONFIG.headers.registrationSentAt, 'Date and time the first registration email was sent.', 'Provides the registration-email audit time.', 'No - automation managed', 'Repair only with the dedicated command.'],
+    [YDP_MENTOR_CONFIG.sheetName, responsePurpose, YDP_MENTOR_CONFIG.headers.alreadyRegisteredStatus, 'Status of the older-applicant update email.', 'Prevents duplicate already-registered updates.', 'No - automation managed', 'Independent from the normal registration campaign.'],
+    [YDP_MENTOR_CONFIG.sheetName, responsePurpose, YDP_MENTOR_CONFIG.headers.alreadyRegisteredSentAt, 'Date and time the older-applicant update was sent.', 'Provides the update-email audit time.', 'No - automation managed', 'Do not clear after sending.'],
+    [YDP_MENTOR_CONFIG.sheetName, responsePurpose, YDP_MENTOR_CONFIG.headers.onboardingReminderStatus, "Status of today's July 18 onboarding-details email.", 'Prevents duplicate sends for this campaign.', 'No - automation managed', 'Independent from the earlier reminder history.'],
+    [YDP_MENTOR_CONFIG.sheetName, responsePurpose, YDP_MENTOR_CONFIG.headers.onboardingReminderSentAt, "Date and time today's onboarding-details email was sent.", 'Provides the campaign audit time.', 'No - automation managed', 'Do not clear after sending.'],
+    [YDP_MENTOR_CONFIG.sheetName, responsePurpose, YDP_MENTOR_CONFIG.headers.lastError, 'Most recent email error for this row.', 'Explains why a send failed.', 'No - automation managed', 'Check this when an email status is ERROR.']
   ];
+
+  addYdpMentorUndocumentedSourceHeaders_(rows, sourceHeaders || [], responsePurpose);
+  addYdpMentorDocumentationDictionaryRows_(rows);
+  return rows;
+}
+
+function addYdpMentorUndocumentedSourceHeaders_(rows, sourceHeaders, responsePurpose) {
+  const documented = {};
+  rows.slice(1).forEach(function(row) {
+    if (row[0] === YDP_MENTOR_CONFIG.sheetName) {
+      documented[String(row[2]).trim().toLowerCase()] = true;
+    }
+  });
+
+  sourceHeaders.forEach(function(header) {
+    const columnName = String(header || '').trim();
+    const key = columnName.toLowerCase();
+    if (!columnName || documented[key]) {
+      return;
+    }
+
+    rows.push([
+      YDP_MENTOR_CONFIG.sheetName,
+      responsePurpose,
+      columnName,
+      'The mentor response to this application question.',
+      'Available for mentor review, pair scoring, or matching when relevant.',
+      'No - use the form',
+      'Automatically included from the live sheet header.'
+    ]);
+    documented[key] = true;
+  });
+}
+
+function addYdpMentorDocumentationDictionaryRows_(rows) {
+  const dictionaryPurpose = 'Explains each workbook sheet and column in plain English.';
+  const guidePurpose = 'Explains every YDP Automation menu command and its safety level.';
+  const documentation = {
+    'Data Dictionary': [
+      ['Sheet Name', 'Worksheet tab being documented.'], ['Sheet Purpose', 'Reason the worksheet exists.'],
+      ['Column Name', 'Exact header used in the worksheet.'], ['Column Meaning', 'Plain-English definition of the value.'],
+      ['Automation Use', 'How the scripts use the value.'], ['Can Team Edit?', 'Whether manual editing is safe.'],
+      ['Notes', 'Warnings and extra operating guidance.']
+    ],
+    'Button Guide': [
+      ['Safety Level', 'SAFE, CAUTION, or LIVE ACTION classification.'], ['Menu Name', 'Google Sheets menu containing the command.'],
+      ['Button Name', 'Exact menu command label.'], ['What It Does', 'Result of running the command.'],
+      ['When To Run', 'Correct situation for using the command.'], ['Before Running', 'Checks required before using the command.'],
+      ['What It Changes', 'Workbook data or communications affected.'], ['Recommended Frequency', 'How often the command normally runs.']
+    ]
+  };
+
+  Object.keys(documentation).forEach(function(sheetName) {
+    const purpose = sheetName === 'Data Dictionary' ? dictionaryPurpose : guidePurpose;
+    documentation[sheetName].forEach(function(column) {
+      rows.push([sheetName, purpose, column[0], column[1], 'Documentation only.', 'No - regenerate from menu', 'Refreshed by Create data dictionary.']);
+    });
+  });
+}
+
+function getYdpMentorButtonGuideRows_() {
+  const menu = YDP_MENTOR_CONFIG.menuName;
+  return [
+    ['Safety Level', 'Menu Name', 'Button Name', 'What It Does', 'When To Run', 'Before Running', 'What It Changes', 'Recommended Frequency'],
+    ['SAFE', menu, 'Setup email tracking columns', 'Creates missing mentor email-status and sent-date columns.', 'During initial setup or after a tracking column was removed.', 'Confirm you are in the mentor response workbook.', 'Adds missing headers only; it does not send email.', 'Once, then as needed'],
+    ['SAFE', menu, 'Install form submit trigger', 'Turns on automatic handling for future mentor form submissions.', 'After the script is first deployed or the trigger was removed.', 'Confirm the correct mentor response workbook is open.', 'Creates one Apps Script form-submit trigger.', 'Once'],
+    ['CAUTION', menu, 'Assign IDs and mark duplicates', 'Assigns stable mentor IDs and marks repeated email submissions.', 'After importing applications or when checking duplicates.', 'Confirm Email Address values are correct.', 'Writes ID, duplicate status, original row, timestamp, and duplicate row color.', 'After imports or as needed'],
+    ['SAFE', menu, 'Create data dictionary', 'Refreshes the Data Dictionary and Button Guide tabs.', 'When documentation is missing or the automation changes.', 'No preparation is required.', 'Rebuilds documentation tabs only.', 'After each automation update'],
+    ['SAFE', menu, 'Send test mentor email', 'Sends a chosen mentor template to a test address.', 'Before any live mentor email campaign.', 'Use an internal test address and choose the correct email type.', 'Sends one test email; mentor tracking is not updated.', 'Before every campaign'],
+    ['SAFE', menu, 'Preview selected row email', 'Displays all templates personalized for the selected mentor.', 'Before a test or live send.', 'Select a real mentor row, not the header.', 'Opens a preview only; no email or status changes.', 'Before every campaign'],
+    ['LIVE ACTION', menu, 'Send mentor email to selected row', 'Sends the registration email to one selected mentor if not already sent.', 'For a controlled first send or a single applicant.', 'Preview and test; select the intended mentor row.', 'Sends one live email and updates registration tracking.', 'As needed'],
+    ['LIVE ACTION', menu, 'Send mentor email to all unsent rows', 'Sends registration emails to all mentor rows not already marked SENT.', 'For an approved registration campaign.', 'Preview, test, verify recipients, and obtain approval.', 'Sends multiple live emails and updates registration tracking.', 'Once per campaign'],
+    ['LIVE ACTION', menu, 'Send already registered mentor update to all unsent rows', 'Sends the older-applicant update to unsent mentor rows.', 'For mentors who registered before automation started.', 'Preview, test, verify recipients, and obtain approval.', 'Sends multiple live emails and updates already-registered tracking.', 'Once per update campaign'],
+    ['LIVE ACTION', menu, "Send today's onboarding details to all unsent rows", "Sends today's onboarding date, time, Meet link, and Notion link to unsent mentors.", 'Only for the approved July 18 mentor onboarding campaign.', 'Preview, send a test using ONBOARDING, verify links, and obtain approval.', 'Sends multiple live emails and updates Onboarding Details tracking.', 'Once for this campaign'],
+    ['CAUTION', menu, 'Repair missing sent date for selected row', 'Adds a sent timestamp when a SENT status exists without a date.', 'Only when auditing a confirmed tracking inconsistency.', 'Select the row and confirm the email really was sent.', 'Writes the current date into a missing sent-at field; sends no email.', 'Only when repairing data'],
+    ['LIVE ACTION', menu, 'Resend email to selected row', 'Forces one selected mentor email template to be sent again.', 'Only when a mentor needs an intentional resend.', 'Select the row, preview the template, and confirm a duplicate send is intended.', 'Sends one live duplicate email and refreshes tracking fields.', 'Exceptional use only']
+  ];
+}
+
+function getYdpMentorButtonGuideColor_(safetyLevel) {
+  return { SAFE: '#d9ead3', CAUTION: '#fff2cc', 'LIVE ACTION': '#f4cccc' }[safetyLevel] || '#ffffff';
+}
+
+function getYdpMentorSourceHeadersForDictionary_() {
+  const sourceSheet = getYdpMentorSheet_();
+  if (sourceSheet.getLastColumn() < 1) {
+    return [];
+  }
+  return sourceSheet.getRange(1, 1, 1, sourceSheet.getLastColumn()).getValues()[0];
 }
 
 function getOrCreateYdpMentorDictionarySheet_() {
   return SpreadsheetApp.getActive().getSheetByName('Data Dictionary') || SpreadsheetApp.getActive().insertSheet('Data Dictionary');
 }
 
+function getOrCreateYdpMentorButtonGuideSheet_() {
+  return SpreadsheetApp.getActive().getSheetByName('Button Guide') || SpreadsheetApp.getActive().insertSheet('Button Guide');
+}
+
 function writeYdpMentorDataDictionary_(sheet, rows) {
+  resetYdpMentorDocumentationSheet_(sheet);
+  sheet.getRange(1, 1, rows.length, rows[0].length).setValues(rows).setWrap(true).setVerticalAlignment('top');
+  formatYdpMentorDocumentationHeader_(sheet, rows[0].length);
+  applyYdpMentorDocumentationFilter_(sheet, rows);
+  [170, 270, 230, 380, 340, 180, 360].forEach(function(width, index) { sheet.setColumnWidth(index + 1, width); });
+}
+
+function writeYdpMentorButtonGuide_(sheet, rows) {
+  resetYdpMentorDocumentationSheet_(sheet);
+  sheet.getRange(1, 1, rows.length, rows[0].length).setValues(rows).setWrap(true).setVerticalAlignment('top');
+  formatYdpMentorDocumentationHeader_(sheet, rows[0].length);
+  if (rows.length > 1) {
+    const backgrounds = rows.slice(1).map(function(row) {
+      return new Array(rows[0].length).fill(getYdpMentorButtonGuideColor_(row[0]));
+    });
+    sheet.getRange(2, 1, backgrounds.length, rows[0].length).setBackgrounds(backgrounds);
+  }
+  applyYdpMentorDocumentationFilter_(sheet, rows);
+  [120, 160, 310, 390, 350, 350, 370, 190].forEach(function(width, index) { sheet.setColumnWidth(index + 1, width); });
+}
+
+function resetYdpMentorDocumentationSheet_(sheet) {
+  const filter = sheet.getFilter();
+  if (filter) {
+    filter.remove();
+  }
   sheet.clearContents();
-  sheet.getRange(1, 1, rows.length, rows[0].length).setValues(rows);
+  sheet.clearFormats();
   sheet.setFrozenRows(1);
-  sheet.getRange(1, 1, 1, rows[0].length).setFontWeight('bold');
-  sheet.autoResizeColumns(1, rows[0].length);
+}
+
+function formatYdpMentorDocumentationHeader_(sheet, columnCount) {
+  sheet.getRange(1, 1, 1, columnCount).setFontWeight('bold').setFontColor('#ffffff').setBackground('#274e13');
+}
+
+function applyYdpMentorDocumentationFilter_(sheet, rows) {
+  if (rows.length > 1) {
+    sheet.getRange(1, 1, rows.length, rows[0].length).createFilter();
+  }
 }
 
 function sendTestYdpMentorEmail() {
