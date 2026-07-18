@@ -118,12 +118,19 @@ function syncYdpMatchingSourceSnapshots() {
 }
 
 function createYdpMatchingDataDictionary() {
-  const sheet = getOrCreateYdpSheet_(SpreadsheetApp.getActive(), 'Data Dictionary');
-  writeYdpMatchingDataDictionary_(sheet, getYdpMatchingDataDictionaryRows_());
-  SpreadsheetApp.getUi().alert('Matching data dictionary created/updated in the "Data Dictionary" tab.');
+  const spreadsheet = SpreadsheetApp.getActive();
+  const dictionarySheet = getOrCreateYdpSheet_(spreadsheet, 'Data Dictionary');
+  const buttonGuideSheet = getOrCreateYdpSheet_(spreadsheet, 'Button Guide');
+  const snapshotHeaders = getYdpMatchingSnapshotHeadersForDictionary_(spreadsheet);
+
+  writeYdpMatchingDataDictionary_(dictionarySheet, getYdpMatchingDataDictionaryRows_(snapshotHeaders));
+  writeYdpMatchingButtonGuide_(buttonGuideSheet, getYdpMatchingButtonGuideRows_());
+  SpreadsheetApp.getUi().alert(
+    'Matching documentation was refreshed in the "Data Dictionary" and "Button Guide" tabs. Participant, score, match, and email data were not changed.'
+  );
 }
 
-function getYdpMatchingDataDictionaryRows_() {
+function getYdpMatchingLegacyDataDictionaryRows_() {
   return [
     ['Section', 'Sheet / Button', 'Column / Action', 'Plain English Meaning', 'When To Use'],
     ['Sheet', YDP_MATCHING_CONFIG.sheets.sourceConfig, 'MENTEE_SOURCE_SPREADSHEET_ID', 'The Google Sheet ID for the live mentee form responses.', 'Used by source sync.'],
@@ -194,11 +201,261 @@ function getYdpMatchingDataDictionaryRows_() {
 }
 
 function writeYdpMatchingDataDictionary_(sheet, rows) {
+  resetYdpMatchingDocumentationSheet_(sheet);
+  sheet.getRange(1, 1, rows.length, rows[0].length).setValues(rows).setWrap(true).setVerticalAlignment('top');
+  formatYdpMatchingDocumentationHeader_(sheet, rows[0].length);
+  applyYdpMatchingDocumentationFilter_(sheet, rows);
+  [180, 310, 240, 400, 360, 180, 380].forEach(function(width, index) { sheet.setColumnWidth(index + 1, width); });
+}
+
+function getYdpMatchingDataDictionaryRows_(snapshotHeaders) {
+  const rows = [
+    ['Sheet Name', 'Sheet Purpose', 'Column Name', 'Column Meaning', 'Automation Use', 'Can Team Edit?', 'Notes']
+  ];
+
+  addYdpMatchingDictionaryColumns_(rows, YDP_MATCHING_CONFIG.sheets.sourceConfig,
+    'Stores the source workbook IDs, source tab preference, and Gemini model used by the matching automation.',
+    ['Setting', 'Value', 'Notes'], {
+      Setting: ['Configuration name.', 'Identifies the value the script must read.', 'No - use setup unless instructed', 'Includes source spreadsheet IDs, source tab name, and Gemini model.'],
+      Value: ['Current configuration value.', 'Controls where data comes from and which Gemini model is used.', 'Only with technical approval', 'A wrong value can stop source sync or Gemini scoring.'],
+      Notes: ['Plain-language explanation of the setting.', 'Helps operators understand configuration.', 'Yes', 'Documentation only.']
+    });
+
+  addYdpMatchingSnapshotDictionaryRows_(rows, YDP_MATCHING_CONFIG.sheets.menteeSnapshot,
+    'Latest copied view of the live mentee application response sheet.',
+    snapshotHeaders && snapshotHeaders.mentee);
+  addYdpMatchingSnapshotDictionaryRows_(rows, YDP_MATCHING_CONFIG.sheets.mentorSnapshot,
+    'Latest copied view of the live mentor application response sheet.',
+    snapshotHeaders && snapshotHeaders.mentor);
+
+  addYdpMatchingDictionaryColumns_(rows, YDP_MATCHING_CONFIG.sheets.menteeScores,
+    'Stores Gemini-assisted mentee eligibility scores, explanations, and selection-email tracking.',
+    getYdpMenteeScoresHeaders_().concat(getYdpMenteeSelectionEmailTrackingHeaders_()), getYdpMenteeScoreColumnDocumentation_());
+  addYdpMatchingDictionaryColumns_(rows, YDP_MATCHING_CONFIG.sheets.pairScores,
+    'Stores every eligible mentee compared with every available mentor before final assignment.',
+    getYdpPairScoresHeaders_(), getYdpPairScoreColumnDocumentation_());
+  addYdpMatchingDictionaryColumns_(rows, YDP_MATCHING_CONFIG.sheets.matchRecommendations,
+    'Shows the system recommendation or the reason a mentee cannot yet be matched.',
+    getYdpMatchRecommendationHeaders_(), getYdpMatchRecommendationColumnDocumentation_());
+  addYdpMatchingDictionaryColumns_(rows, YDP_MATCHING_CONFIG.sheets.matchedPairs,
+    'Stores final mentor and mentee assignments, program tracking, and match-email delivery history.',
+    getYdpMatchedPairsHeaders_(), getYdpMatchedPairColumnDocumentation_());
+  addYdpMatchingDictionaryColumns_(rows, YDP_MATCHING_CONFIG.sheets.runLog,
+    'Records each automation run, result, and troubleshooting message.',
+    getYdpRunLogHeaders_(), getYdpRunLogColumnDocumentation_());
+  addYdpMatchingDocumentationDictionaryRows_(rows);
+
+  return rows;
+}
+
+function addYdpMatchingDictionaryColumns_(rows, sheetName, sheetPurpose, headers, documentation) {
+  headers.forEach(function(header) {
+    const details = documentation[header] || [
+      'Stores the ' + header + ' value for this record.',
+      'Used by the ' + sheetName + ' workflow.',
+      'Only with technical approval',
+      'Automation-managed field.'
+    ];
+    rows.push([sheetName, sheetPurpose, header, details[0], details[1], details[2], details[3]]);
+  });
+}
+
+function addYdpMatchingSnapshotDictionaryRows_(rows, sheetName, sheetPurpose, headers) {
+  const sourceHeaders = (headers || []).filter(function(header) { return String(header || '').trim(); });
+  if (sourceHeaders.length === 0) {
+    rows.push([sheetName, sheetPurpose, 'Source columns appear after sync', 'Columns copied from the corresponding live application form.', 'Provides the source data used for scoring and matching.', 'No - edit the source form response instead', 'Run Sync source snapshots from forms, then refresh this dictionary to list every live column.']);
+    return;
+  }
+
+  sourceHeaders.forEach(function(header) {
+    rows.push([sheetName, sheetPurpose, String(header), 'Copied response for this application question or tracking field.', 'Available to scoring and matching when relevant.', 'No - edit the source form response instead', 'A later source sync replaces snapshot contents.']);
+  });
+}
+
+function getYdpMenteeScoreColumnDocumentation_() {
+  return {
+    'Mentee ID': ['Stable mentee identifier.', 'Links the mentee across scores, pairs, matches, and emails.', 'No - automation managed', 'Created in the mentee response workbook.'],
+    'Mentee Name': ['Readable mentee full name.', 'Personalizes reviews and emails.', 'Only to correct a confirmed typo', 'Keep aligned with the source response.'],
+    'Mentee Email': ['Mentee email address.', 'Used for identity and selection or match emails.', 'Only to correct a confirmed typo', 'Changing it can affect communication tracking.'],
+    'Career Path Interest': ['Data career path the mentee wants to pursue.', 'Used in mentor career and skill matching.', 'No - source managed', 'Comes from the application.'],
+    'Learning Commitment Score': ['Gemini-assisted score from 0 to 5 for learning effort, courses, and projects.', 'Contributes to Final Score.', 'No - Gemini managed', 'Review Gemini Summary for context.'],
+    'Community Engagement Score': ['Gemini-assisted score from 0 to 5 for YDP and community engagement.', 'Contributes to Final Score.', 'No - Gemini managed', 'A low score does not by itself reject a mentee.'],
+    'Career Goals Score': ['Gemini-assisted score from 0 to 5 for clear, relevant goals.', 'Contributes to Final Score.', 'No - Gemini managed', 'Based on application responses.'],
+    'Soft Skills Score': ['Gemini-assisted score from 0 to 5 for commitment, teamwork, and ownership.', 'Contributes to Final Score.', 'No - Gemini managed', 'Based on written evidence.'],
+    'Final Score': ['Weighted eligibility score out of 100.', 'Determines Can Pair at 60 or above.', 'No - automation managed', 'Used before pair scoring begins.'],
+    'Gemini Review Status': ['Can Pair, Do Not Pair, or ERROR.', 'Only Can Pair mentees enter pair scoring.', 'Only with approved override', 'ERROR means scoring must be retried.'],
+    'Reviewer Notes': ['Optional internal notes.', 'Records an approved manual observation or override.', 'Yes', 'Do not place secrets here.'],
+    'Gemini Summary': ['Gemini explanation of the eligibility score.', 'Provides review context.', 'No - Gemini managed', 'Not sent to participants.'],
+    'Gemini Concerns': ['Gemini risk or concern note.', 'Supports internal review.', 'No - Gemini managed', 'Not sent to participants.'],
+    'Scored At': ['Date and time the mentee was scored.', 'Provides the scoring audit trail.', 'No - automation managed', 'Blank means no completed score.'],
+    'Selection Email Status': ['SENDING, SENT, or ERROR for the mentee selection email.', 'Prevents duplicate selection emails.', 'No - automation managed', 'Only Can Pair mentees are eligible.'],
+    'Selection Email Sent At': ['Date and time the selection email was sent.', 'Provides communication audit history.', 'No - automation managed', 'Do not clear after sending.'],
+    'Selection Email Last Error': ['Most recent selection-email error.', 'Explains a failed send.', 'No - automation managed', 'Check before retrying.']
+  };
+}
+
+function getYdpPairScoreColumnDocumentation_() {
+  return {
+    'Pair ID': ['Unique ID for one mentee and one mentor comparison.', 'Prevents the same comparison from being scored twice.', 'No - automation managed', 'Every eligible mentee is compared with every available mentor.'],
+    'Mentee ID': ['Stable mentee identifier.', 'Groups all mentor comparisons for one mentee.', 'No - automation managed', 'Must match Mentee Scores.'],
+    'Mentee Name': ['Readable mentee name.', 'Makes comparisons easy to review.', 'No - automation managed', 'Copied from Mentee Scores.'],
+    'Mentee Email': ['Mentee email address.', 'Carries the identity into final matching.', 'No - automation managed', 'Copied from Mentee Scores.'],
+    'Mentor ID': ['Stable mentor identifier.', 'Tracks capacity and assignments.', 'No - automation managed', 'Must match Mentor Source Snapshot.'],
+    'Mentor Name': ['Readable mentor name.', 'Makes comparisons easy to review.', 'No - automation managed', 'Copied from the mentor snapshot.'],
+    'Mentor Email': ['Mentor email address.', 'Carries the identity into match notifications.', 'No - automation managed', 'Copied from the mentor snapshot.'],
+    'Skill Fit Score': ['Gemini score out of 40 for expertise and skill alignment.', 'Largest component of Total Pair Score.', 'No - Gemini managed', 'Higher is better.'],
+    'Career Fit Score': ['Gemini score out of 30 for career-path and background fit.', 'Contributes to Total Pair Score.', 'No - Gemini managed', 'Higher is better.'],
+    'Availability Fit Score': ['Gemini score out of 15 for schedule and communication compatibility.', 'Contributes to Total Pair Score.', 'No - Gemini managed', 'Missing availability can reduce this score.'],
+    'Capacity Fit Score': ['Gemini score out of 15 for practical mentor capacity.', 'Contributes to Total Pair Score.', 'No - Gemini managed', 'Final assignment also enforces stated capacity and the approved +2 overflow.'],
+    'Total Pair Score': ['Overall mentor and mentee fit score out of 100.', 'Ranks mentors for automatic assignment.', 'No - automation managed', 'The highest available fit is selected after all mentors are scored.'],
+    'Gemini Reason': ['Why Gemini believes the pair is or is not suitable.', 'Explains the numerical score.', 'No - Gemini managed', 'Internal context only.'],
+    'Gemini Concern': ['Risk, mismatch, or API error note.', 'Supports troubleshooting and review.', 'No - Gemini managed', 'Check when status is Error.'],
+    'Pair Score Status': ['Scored or Error.', 'Only Scored comparisons count as complete.', 'No - automation managed', 'Rerunning continues from unscored or failed pairs.'],
+    'Scored At': ['Date and time the pair was scored.', 'Provides the comparison audit trail.', 'No - automation managed', 'Blank means no completed score.']
+  };
+}
+
+function getYdpMatchRecommendationColumnDocumentation_() {
+  return {
+    'Recommendation ID': ['Unique ID for one mentee recommendation.', 'Tracks the auto-match result.', 'No - automation managed', 'One recommendation row per eligible mentee.'],
+    'Mentee ID': ['Stable mentee identifier.', 'Links to scores and final pair.', 'No - automation managed', 'Reference key.'],
+    'Mentee Name': ['Readable mentee name.', 'Supports review.', 'No - automation managed', 'Reference field.'],
+    'Mentee Career Path': ['Mentee target career path.', 'Explains the matching context.', 'No - automation managed', 'Copied from Mentee Scores.'],
+    'Recommended Mentor ID': ['Mentor chosen by the capacity-aware ranking.', 'Becomes the final mentor assignment.', 'No - automation managed', 'Blank when more pair scores are needed.'],
+    'Recommended Mentor Name': ['Readable chosen mentor name.', 'Supports review and communication.', 'No - automation managed', 'Blank when no assignment is ready.'],
+    'Match Score': ['Winning Total Pair Score.', 'Shows the strength of the recommendation.', 'No - automation managed', 'Higher is better.'],
+    'Skill Match Reason': ['Gemini skill-fit explanation.', 'Explains expertise alignment.', 'No - automation managed', 'Copied from Pair Scores.'],
+    'Career Match Reason': ['Gemini career-fit explanation.', 'Explains career alignment.', 'No - automation managed', 'Copied from Pair Scores.'],
+    'Availability Notes': ['Availability and capacity score summary.', 'Explains practical fit.', 'No - automation managed', 'Internal review context.'],
+    'Gemini Explanation': ['Overall Gemini explanation for the selected pair or incomplete result.', 'Provides the matching rationale.', 'No - automation managed', 'Internal context only.'],
+    'Gemini Concerns': ['Concern associated with the selected pair.', 'Highlights review risks.', 'No - automation managed', 'May be blank.'],
+    'Review Status': ['Auto-Selected or Needs More Pair Scores.', 'Shows whether a recommendation is ready.', 'No - automation managed', 'Needs More Pair Scores means do not notify participants.'],
+    'Final Decision Notes': ['Optional internal decision note.', 'Records approved changes or context.', 'Yes', 'May be overwritten if auto-match outputs are rebuilt.']
+  };
+}
+
+function getYdpMatchedPairColumnDocumentation_() {
+  return {
+    'Match ID': ['Unique ID for the final mentor and mentee assignment.', 'Tracks the relationship throughout the program.', 'No - automation managed', 'Primary match key.'],
+    'Mentee ID': ['Stable mentee identifier.', 'Links back to mentee scores and source data.', 'No - automation managed', 'Reference key.'],
+    'Mentee Name': ['Readable mentee name.', 'Used in match communication and operations.', 'No - automation managed', 'Copied from Mentee Scores.'],
+    'Mentee Email': ['Mentee email address.', 'Receives the mentee match email.', 'Only to correct a confirmed typo', 'Changing it affects communication.'],
+    'Mentor ID': ['Stable mentor identifier.', 'Links to capacity and mentor source data.', 'No - automation managed', 'Reference key.'],
+    'Mentor Name': ['Readable mentor name.', 'Used in match communication and operations.', 'No - automation managed', 'Copied from the mentor snapshot.'],
+    'Mentor Email': ['Mentor email address.', 'Receives the mentor match email.', 'Only to correct a confirmed typo', 'Changing it affects communication.'],
+    Track: ['Mentee career track.', 'Provides program and workshop context.', 'No - automation managed', 'Copied from the mentee career path.'],
+    'Match Status': ['Current assignment state, initially Auto-Matched.', 'Shows how the match was created or changed.', 'Only with team approval', 'Keep an explanation in Notes.'],
+    'Active Status': ['Operational state of the pair.', 'Used for program monitoring.', 'Yes', 'Starts as Pending Review.'],
+    'Start Date': ['Date the mentorship relationship starts.', 'Supports program timelines.', 'Yes', 'Enter after confirmation.'],
+    'Last Check-in Date': ['Most recent recorded check-in.', 'Supports follow-up and risk monitoring.', 'Yes', 'Update after confirmed check-ins.'],
+    'Missed Sessions Count': ['Number of known missed sessions.', 'Supports no-show and risk tracking.', 'Yes', 'Use whole numbers.'],
+    'Feedback Completion Count': ['Number of feedback forms completed.', 'Supports engagement reporting.', 'Yes or future automation', 'Use whole numbers.'],
+    'Mentor Rating Average': ['Average mentee rating for the mentor.', 'Supports quality monitoring.', 'Yes or future automation', 'Use the agreed rating scale.'],
+    'Risk Status': ['Current operational risk flag.', 'Supports interventions and reporting.', 'Yes', 'Starts as Not Started.'],
+    Notes: ['Internal notes about the match.', 'Stores approved operational context.', 'Yes', 'Do not place secrets here.'],
+    'Mentee Match Email Status': ['SENDING, SENT, or ERROR for the mentee match email.', 'Prevents duplicate mentee notifications.', 'No - automation managed', 'Preview and test before live sends.'],
+    'Mentee Match Email Sent At': ['Date and time the mentee match email was sent.', 'Provides communication audit history.', 'No - automation managed', 'Do not clear after sending.'],
+    'Mentor Match Email Status': ['SENDING, SENT, or ERROR for the mentor match email.', 'Prevents duplicate mentor notifications.', 'No - automation managed', 'Independent from the mentee email status.'],
+    'Mentor Match Email Sent At': ['Date and time the mentor match email was sent.', 'Provides communication audit history.', 'No - automation managed', 'Do not clear after sending.'],
+    'Match Email Last Error': ['Most recent match-email sending error.', 'Explains why a match notification failed.', 'No - automation managed', 'Check before retrying.']
+  };
+}
+
+function getYdpRunLogColumnDocumentation_() {
+  return {
+    Timestamp: ['Date and time an automation action ran.', 'Provides an audit timeline.', 'No - automation managed', 'Newest entries are appended.'],
+    Action: ['Internal name of the action that ran.', 'Identifies the workflow step.', 'No - automation managed', 'Useful for troubleshooting.'],
+    Status: ['SUCCESS, PARTIAL_SUCCESS, or ERROR.', 'Shows the outcome of the run.', 'No - automation managed', 'PARTIAL_SUCCESS often means rerun to continue.'],
+    Message: ['Detailed result, progress, or error message.', 'Explains what happened and what to do next.', 'No - automation managed', 'Read this before retrying a failed action.']
+  };
+}
+
+function addYdpMatchingDocumentationDictionaryRows_(rows) {
+  const documentation = {
+    'Data Dictionary': ['Explains each matching workbook sheet and column in plain English.', ['Sheet Name', 'Sheet Purpose', 'Column Name', 'Column Meaning', 'Automation Use', 'Can Team Edit?', 'Notes']],
+    'Button Guide': ['Explains every YDP Matching menu command, its safety level, and operating instructions.', ['Safety Level', 'Menu Name', 'Button Name', 'What It Does', 'When To Run', 'Before Running', 'What It Changes', 'Recommended Frequency']]
+  };
+
+  Object.keys(documentation).forEach(function(sheetName) {
+    documentation[sheetName][1].forEach(function(header) {
+      rows.push([sheetName, documentation[sheetName][0], header, 'Documentation field: ' + header + '.', 'Documentation only.', 'No - regenerate from menu', 'Refreshed by Create data dictionary.']);
+    });
+  });
+}
+
+function getYdpMatchingButtonGuideRows_() {
+  const menu = YDP_MATCHING_CONFIG.menuName;
+  return [
+    ['Safety Level', 'Menu Name', 'Button Name', 'What It Does', 'When To Run', 'Before Running', 'What It Changes', 'Recommended Frequency'],
+    ['SAFE', menu, 'Setup matching workbook', 'Creates missing matching tabs and headers without clearing completed score rows.', 'During initial setup or when a required tab/header is missing.', 'Confirm this is the YDP Matching Automation workbook.', 'Adds or repairs workbook structure; does not send emails.', 'Once, then only for repair'],
+    ['CAUTION', menu, 'Sync source snapshots from forms', 'Refreshes mentor and mentee snapshot tabs from the live form workbooks.', 'After new form responses arrive and before new scoring.', 'Confirm Source Config IDs and response tab settings.', 'Replaces snapshot contents only; completed Mentee Scores and Pair Scores remain.', 'After new applications'],
+    ['SAFE', menu, 'Create data dictionary', 'Refreshes the Data Dictionary and Button Guide tabs.', 'When documentation is missing or automation changes.', 'No preparation is required.', 'Rebuilds documentation tabs only.', 'After each automation update'],
+    ['CAUTION', menu, 'Generate next mentee score', 'Uses Gemini to score the next one unscored mentee.', 'For a controlled scoring test or a single retry.', 'Sync sources and confirm Gemini connection.', 'Adds or retries one Mentee Scores row; skips completed scores.', 'As needed'],
+    ['CAUTION', menu, 'Generate mentee scores batch', 'Uses Gemini to score a small batch of unscored mentees.', 'After the one-row test works.', 'Sync sources and confirm Gemini connection and quota.', 'Adds or retries the next batch; reruns continue from remaining rows.', 'Repeat until complete'],
+    ['CAUTION', menu, 'Generate next pair score', 'Compares one eligible mentee with one mentor using Gemini.', 'For a controlled pair-scoring test or retry.', 'Finish mentee scoring and confirm mentor snapshot data.', 'Adds or retries one Pair Scores row.', 'As needed'],
+    ['CAUTION', menu, 'Generate pair scores batch', 'Scores a small batch of unscored mentee and mentor comparisons.', 'After the one-pair test works.', 'Ensure Can Pair mentees and mentors have IDs; confirm Gemini quota.', 'Adds or retries pair rows; reruns continue until every eligible mentee has every mentor scored.', 'Repeat until complete'],
+    ['LIVE ACTION', menu, 'Auto-match from pair scores', 'Selects the highest-scoring available mentor for each fully scored eligible mentee.', 'Only after all available mentors are scored for each mentee.', 'Review Pair Scores and confirm mentor capacity data.', 'Rebuilds Match Recommendations and Matched Pairs; fills stated capacity first, then permits at most +2 overflow.', 'Once per approved matching round'],
+    ['SAFE', menu, 'Preview selected selection email', 'Shows the personalized selection email for one Can Pair mentee.', 'Before test or live selection sends.', 'Select a row in Mentee Scores with Can Pair status.', 'Opens a preview only; no email or tracking changes.', 'Before every selection campaign'],
+    ['SAFE', menu, 'Send test selection email', 'Sends the selected mentee template to an internal test address.', 'After preview and before live selection sends.', 'Select a Can Pair mentee and use an internal email address.', 'Sends one test email; participant tracking is not updated.', 'Before every selection campaign'],
+    ['LIVE ACTION', menu, 'Send selection email to selected mentee', 'Sends the live program-selection email to one selected eligible mentee.', 'For the controlled first live send or a one-off recipient.', 'Preview, test, and select the intended Can Pair row.', 'Sends one live email and updates selection-email tracking.', 'As needed'],
+    ['LIVE ACTION', menu, 'Send selection emails to all eligible unsent mentees', 'Sends selection emails only to Can Pair mentees not already marked SENT.', 'After the selected-row live send is verified.', 'Preview, test, verify Can Pair statuses, and obtain approval.', 'Sends multiple live emails and updates selection-email tracking.', 'Once per selection campaign'],
+    ['SAFE', menu, 'Preview selected match emails', 'Shows both mentor and mentee emails for one final matched pair.', 'Before any live match notification.', 'Select a complete row in Matched Pairs.', 'Opens previews only; no email or tracking changes.', 'Before every match campaign'],
+    ['LIVE ACTION', menu, 'Send match emails to selected pair', 'Sends live match notifications for one selected final pair.', 'For the controlled first match send or a one-off pair.', 'Preview both emails and confirm names, emails, and assignment.', 'Sends up to two live emails and updates separate mentor/mentee tracking.', 'As needed'],
+    ['LIVE ACTION', menu, 'Send match emails to all unsent matched pairs', 'Sends remaining mentor and mentee notifications for final matched pairs.', 'After the selected-pair send is verified.', 'Review Matched Pairs, preview, test, and obtain approval.', 'Sends multiple live emails and updates match-email tracking.', 'Once per matching round'],
+    ['SAFE', menu, 'Test Gemini connection', 'Checks the configured Gemini model and available API keys.', 'After changing a key/model or when scoring fails.', 'Confirm Script Properties contain the approved Gemini keys.', 'Makes one Gemini test request and writes a Run Log entry.', 'When configuration changes or troubleshooting']
+  ];
+}
+
+function getYdpMatchingButtonGuideColor_(safetyLevel) {
+  return { SAFE: '#d9ead3', CAUTION: '#fff2cc', 'LIVE ACTION': '#f4cccc' }[safetyLevel] || '#ffffff';
+}
+
+function getYdpMatchingSnapshotHeadersForDictionary_(spreadsheet) {
+  return {
+    mentee: getYdpMatchingSheetHeadersForDictionary_(spreadsheet.getSheetByName(YDP_MATCHING_CONFIG.sheets.menteeSnapshot)),
+    mentor: getYdpMatchingSheetHeadersForDictionary_(spreadsheet.getSheetByName(YDP_MATCHING_CONFIG.sheets.mentorSnapshot))
+  };
+}
+
+function getYdpMatchingSheetHeadersForDictionary_(sheet) {
+  if (!sheet || sheet.getLastColumn() < 1 || sheet.getLastRow() < 1) {
+    return [];
+  }
+  return sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+}
+
+function writeYdpMatchingButtonGuide_(sheet, rows) {
+  resetYdpMatchingDocumentationSheet_(sheet);
+  sheet.getRange(1, 1, rows.length, rows[0].length).setValues(rows).setWrap(true).setVerticalAlignment('top');
+  formatYdpMatchingDocumentationHeader_(sheet, rows[0].length);
+  if (rows.length > 1) {
+    const backgrounds = rows.slice(1).map(function(row) {
+      return new Array(rows[0].length).fill(getYdpMatchingButtonGuideColor_(row[0]));
+    });
+    sheet.getRange(2, 1, backgrounds.length, rows[0].length).setBackgrounds(backgrounds);
+  }
+  applyYdpMatchingDocumentationFilter_(sheet, rows);
+  [120, 160, 330, 410, 370, 370, 410, 200].forEach(function(width, index) { sheet.setColumnWidth(index + 1, width); });
+}
+
+function resetYdpMatchingDocumentationSheet_(sheet) {
+  const filter = sheet.getFilter();
+  if (filter) {
+    filter.remove();
+  }
   sheet.clearContents();
-  sheet.getRange(1, 1, rows.length, rows[0].length).setValues(rows);
+  sheet.clearFormats();
   sheet.setFrozenRows(1);
-  sheet.getRange(1, 1, 1, rows[0].length).setFontWeight('bold');
-  sheet.autoResizeColumns(1, rows[0].length);
+}
+
+function formatYdpMatchingDocumentationHeader_(sheet, columnCount) {
+  sheet.getRange(1, 1, 1, columnCount).setFontWeight('bold').setFontColor('#ffffff').setBackground('#274e13');
+}
+
+function applyYdpMatchingDocumentationFilter_(sheet, rows) {
+  if (rows.length > 1) {
+    sheet.getRange(1, 1, rows.length, rows[0].length).createFilter();
+  }
 }
 
 function testYdpGeminiConnection() {

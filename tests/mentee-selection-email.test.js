@@ -120,7 +120,8 @@ assert.ok(scriptSource.includes('.releaseLock()'), 'Live selection sends must al
 
 const dictionaryRows = context.getYdpMatchingDataDictionaryRows_();
 assert.ok(dictionaryRows.some((row) => row.includes('Selection Email Status')));
-assert.ok(dictionaryRows.some((row) => row.includes('Send selection emails to all eligible unsent mentees')));
+const buttonGuideRows = context.getYdpMatchingButtonGuideRows_();
+assert.ok(buttonGuideRows.some((row) => row.includes('Send selection emails to all eligible unsent mentees')));
 
 function createFakeMenteeScoresSheet({
   email = 'ada@example.com',
