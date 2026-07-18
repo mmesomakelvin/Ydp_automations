@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type CSSProperties } from 'react'
 import {
   LayoutDashboard,
   GraduationCap,
@@ -46,6 +46,17 @@ function mailto(email: string) {
 }
 
 /**
+ * The product's typography tokens. Design OS itself runs on DM Sans, so the
+ * Hub re-points Tailwind's font variables on its own root — redefining them
+ * here cascades to every `font-sans` / `font-mono` utility inside.
+ */
+const productType = {
+  '--font-sans': "'Inter', system-ui, sans-serif",
+  '--font-display': "'Inter', system-ui, sans-serif",
+  '--font-mono': "'JetBrains Mono', ui-monospace, monospace",
+} as CSSProperties
+
+/**
  * The live YDP Mentorship Hub app. Renders the shell with real navigation and
  * feeds each section from Supabase, falling back to bundled sample data until
  * credentials are configured.
@@ -66,21 +77,23 @@ export default function LiveApp() {
   const user = { name: 'Program Coordinator', role: 'YDP Cohort 2' }
 
   return (
-    <AppShell
-      navigationItems={navigationItems}
-      user={user}
-      cohortLabel="C2"
-      onNavigate={(href) => setActive(href as SectionKey)}
-      onLogout={() => console.log('Logout')}
-    >
-      {!configured && <SampleDataNotice />}
-      {error && <ErrorNotice message={error.message} />}
-      {configured && loading && !rows ? (
-        <LoadingState />
-      ) : (
-        <SectionView active={active} live={live} rows={rows} goTo={setActive} />
-      )}
-    </AppShell>
+    <div className="h-screen" style={productType}>
+      <AppShell
+        navigationItems={navigationItems}
+        user={user}
+        cohortLabel="C2"
+        onNavigate={(href) => setActive(href as SectionKey)}
+        onLogout={() => console.log('Logout')}
+      >
+        {!configured && <SampleDataNotice />}
+        {error && <ErrorNotice message={error.message} />}
+        {configured && loading && !rows ? (
+          <LoadingState />
+        ) : (
+          <SectionView active={active} live={live} rows={rows} goTo={setActive} />
+        )}
+      </AppShell>
+    </div>
   )
 }
 
@@ -133,7 +146,7 @@ function SectionView({
       return (
         <MenteeLookup
           mentees={mentees}
-          onContactMentor={(mentorId, matchId) => {
+          onContactMentor={(_mentorId, matchId) => {
             const email = mentees
               .flatMap((m) => m.matches)
               .find((m) => m.matchId === matchId)?.mentorEmail
@@ -146,7 +159,7 @@ function SectionView({
       return (
         <MentorLookup
           mentors={mentors}
-          onContactMentee={(menteeId, matchId) => {
+          onContactMentee={(_menteeId, matchId) => {
             const email = mentors
               .flatMap((m) => m.matches)
               .find((m) => m.matchId === matchId)?.menteeEmail
