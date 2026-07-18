@@ -325,9 +325,12 @@ The bulk action counts eligible recipients and shows a confirmation before sendi
 
 `SENDING` is a duplicate-send safety state. If it remains after an interrupted run, read `Selection Email Last Error` and verify the recipient's delivery before manually clearing or retrying that row.
 
-## Data Dictionaries
+## Workbook Documentation
 
-Each automation workbook now has a `Create data dictionary` button. It creates or refreshes a `Data Dictionary` tab that explains the key sheets, columns, and menu buttons in plain English.
+Each automation workbook has a `Create data dictionary` button. One click creates or refreshes two documentation tabs:
+
+- `Data Dictionary`: explains every worksheet, its purpose, and every column in plain English. In the matching workbook, it also reads the current mentee and mentor snapshot headers so newly imported form questions are documented.
+- `Button Guide`: explains every menu button, what it changes, what to check first, when to use it, and how often it should normally run.
 
 Run them here:
 
@@ -337,7 +340,22 @@ Run them here:
 | Mentor response sheet | `YDP Automation > Create data dictionary` |
 | Matching workbook | `YDP Matching > Create data dictionary` |
 
-This is safe to run. It only updates the `Data Dictionary` tab. It does not send emails, assign IDs, score mentees, score pairs, send match emails, or change response data.
+This is safe to run. It only rebuilds the `Data Dictionary` and `Button Guide` tabs. It does not send emails, assign IDs, score mentees, score pairs, create matches, or change response data.
+
+The `Button Guide` uses a full-row safety color:
+
+| Color | Safety level | Plain-English rule |
+| --- | --- | --- |
+| Green | `SAFE` | Setup, preview, test, or documentation action. It does not send participant emails or make final matches. |
+| Yellow | `CAUTION` | Imports, writes, or processes operational data. Read the prerequisites and effects before running it. |
+| Red | `LIVE ACTION` | Sends real participant emails or creates/rebuilds final matching outputs. Preview, test, verify the selected sheet/row, and obtain approval first. |
+
+Recommended operating habit:
+
+1. Refresh the documentation after a script update.
+2. Open `Button Guide` before using an unfamiliar command.
+3. Read `Before Running` and `What It Changes` for that button.
+4. Treat red rows as live production actions, even when the button has duplicate-send protection.
 
 ## Mentee Scoring
 
