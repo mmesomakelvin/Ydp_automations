@@ -146,58 +146,201 @@ function assignYdpMenteeIdsAndMarkDuplicates(options) {
 }
 
 function createYdpMenteeDataDictionary() {
-  const sheet = getOrCreateYdpMenteeDictionarySheet_();
-  writeYdpMenteeDataDictionary_(sheet, getYdpMenteeDataDictionaryRows_());
-  SpreadsheetApp.getUi().alert('Mentee data dictionary created/updated in the "Data Dictionary" tab.');
+  const dictionarySheet = getOrCreateYdpMenteeDictionarySheet_();
+  const buttonGuideSheet = getOrCreateYdpMenteeButtonGuideSheet_();
+  const sourceHeaders = getYdpMenteeSourceHeadersForDictionary_();
+
+  writeYdpMenteeDataDictionary_(dictionarySheet, getYdpMenteeDataDictionaryRows_(sourceHeaders));
+  writeYdpMenteeButtonGuide_(buttonGuideSheet, getYdpMenteeButtonGuideRows_());
+  SpreadsheetApp.getUi().alert(
+    'Mentee documentation was refreshed in the "Data Dictionary" and "Button Guide" tabs. Participant data was not changed.'
+  );
 }
 
-function getYdpMenteeDataDictionaryRows_() {
-  return [
-    ['Section', 'Sheet / Button', 'Column / Action', 'Plain English Meaning', 'When To Use'],
-    ['Sheet', YDP_MENTEE_CONFIG.sheetName, 'Timestamp', 'When the mentee submitted the application form.', 'Reference only.'],
-    ['Sheet', YDP_MENTEE_CONFIG.sheetName, 'Email Address', 'The mentee email address. This is used as the unique identity key.', 'Required for IDs and emails.'],
-    ['Sheet', YDP_MENTEE_CONFIG.sheetName, 'First Name', 'The mentee first name used for email personalization.', 'Required for cleaner emails.'],
-    ['Sheet', YDP_MENTEE_CONFIG.sheetName, 'Last Name', 'The mentee last name used for records and matching.', 'Reference and matching.'],
-    ['Sheet', YDP_MENTEE_CONFIG.sheetName, 'Phone', 'The mentee phone number from the form.', 'Reference only for now.'],
-    ['Sheet', YDP_MENTEE_CONFIG.sheetName, 'Location (City, Country)', 'Where the mentee is based.', 'Useful later for timezone or cohort context.'],
-    ['Sheet', YDP_MENTEE_CONFIG.sheetName, 'LinkedIn Profile URL', 'The mentee LinkedIn profile link.', 'Reference for review.'],
-    ['Sheet', YDP_MENTEE_CONFIG.sheetName, 'Preferred Communication Method', 'How the mentee prefers to be contacted.', 'Useful later for engagement planning.'],
-    ['Sheet', YDP_MENTEE_CONFIG.sheetName, YDP_MENTEE_CONFIG.headers.personId, 'Stable mentee ID created by the automation.', 'Use this instead of names when matching or tracking.'],
-    ['Sheet', YDP_MENTEE_CONFIG.sheetName, YDP_MENTEE_CONFIG.headers.duplicateStatus, 'Shows ORIGINAL for first application and DUPLICATE for repeated email submissions.', 'Use this to avoid counting the same mentee twice.'],
-    ['Sheet', YDP_MENTEE_CONFIG.sheetName, YDP_MENTEE_CONFIG.headers.originalRow, 'For duplicate rows, this points back to the original row number.', 'Use when cleaning duplicate applications.'],
-    ['Sheet', YDP_MENTEE_CONFIG.sheetName, YDP_MENTEE_CONFIG.headers.idAssignedAt, 'Timestamp when the mentee ID was assigned.', 'Audit trail.'],
-    ['Sheet', YDP_MENTEE_CONFIG.sheetName, YDP_MENTEE_CONFIG.headers.registrationStatus, 'Whether the first registration email was sent.', 'Do not edit unless correcting a mistake.'],
-    ['Sheet', YDP_MENTEE_CONFIG.sheetName, YDP_MENTEE_CONFIG.headers.registrationSentAt, 'Date/time the first registration email was sent.', 'Audit trail.'],
-    ['Sheet', YDP_MENTEE_CONFIG.sheetName, YDP_MENTEE_CONFIG.headers.alreadyRegisteredStatus, 'Whether the already-registered update email was sent.', 'Used for older existing applicants.'],
-    ['Sheet', YDP_MENTEE_CONFIG.sheetName, YDP_MENTEE_CONFIG.headers.alreadyRegisteredSentAt, 'Date/time the already-registered update email was sent.', 'Audit trail.'],
-    ['Sheet', YDP_MENTEE_CONFIG.sheetName, YDP_MENTEE_CONFIG.headers.onboardingReminderStatus, 'Whether the July 18 onboarding reminder was sent.', 'Prevents duplicate onboarding reminders.'],
-    ['Sheet', YDP_MENTEE_CONFIG.sheetName, YDP_MENTEE_CONFIG.headers.onboardingReminderSentAt, 'Date/time the onboarding reminder was sent.', 'Audit trail.'],
-    ['Sheet', YDP_MENTEE_CONFIG.sheetName, YDP_MENTEE_CONFIG.headers.lastError, 'Last email error message for that row.', 'Check this if an email did not send.'],
-    ['Button', YDP_MENTEE_CONFIG.menuName, 'Setup email tracking columns', 'Creates the email tracking columns if they are missing.', 'Run once, or if columns are missing.'],
-    ['Button', YDP_MENTEE_CONFIG.menuName, 'Install form submit trigger', 'Makes the automation run when a new form response arrives.', 'Run once after deploying the script.'],
-    ['Button', YDP_MENTEE_CONFIG.menuName, 'Assign IDs and mark duplicates', 'Creates mentee IDs and marks repeated email submissions as duplicates.', 'Run after importing or receiving new form rows.'],
-    ['Button', YDP_MENTEE_CONFIG.menuName, 'Create data dictionary', 'Creates this explanation tab.', 'Run whenever you want to refresh documentation.'],
-    ['Button', YDP_MENTEE_CONFIG.menuName, 'Send test mentee email', 'Sends a test email to an address you enter.', 'Use before real sends.'],
-    ['Button', YDP_MENTEE_CONFIG.menuName, 'Preview selected row email', 'Shows the email content for the selected row without sending.', 'Use when checking wording.'],
-    ['Button', YDP_MENTEE_CONFIG.menuName, 'Send mentee email to selected row', 'Sends the registration email to one selected mentee if not already sent.', 'Use for a single controlled send.'],
-    ['Button', YDP_MENTEE_CONFIG.menuName, 'Send mentee email to all unsent rows', 'Sends registration emails only to rows not already marked SENT.', 'Use carefully for bulk sends.'],
-    ['Button', YDP_MENTEE_CONFIG.menuName, 'Send already registered mentee update to all unsent rows', 'Sends the already-registered update to older rows that have not received it.', 'Use for existing applicants.'],
-    ['Button', YDP_MENTEE_CONFIG.menuName, 'Send onboarding reminder to all unsent rows', 'Sends the July 18 onboarding reminder only to mentees who have not received this reminder.', 'Preview and test first, then use for the approved campaign.'],
-    ['Button', YDP_MENTEE_CONFIG.menuName, 'Repair missing sent date for selected row', 'Adds a missing sent date where status already says SENT.', 'Use only to repair tracking.'],
-    ['Button', YDP_MENTEE_CONFIG.menuName, 'Resend email to selected row', 'Force resends one selected row.', 'Use only when you intentionally want a duplicate email sent.']
+function getYdpMenteeDataDictionaryRows_(sourceHeaders) {
+  const responsePurpose = 'Stores the live mentee application responses and automation tracking fields.';
+  const rows = [
+    ['Sheet Name', 'Sheet Purpose', 'Column Name', 'Column Meaning', 'Automation Use', 'Can Team Edit?', 'Notes'],
+    [YDP_MENTEE_CONFIG.sheetName, responsePurpose, 'Timestamp', 'Date and time the mentee submitted the form.', 'Used as the original application audit time.', 'No - use the form', 'Reference field from Google Forms.'],
+    [YDP_MENTEE_CONFIG.sheetName, responsePurpose, 'Email Address', 'Mentee email address and unique identity key.', 'Used for IDs, duplicate checks, and email delivery.', 'Only to correct a confirmed typo', 'Changing this can affect identity and duplicate detection.'],
+    [YDP_MENTEE_CONFIG.sheetName, responsePurpose, 'First Name', 'Mentee first name.', 'Personalizes participant emails.', 'Only to correct a confirmed typo', 'The email greeting uses this value.'],
+    [YDP_MENTEE_CONFIG.sheetName, responsePurpose, 'Last Name', 'Mentee surname.', 'Used in records, scoring, and matching.', 'Only to correct a confirmed typo', 'Keep the participant spelling.'],
+    [YDP_MENTEE_CONFIG.sheetName, responsePurpose, 'Phone', 'Mentee phone number.', 'Available for participant contact and duplicate review.', 'Only to correct a confirmed typo', 'Email remains the primary unique key.'],
+    [YDP_MENTEE_CONFIG.sheetName, responsePurpose, 'Location (City, Country)', 'Where the mentee is based.', 'Supports timezone and location-aware matching decisions.', 'Only to correct a confirmed typo', 'Use city and country where possible.'],
+    [YDP_MENTEE_CONFIG.sheetName, responsePurpose, 'LinkedIn Profile URL', 'Link to the mentee LinkedIn profile.', 'Supports application review.', 'Only to correct a confirmed typo', 'May be blank or invalid if the applicant entered it incorrectly.'],
+    [YDP_MENTEE_CONFIG.sheetName, responsePurpose, 'Preferred Communication Method', 'How the mentee prefers to communicate.', 'Used as context when matching and planning engagement.', 'No - use the form', 'A preference, not a guaranteed channel.'],
+    [YDP_MENTEE_CONFIG.sheetName, responsePurpose, YDP_MENTEE_CONFIG.headers.personId, 'Stable ID assigned to the first application for each unique email.', 'Links this mentee across scoring, matching, and program tracking.', 'No - automation managed', 'Duplicate submissions receive the original ID.'],
+    [YDP_MENTEE_CONFIG.sheetName, responsePurpose, YDP_MENTEE_CONFIG.headers.duplicateStatus, 'Shows ORIGINAL or DUPLICATE.', 'Prevents the same person from being counted twice.', 'No - automation managed', 'Duplicate rows are also colored green.'],
+    [YDP_MENTEE_CONFIG.sheetName, responsePurpose, YDP_MENTEE_CONFIG.headers.originalRow, 'Row number of the first application for this email.', 'Connects duplicate submissions to the original row.', 'No - automation managed', 'Original rows point to themselves.'],
+    [YDP_MENTEE_CONFIG.sheetName, responsePurpose, YDP_MENTEE_CONFIG.headers.idAssignedAt, 'Date and time the mentee ID was assigned.', 'Provides an ID-assignment audit trail.', 'No - automation managed', 'Do not clear this value.'],
+    [YDP_MENTEE_CONFIG.sheetName, responsePurpose, YDP_MENTEE_CONFIG.headers.registrationStatus, 'Status of the first registration email.', 'SENT prevents duplicate registration emails; ERROR marks a failure.', 'No - automation managed', 'Use the resend command for an intentional duplicate send.'],
+    [YDP_MENTEE_CONFIG.sheetName, responsePurpose, YDP_MENTEE_CONFIG.headers.registrationSentAt, 'Date and time the first registration email was sent.', 'Provides the registration-email audit time.', 'No - automation managed', 'Repair only with the dedicated menu command.'],
+    [YDP_MENTEE_CONFIG.sheetName, responsePurpose, YDP_MENTEE_CONFIG.headers.alreadyRegisteredStatus, 'Status of the older-applicant update email.', 'Prevents duplicate already-registered updates.', 'No - automation managed', 'Independent from the normal registration campaign.'],
+    [YDP_MENTEE_CONFIG.sheetName, responsePurpose, YDP_MENTEE_CONFIG.headers.alreadyRegisteredSentAt, 'Date and time the older-applicant update was sent.', 'Provides the update-email audit time.', 'No - automation managed', 'Do not clear after sending.'],
+    [YDP_MENTEE_CONFIG.sheetName, responsePurpose, YDP_MENTEE_CONFIG.headers.onboardingReminderStatus, 'Status of the July 18 onboarding reminder.', 'Prevents duplicate onboarding reminders.', 'No - automation managed', 'Independent from registration email status.'],
+    [YDP_MENTEE_CONFIG.sheetName, responsePurpose, YDP_MENTEE_CONFIG.headers.onboardingReminderSentAt, 'Date and time the onboarding reminder was sent.', 'Provides the onboarding campaign audit time.', 'No - automation managed', 'Do not clear after sending.'],
+    [YDP_MENTEE_CONFIG.sheetName, responsePurpose, YDP_MENTEE_CONFIG.headers.lastError, 'Most recent email error for this row.', 'Explains why a send failed.', 'No - automation managed', 'Check this when an email status is ERROR.']
   ];
+
+  addYdpMenteeUndocumentedSourceHeaders_(rows, sourceHeaders || [], responsePurpose);
+  addYdpMenteeDocumentationDictionaryRows_(rows);
+  return rows;
+}
+
+function addYdpMenteeUndocumentedSourceHeaders_(rows, sourceHeaders, responsePurpose) {
+  const documented = {};
+  rows.slice(1).forEach(function(row) {
+    if (row[0] === YDP_MENTEE_CONFIG.sheetName) {
+      documented[String(row[2]).trim().toLowerCase()] = true;
+    }
+  });
+
+  sourceHeaders.forEach(function(header) {
+    const columnName = String(header || '').trim();
+    const key = columnName.toLowerCase();
+    if (!columnName || documented[key]) {
+      return;
+    }
+
+    rows.push([
+      YDP_MENTEE_CONFIG.sheetName,
+      responsePurpose,
+      columnName,
+      'The mentee response to this application question.',
+      'Available for application review, scoring, or matching when relevant.',
+      'No - use the form',
+      'Automatically included from the live sheet header.'
+    ]);
+    documented[key] = true;
+  });
+}
+
+function addYdpMenteeDocumentationDictionaryRows_(rows) {
+  const dictionaryPurpose = 'Explains each workbook sheet and column in plain English.';
+  const guidePurpose = 'Explains every YDP Automation menu command and its safety level.';
+  const dictionaryColumns = [
+    ['Sheet Name', 'Worksheet tab being documented.'],
+    ['Sheet Purpose', 'Reason the worksheet exists.'],
+    ['Column Name', 'Exact header used in the worksheet.'],
+    ['Column Meaning', 'Plain-English definition of the value.'],
+    ['Automation Use', 'How the scripts use the value.'],
+    ['Can Team Edit?', 'Whether manual editing is safe.'],
+    ['Notes', 'Warnings and extra operating guidance.']
+  ];
+  const guideColumns = [
+    ['Safety Level', 'SAFE, CAUTION, or LIVE ACTION classification.'],
+    ['Menu Name', 'Google Sheets menu containing the command.'],
+    ['Button Name', 'Exact menu command label.'],
+    ['What It Does', 'Result of running the command.'],
+    ['When To Run', 'Correct situation for using the command.'],
+    ['Before Running', 'Checks required before using the command.'],
+    ['What It Changes', 'Workbook data or communications affected.'],
+    ['Recommended Frequency', 'How often the command normally runs.']
+  ];
+
+  dictionaryColumns.forEach(function(column) {
+    rows.push(['Data Dictionary', dictionaryPurpose, column[0], column[1], 'Documentation only.', 'No - regenerate from menu', 'Refreshed by Create data dictionary.']);
+  });
+  guideColumns.forEach(function(column) {
+    rows.push(['Button Guide', guidePurpose, column[0], column[1], 'Helps the team operate the automation safely.', 'No - regenerate from menu', 'Refreshed by Create data dictionary.']);
+  });
+}
+
+function getYdpMenteeButtonGuideRows_() {
+  const menu = YDP_MENTEE_CONFIG.menuName;
+  return [
+    ['Safety Level', 'Menu Name', 'Button Name', 'What It Does', 'When To Run', 'Before Running', 'What It Changes', 'Recommended Frequency'],
+    ['SAFE', menu, 'Setup email tracking columns', 'Creates any missing email-status and sent-date columns.', 'During initial setup or after a tracking column was removed.', 'Confirm you are in the mentee response workbook.', 'Adds missing headers only; it does not send email.', 'Once, then as needed'],
+    ['SAFE', menu, 'Install form submit trigger', 'Turns on automatic handling for future form submissions.', 'After the script is first deployed or the trigger was removed.', 'Confirm the correct mentee form response workbook is open.', 'Creates one Apps Script form-submit trigger.', 'Once'],
+    ['CAUTION', menu, 'Assign IDs and mark duplicates', 'Assigns stable mentee IDs and marks repeated email submissions.', 'After importing existing applications or when checking new duplicates.', 'Confirm Email Address values are correct.', 'Writes ID, duplicate status, original row, timestamp, and duplicate row color.', 'After imports or as needed'],
+    ['SAFE', menu, 'Create data dictionary', 'Refreshes the Data Dictionary and Button Guide tabs.', 'When documentation is missing or the automation changes.', 'No preparation is required.', 'Rebuilds documentation tabs only.', 'After each automation update'],
+    ['SAFE', menu, 'Send test mentee email', 'Sends a selected email template to a test address you enter.', 'Before any live email campaign.', 'Use your own internal test email and choose the correct email type.', 'Sends one test email; participant tracking is not updated.', 'Before every campaign'],
+    ['SAFE', menu, 'Preview selected row email', 'Displays all email templates personalized for the selected mentee.', 'Before a test or live send.', 'Select a real mentee row, not the header.', 'Opens a preview only; no email or status changes.', 'Before every campaign'],
+    ['LIVE ACTION', menu, 'Send mentee email to selected row', 'Sends the registration email to one selected mentee if it was not already sent.', 'For a controlled first send or a single new applicant.', 'Preview and test the registration template; select the intended row.', 'Sends one live email and updates registration status, sent time, and last error.', 'As needed'],
+    ['LIVE ACTION', menu, 'Send mentee email to all unsent rows', 'Sends registration emails to every eligible row not already marked SENT.', 'For the approved registration campaign.', 'Preview, test, verify recipients, and obtain campaign approval.', 'Sends multiple live emails and updates registration tracking columns.', 'Once per registration campaign'],
+    ['LIVE ACTION', menu, 'Send already registered mentee update to all unsent rows', 'Sends the older-applicant update to rows that have not received it.', 'When communicating with applications received before automation started.', 'Preview, test, verify recipients, and obtain campaign approval.', 'Sends multiple live emails and updates already-registered tracking columns.', 'Once per update campaign'],
+    ['LIVE ACTION', menu, 'Send onboarding reminder to all unsent rows', 'Sends the onboarding reminder to mentees who have not received that campaign.', 'Only for the approved onboarding reminder campaign.', 'Preview, test, verify date details, and obtain campaign approval.', 'Sends multiple live emails and updates onboarding reminder tracking columns.', 'Once per onboarding campaign'],
+    ['CAUTION', menu, 'Repair missing sent date for selected row', 'Adds a sent timestamp when a SENT status exists without a date.', 'Only when auditing a confirmed tracking inconsistency.', 'Select the affected row and confirm the email really was sent.', 'Writes the current date into a missing sent-at field; sends no email.', 'Only when repairing data'],
+    ['LIVE ACTION', menu, 'Resend email to selected row', 'Forces one selected email template to be sent again.', 'Only when a recipient needs an intentional resend.', 'Select the correct row, preview the template, and confirm a duplicate send is intended.', 'Sends one live duplicate email and refreshes its tracking fields.', 'Exceptional use only']
+  ];
+}
+
+function getYdpMenteeButtonGuideColor_(safetyLevel) {
+  return {
+    SAFE: '#d9ead3',
+    CAUTION: '#fff2cc',
+    'LIVE ACTION': '#f4cccc'
+  }[safetyLevel] || '#ffffff';
+}
+
+function getYdpMenteeSourceHeadersForDictionary_() {
+  const sourceSheet = getYdpMenteeSheet_();
+  if (sourceSheet.getLastColumn() < 1) {
+    return [];
+  }
+
+  return sourceSheet.getRange(1, 1, 1, sourceSheet.getLastColumn()).getValues()[0];
 }
 
 function getOrCreateYdpMenteeDictionarySheet_() {
   return SpreadsheetApp.getActive().getSheetByName('Data Dictionary') || SpreadsheetApp.getActive().insertSheet('Data Dictionary');
 }
 
+function getOrCreateYdpMenteeButtonGuideSheet_() {
+  return SpreadsheetApp.getActive().getSheetByName('Button Guide') || SpreadsheetApp.getActive().insertSheet('Button Guide');
+}
+
 function writeYdpMenteeDataDictionary_(sheet, rows) {
+  resetYdpMenteeDocumentationSheet_(sheet);
+  const range = sheet.getRange(1, 1, rows.length, rows[0].length);
+  range.setValues(rows).setWrap(true).setVerticalAlignment('top');
+  formatYdpMenteeDocumentationHeader_(sheet, rows[0].length);
+  applyYdpMenteeDocumentationFilter_(sheet, rows);
+  [170, 270, 230, 380, 340, 180, 360].forEach(function(width, index) {
+    sheet.setColumnWidth(index + 1, width);
+  });
+}
+
+function writeYdpMenteeButtonGuide_(sheet, rows) {
+  resetYdpMenteeDocumentationSheet_(sheet);
+  const range = sheet.getRange(1, 1, rows.length, rows[0].length);
+  range.setValues(rows).setWrap(true).setVerticalAlignment('top');
+  formatYdpMenteeDocumentationHeader_(sheet, rows[0].length);
+
+  if (rows.length > 1) {
+    const backgrounds = rows.slice(1).map(function(row) {
+      return new Array(rows[0].length).fill(getYdpMenteeButtonGuideColor_(row[0]));
+    });
+    sheet.getRange(2, 1, backgrounds.length, rows[0].length).setBackgrounds(backgrounds);
+  }
+
+  applyYdpMenteeDocumentationFilter_(sheet, rows);
+  [120, 160, 310, 390, 350, 350, 370, 190].forEach(function(width, index) {
+    sheet.setColumnWidth(index + 1, width);
+  });
+}
+
+function resetYdpMenteeDocumentationSheet_(sheet) {
+  const filter = sheet.getFilter();
+  if (filter) {
+    filter.remove();
+  }
   sheet.clearContents();
-  sheet.getRange(1, 1, rows.length, rows[0].length).setValues(rows);
+  sheet.clearFormats();
   sheet.setFrozenRows(1);
-  sheet.getRange(1, 1, 1, rows[0].length).setFontWeight('bold');
-  sheet.autoResizeColumns(1, rows[0].length);
+}
+
+function formatYdpMenteeDocumentationHeader_(sheet, columnCount) {
+  sheet.getRange(1, 1, 1, columnCount)
+    .setFontWeight('bold')
+    .setFontColor('#ffffff')
+    .setBackground('#274e13');
+}
+
+function applyYdpMenteeDocumentationFilter_(sheet, rows) {
+  if (rows.length > 1) {
+    sheet.getRange(1, 1, rows.length, rows[0].length).createFilter();
+  }
 }
 
 function sendTestYdpMenteeEmail() {

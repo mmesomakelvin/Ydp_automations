@@ -6,6 +6,8 @@ mentor/**
 tests/**
 deliverables/**
 scripts/**
+Demo 1/**
+YDP Website Metric Builder/**
 *.pdf
 .git/**
 .codex/**
