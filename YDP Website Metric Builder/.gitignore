@@ -21,3 +21,6 @@ dist/
 # Logs
 *.log
 npm-debug.log*
+
+# Claude Code local memory (tooling notes, not product code)
+memory/
