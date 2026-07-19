@@ -47,15 +47,34 @@ export interface MatchRow {
 
 export const LOW_SCORE_THRESHOLD = 80
 
-/** Fetch every match row. Throws if Supabase isn't configured. */
-export async function fetchAllMatches(): Promise<MatchRow[]> {
+/** Raised when the site password is rejected by the database. */
+export class InvalidPasswordError extends Error {
+  constructor() {
+    super('Invalid password')
+    this.name = 'InvalidPasswordError'
+  }
+}
+
+/**
+ * Fetch every match row via the password-gated `get_matches` function.
+ *
+ * The anon key can't read `public.matches` directly — RLS blocks it. The
+ * password is verified inside the database, so a wrong one returns no data
+ * rather than merely hiding a screen.
+ */
+export async function fetchAllMatches(password: string): Promise<MatchRow[]> {
   if (!supabase) {
     throw new Error(
       'Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env.local.',
     )
   }
-  const { data, error } = await supabase.from('matches').select('*')
-  if (error) throw error
+  const { data, error } = await supabase.rpc('get_matches', {
+    p_password: password,
+  })
+  if (error) {
+    if (error.message.includes('Invalid password')) throw new InvalidPasswordError()
+    throw error
+  }
   return (data ?? []) as MatchRow[]
 }
 

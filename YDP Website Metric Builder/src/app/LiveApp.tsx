@@ -18,6 +18,9 @@ import {
   toMentorLookupData,
 } from '@/lib/matches'
 import { useMatches } from './useMatches'
+import { PasswordGate } from './PasswordGate'
+
+const PASSWORD_KEY = 'ydp-hub-password'
 
 import dashboardSample from '@/../product/sections/overview-dashboard/data.json'
 import menteeSample from '@/../product/sections/mentee-lookup/data.json'
@@ -63,7 +66,29 @@ const productType = {
  */
 export default function LiveApp() {
   const [active, setActive] = useState<SectionKey>('dashboard')
-  const { rows, loading, error, configured } = useMatches()
+  // Kept in sessionStorage so a refresh doesn't re-prompt, but a new tab does.
+  const [password, setPassword] = useState<string | null>(() =>
+    sessionStorage.getItem(PASSWORD_KEY),
+  )
+  const { rows, loading, error, unauthorized, configured } = useMatches(password)
+
+  const unlock = (value: string) => {
+    sessionStorage.setItem(PASSWORD_KEY, value)
+    setPassword(value)
+  }
+
+  // Live data is gated; sample data isn't, so the design stays previewable.
+  if (configured && (password === null || unauthorized)) {
+    return (
+      <div style={productType}>
+        <PasswordGate
+          onSubmit={unlock}
+          incorrect={unauthorized}
+          checking={loading}
+        />
+      </div>
+    )
+  }
 
   const live = configured && rows !== null
 
