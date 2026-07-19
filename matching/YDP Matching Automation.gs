@@ -8,7 +8,10 @@ const YDP_MATCHING_CONFIG = {
   defaultResponseTabName: 'Form_Responses',
   defaultGeminiModel: 'gemini-3.5-flash',
   defaultMenteeScoringBatchSize: 3,
-  defaultPairScoringBatchSize: 5,
+  // Ceiling only. A run really stops at maxManualRunMilliseconds below, so this
+  // is set high enough that elapsed time is the limit rather than a fixed count.
+  defaultPairScoringBatchSize: 80,
+  pairScoringTriggerMinutes: 5,
   maxMenteeScoringRunMilliseconds: 90000,
   maxManualRunMilliseconds: 240000,
   senderName: 'YDP Mentorship Team',
@@ -52,6 +55,8 @@ function onOpen() {
     .addItem('Generate mentee scores batch', 'generateYdpMenteeScoresBatch')
     .addItem('Generate next pair score', 'generateYdpNextPairScore')
     .addItem('Generate pair scores batch', 'generateYdpPairScoresBatch')
+    .addItem('Turn ON automatic pair scoring', 'installYdpPairScoringTrigger')
+    .addItem('Turn OFF automatic pair scoring', 'removeYdpPairScoringTrigger')
     .addItem('Auto-match from pair scores', 'autoMatchYdpFromPairScores')
     .addSeparator()
     .addItem('Preview selected selection email', 'previewSelectedYdpMenteeSelectionEmail')
@@ -369,6 +374,107 @@ function generateYdpNextPairScore() {
 
 function generateYdpPairScoresBatch() {
   generateYdpPairScores_(getYdpDefaultPairScoringBatchSize_(), 'GENERATE_PAIR_SCORE_BATCH');
+}
+
+const YDP_PAIR_SCORING_TRIGGER_HANDLER = 'runYdpPairScoringOnSchedule';
+const YDP_PAIR_SCORING_IDLE_RUNS_KEY = 'PAIR_SCORING_IDLE_RUNS';
+const YDP_PAIR_SCORING_MAX_IDLE_RUNS = 2;
+
+/**
+ * Installs a time-driven trigger that keeps scoring pairs unattended.
+ *
+ * Pair scoring is resumable — already-scored pairs are skipped — so repeated
+ * runs work through the backlog instead of redoing it. This only ever calls
+ * pair scoring; no email function is reachable from the trigger.
+ */
+function installYdpPairScoringTrigger() {
+  try {
+    const removed = removeYdpPairScoringTriggers_();
+    const minutes = YDP_MATCHING_CONFIG.pairScoringTriggerMinutes;
+
+    ScriptApp.newTrigger(YDP_PAIR_SCORING_TRIGGER_HANDLER)
+      .timeBased()
+      .everyMinutes(minutes)
+      .create();
+
+    PropertiesService.getScriptProperties().deleteProperty(YDP_PAIR_SCORING_IDLE_RUNS_KEY);
+
+    const message = [
+      'Automatic pair scoring is ON.',
+      '',
+      'It will score pairs every ' + minutes + ' minutes until every eligible pair is done,',
+      'then switch itself off.',
+      '',
+      'This only scores pairs. It never sends email.',
+      '',
+      'To stop it early, use "Turn OFF automatic pair scoring".'
+    ].join('\n');
+
+    logYdpMatchingRun_('INSTALL_PAIR_SCORING_TRIGGER', 'SUCCESS', message + ' (replaced ' + removed + ' existing)');
+    notifyYdpMatchingUser_(message);
+  } catch (error) {
+    logYdpMatchingRun_('INSTALL_PAIR_SCORING_TRIGGER', 'ERROR', error.message);
+    notifyYdpMatchingUser_('Could not turn on automatic pair scoring:\n\n' + error.message);
+  }
+}
+
+function removeYdpPairScoringTrigger() {
+  try {
+    const removed = removeYdpPairScoringTriggers_();
+    const message = removed
+      ? 'Automatic pair scoring is OFF.'
+      : 'Automatic pair scoring was not running.';
+    logYdpMatchingRun_('REMOVE_PAIR_SCORING_TRIGGER', 'SUCCESS', message);
+    notifyYdpMatchingUser_(message);
+  } catch (error) {
+    logYdpMatchingRun_('REMOVE_PAIR_SCORING_TRIGGER', 'ERROR', error.message);
+    notifyYdpMatchingUser_('Could not turn off automatic pair scoring:\n\n' + error.message);
+  }
+}
+
+function removeYdpPairScoringTriggers_() {
+  let removed = 0;
+  ScriptApp.getProjectTriggers().forEach(function (trigger) {
+    if (trigger.getHandlerFunction() === YDP_PAIR_SCORING_TRIGGER_HANDLER) {
+      ScriptApp.deleteTrigger(trigger);
+      removed++;
+    }
+  });
+  return removed;
+}
+
+/**
+ * Trigger entry point. Stops itself once runs stop producing new scores, so a
+ * forgotten trigger can't keep burning Gemini quota indefinitely.
+ */
+function runYdpPairScoringOnSchedule() {
+  const sheet = SpreadsheetApp.getActive().getSheetByName(YDP_MATCHING_CONFIG.sheets.pairScores);
+  const before = sheet ? sheet.getLastRow() : 0;
+
+  generateYdpPairScores_(getYdpDefaultPairScoringBatchSize_(), 'GENERATE_PAIR_SCORE_SCHEDULED');
+
+  const after = sheet ? sheet.getLastRow() : 0;
+  const properties = PropertiesService.getScriptProperties();
+
+  if (after > before) {
+    properties.deleteProperty(YDP_PAIR_SCORING_IDLE_RUNS_KEY);
+    return;
+  }
+
+  const idleRuns = Number(properties.getProperty(YDP_PAIR_SCORING_IDLE_RUNS_KEY) || 0) + 1;
+
+  if (idleRuns >= YDP_PAIR_SCORING_MAX_IDLE_RUNS) {
+    removeYdpPairScoringTriggers_();
+    properties.deleteProperty(YDP_PAIR_SCORING_IDLE_RUNS_KEY);
+    logYdpMatchingRun_(
+      'PAIR_SCORING_TRIGGER_AUTO_OFF',
+      'SUCCESS',
+      'No new pair scores across ' + idleRuns + ' runs. Automatic pair scoring switched itself off.'
+    );
+    return;
+  }
+
+  properties.setProperty(YDP_PAIR_SCORING_IDLE_RUNS_KEY, String(idleRuns));
 }
 
 function autoMatchYdpFromPairScores() {
@@ -1013,7 +1119,7 @@ function generateYdpPairScores_(maxPairsToScore, actionName) {
             'This was saved in Pair Scores with status "Error". Run "Generate next pair score" again to retry this same pair.'
           ].join('\n');
           logYdpMatchingRun_(actionName, 'PARTIAL_SUCCESS', message);
-          SpreadsheetApp.getUi().alert(message);
+          notifyYdpMatchingUser_(message);
           return;
         }
       }
@@ -1034,10 +1140,10 @@ function generateYdpPairScores_(maxPairsToScore, actionName) {
       completedAll: completedAll
     });
     logYdpMatchingRun_(actionName, quotaHit || stoppedForTime || errorCount ? 'PARTIAL_SUCCESS' : 'SUCCESS', message);
-    SpreadsheetApp.getUi().alert(message);
+    notifyYdpMatchingUser_(message);
   } catch (error) {
     logYdpMatchingRun_(actionName, 'ERROR', error.message);
-    SpreadsheetApp.getUi().alert('Pair scoring failed:\n\n' + error.message);
+    notifyYdpMatchingUser_('Pair scoring failed:\n\n' + error.message);
   }
 }
 
@@ -1543,6 +1649,20 @@ function getYdpExistingPairScoreMap_(sheet) {
 
 function getYdpDefaultPairScoringBatchSize_() {
   return YDP_MATCHING_CONFIG.defaultPairScoringBatchSize;
+}
+
+/**
+ * Shows a message when a person is driving the script, and stays silent when a
+ * time-driven trigger is. SpreadsheetApp.getUi() throws outside a UI context,
+ * so calling alert() directly from a trigger would fail the whole run after the
+ * work was already done. The Run Log keeps the record either way.
+ */
+function notifyYdpMatchingUser_(message) {
+  try {
+    SpreadsheetApp.getUi().alert(message);
+  } catch (error) {
+    Logger.log(message);
+  }
 }
 
 function shouldYdpSkipExistingPairScore_(existingPair) {
