@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Sparkles, Loader2, LockKeyhole } from 'lucide-react'
+import { Loader2, LockKeyhole } from 'lucide-react'
 
 interface PasswordGateProps {
   onSubmit: (password: string) => void
@@ -25,11 +25,15 @@ export function PasswordGate({ onSubmit, incorrect, checking }: PasswordGateProp
     <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-12 dark:bg-slate-950">
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center text-center">
-          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-sm dark:bg-indigo-500">
-            <Sparkles className="h-6 w-6" strokeWidth={2.2} />
+          <span className="inline-flex dark:rounded-xl dark:bg-white dark:px-3 dark:py-2.5">
+            <img
+              src="/ydp-logo.png"
+              alt="Young Data Professionals"
+              className="h-8 w-auto"
+            />
           </span>
-          <h1 className="mt-4 text-xl font-bold tracking-tight text-slate-900 dark:text-white">
-            YDP Mentorship Hub
+          <h1 className="mt-5 text-xl font-bold tracking-tight text-slate-900 dark:text-white">
+            Mentorship Hub
           </h1>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             Enter the access password from your Cohort 2 email.

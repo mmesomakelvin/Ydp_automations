@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { Menu, X, Sparkles } from 'lucide-react'
+import { Menu, X } from 'lucide-react'
 import { MainNav, type NavigationItem } from './MainNav'
 import { UserMenu, type ShellUser } from './UserMenu'
 import { CountdownBanner } from './CountdownBanner'
@@ -17,22 +17,25 @@ interface AppShellProps {
 
 function Brand({ cohortLabel }: { cohortLabel?: string }) {
   return (
-    <div className="flex items-center gap-2.5 px-5 py-5">
-      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-sm dark:bg-indigo-500">
-        <Sparkles className="h-5 w-5" strokeWidth={2.2} />
+    <div className="px-5 py-5">
+      {/* The wordmark is dark navy, so it sits on a white chip in dark mode
+          rather than being recoloured — keeps the brand colours exact. */}
+      <span className="inline-flex dark:rounded-lg dark:bg-white dark:px-2 dark:py-1.5">
+        <img
+          src="/ydp-logo.png"
+          alt="Young Data Professionals"
+          className="h-6 w-auto"
+        />
       </span>
-      <div className="min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="truncate text-sm font-bold tracking-tight text-slate-900 dark:text-white">
-            YDP Mentorship Hub
+      <div className="mt-3 flex items-center gap-2">
+        <span className="truncate text-sm font-bold tracking-tight text-slate-900 dark:text-white">
+          Mentorship Hub
+        </span>
+        {cohortLabel && (
+          <span className="rounded-md bg-emerald-100 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
+            {cohortLabel}
           </span>
-          {cohortLabel && (
-            <span className="rounded-md bg-emerald-100 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
-              {cohortLabel}
-            </span>
-          )}
-        </div>
-        <span className="text-xs text-slate-500 dark:text-slate-400">Mentorship metrics</span>
+        )}
       </div>
     </div>
   )
@@ -116,8 +119,14 @@ export function AppShell({
           >
             <Menu className="h-5 w-5" />
           </button>
-          <span className="flex items-center gap-2 text-sm font-bold tracking-tight text-slate-900 dark:text-white">
-            YDP Mentorship Hub
+          <span className="flex min-w-0 items-center gap-2">
+            <span className="inline-flex shrink-0 dark:rounded-md dark:bg-white dark:px-1.5 dark:py-1">
+              <img
+                src="/ydp-logo.png"
+                alt="Young Data Professionals"
+                className="h-5 w-auto"
+              />
+            </span>
             <span className="rounded-md bg-emerald-100 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
               {cohortLabel}
             </span>

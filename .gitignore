@@ -21,3 +21,6 @@
 
 # Browser automation output
 **/.playwright-mcp/
+
+# Holds the real site password — must never be committed
+**/supabase/set-password.sql

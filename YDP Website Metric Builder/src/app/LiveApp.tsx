@@ -111,9 +111,12 @@ export default function LiveApp() {
         onLogout={() => console.log('Logout')}
       >
         {!configured && <SampleDataNotice />}
-        {error && <ErrorNotice message={error.message} />}
         {configured && loading && !rows ? (
           <LoadingState />
+        ) : configured && !rows ? (
+          // Live mode must never fall through to sample data — showing fake
+          // names to someone whose real load failed reads as success.
+          <LoadFailed message={error?.message ?? 'No matches returned.'} />
         ) : (
           <SectionView active={active} live={live} rows={rows} goTo={setActive} />
         )}
@@ -207,11 +210,23 @@ function SampleDataNotice() {
   )
 }
 
-function ErrorNotice({ message }: { message: string }) {
+function LoadFailed({ message }: { message: string }) {
   return (
-    <div className="flex items-center gap-2 border-b border-red-200 bg-red-50 px-4 py-2 text-xs text-red-800 sm:px-6 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-200">
-      <Database className="h-3.5 w-3.5 shrink-0" />
-      Couldn't load matches: {message}
+    <div className="mx-auto flex max-w-md flex-col items-center justify-center px-6 py-24 text-center">
+      <span className="flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-600 dark:bg-red-500/15 dark:text-red-300">
+        <Database className="h-5 w-5" />
+      </span>
+      <h2 className="mt-4 text-lg font-semibold text-slate-900 dark:text-white">
+        Couldn't load matches
+      </h2>
+      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{message}</p>
+      <button
+        type="button"
+        onClick={() => window.location.reload()}
+        className="mt-5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-400"
+      >
+        Try again
+      </button>
     </div>
   )
 }

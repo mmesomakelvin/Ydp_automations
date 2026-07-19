@@ -13,6 +13,22 @@ export interface MatchesState {
 }
 
 /**
+ * Supabase errors are plain objects, not Errors — stringifying them yields
+ * "[object Object]", which hides the actual failure.
+ */
+function toError(e: unknown): Error {
+  if (e instanceof Error) return e
+  if (e && typeof e === 'object' && 'message' in e) {
+    const { message, hint } = e as { message?: unknown; hint?: unknown }
+    return new Error(
+      [message, hint].filter((v) => typeof v === 'string' && v).join(' — ') ||
+        'Unknown error',
+    )
+  }
+  return new Error(String(e))
+}
+
+/**
  * Loads all match rows from Supabase using the site password. When Supabase
  * isn't configured, returns `configured: false` so callers can fall back to
  * bundled sample data.
@@ -41,7 +57,7 @@ export function useMatches(password: string | null): MatchesState {
           setUnauthorized(true)
           setRows(null)
         } else {
-          setError(e instanceof Error ? e : new Error(String(e)))
+          setError(toError(e))
         }
       })
       .finally(() => {
