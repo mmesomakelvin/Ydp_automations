@@ -444,37 +444,62 @@ function removeYdpPairScoringTriggers_() {
 }
 
 /**
- * Trigger entry point. Stops itself once runs stop producing new scores, so a
- * forgotten trigger can't keep burning Gemini quota indefinitely.
+ * Trigger entry point. Runs one scheduled scoring batch, then decides whether to
+ * keep going based on WHY the batch ended — not on whether it happened to add
+ * rows. It switches the trigger off only on genuine completion (every eligible
+ * pair scored) or a blocking error. A Gemini rate limit or the 6-minute cap is
+ * treated as "come back next tick", so a busy Gemini can no longer be mistaken
+ * for a finished job.
  */
 function runYdpPairScoringOnSchedule() {
-  const sheet = SpreadsheetApp.getActive().getSheetByName(YDP_MATCHING_CONFIG.sheets.pairScores);
-  const before = sheet ? sheet.getLastRow() : 0;
-
-  generateYdpPairScores_(getYdpDefaultPairScoringBatchSize_(), 'GENERATE_PAIR_SCORE_SCHEDULED');
-
-  const after = sheet ? sheet.getLastRow() : 0;
+  const status = generateYdpPairScores_(
+    getYdpDefaultPairScoringBatchSize_(),
+    'GENERATE_PAIR_SCORE_SCHEDULED'
+  );
   const properties = PropertiesService.getScriptProperties();
 
-  if (after > before) {
-    properties.deleteProperty(YDP_PAIR_SCORING_IDLE_RUNS_KEY);
-    return;
-  }
-
-  const idleRuns = Number(properties.getProperty(YDP_PAIR_SCORING_IDLE_RUNS_KEY) || 0) + 1;
-
-  if (idleRuns >= YDP_PAIR_SCORING_MAX_IDLE_RUNS) {
+  // Stop only when scoring is genuinely finished, or when a structural error
+  // makes retrying pointless. COMPLETE means the run walked every eligible pair
+  // and found nothing left to score.
+  if (status === 'COMPLETE' || status === 'FATAL') {
     removeYdpPairScoringTriggers_();
     properties.deleteProperty(YDP_PAIR_SCORING_IDLE_RUNS_KEY);
     logYdpMatchingRun_(
       'PAIR_SCORING_TRIGGER_AUTO_OFF',
       'SUCCESS',
-      'No new pair scores across ' + idleRuns + ' runs. Automatic pair scoring switched itself off.'
+      status === 'COMPLETE'
+        ? 'Every eligible pair is scored. Automatic pair scoring switched itself off.'
+        : 'Pair scoring hit a blocking error, so retrying would not help. Automatic pair scoring switched itself off — see the latest ERROR row in this log.'
     );
     return;
   }
 
-  properties.setProperty(YDP_PAIR_SCORING_IDLE_RUNS_KEY, String(idleRuns));
+  // Expected interruptions. A Gemini rate limit (QUOTA) or the 6-minute
+  // execution cap (TIME) is NOT completion — there is still work left, so keep
+  // the trigger running and try again next tick. These must never count toward
+  // switching off; mistaking them for "done" is the bug this replaced.
+  if (status === 'PROGRESS' || status === 'QUOTA' || status === 'TIME') {
+    properties.deleteProperty(YDP_PAIR_SCORING_IDLE_RUNS_KEY);
+    return;
+  }
+
+  // Fell through (PAIR_ERROR): one pair keeps failing to score for a non-quota
+  // reason, which also blocks the pairs behind it. Retry a couple of times in
+  // case it is transient, then stop so it cannot loop on a broken pair forever.
+  const stuckRuns = Number(properties.getProperty(YDP_PAIR_SCORING_IDLE_RUNS_KEY) || 0) + 1;
+
+  if (stuckRuns >= YDP_PAIR_SCORING_MAX_IDLE_RUNS) {
+    removeYdpPairScoringTriggers_();
+    properties.deleteProperty(YDP_PAIR_SCORING_IDLE_RUNS_KEY);
+    logYdpMatchingRun_(
+      'PAIR_SCORING_TRIGGER_AUTO_OFF',
+      'SUCCESS',
+      'A pair kept failing to score across ' + stuckRuns + ' runs. Automatic pair scoring switched itself off so it does not retry a broken pair forever. Fix or delete that pair, then turn it back on.'
+    );
+    return;
+  }
+
+  properties.setProperty(YDP_PAIR_SCORING_IDLE_RUNS_KEY, String(stuckRuns));
 }
 
 function autoMatchYdpFromPairScores() {
@@ -1120,7 +1145,7 @@ function generateYdpPairScores_(maxPairsToScore, actionName) {
           ].join('\n');
           logYdpMatchingRun_(actionName, 'PARTIAL_SUCCESS', message);
           notifyYdpMatchingUser_(message);
-          return;
+          return 'PAIR_ERROR';
         }
       }
 
@@ -1141,9 +1166,18 @@ function generateYdpPairScores_(maxPairsToScore, actionName) {
     });
     logYdpMatchingRun_(actionName, quotaHit || stoppedForTime || errorCount ? 'PARTIAL_SUCCESS' : 'SUCCESS', message);
     notifyYdpMatchingUser_(message);
+
+    // Report why the run ended so the scheduled trigger can tell genuine
+    // completion apart from an interruption. `completedAll` is only true when
+    // the run walked every eligible pair and found nothing left to score.
+    if (completedAll) return 'COMPLETE';
+    if (quotaHit) return 'QUOTA';
+    if (stoppedForTime) return 'TIME';
+    return 'PROGRESS';
   } catch (error) {
     logYdpMatchingRun_(actionName, 'ERROR', error.message);
     notifyYdpMatchingUser_('Pair scoring failed:\n\n' + error.message);
+    return 'FATAL';
   }
 }
 
