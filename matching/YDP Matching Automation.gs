@@ -474,11 +474,12 @@ function runYdpPairScoringOnSchedule() {
     return;
   }
 
-  // Expected interruptions. A Gemini rate limit (QUOTA) or the 6-minute
-  // execution cap (TIME) is NOT completion — there is still work left, so keep
-  // the trigger running and try again next tick. These must never count toward
-  // switching off; mistaking them for "done" is the bug this replaced.
-  if (status === 'PROGRESS' || status === 'QUOTA' || status === 'TIME') {
+  // Expected interruptions. A Gemini rate limit (QUOTA), a brief Gemini overload
+  // (BUSY / HTTP 503), or the 6-minute execution cap (TIME) is NOT completion —
+  // there is still work left, so keep the trigger running and try again next
+  // tick. These must never count toward switching off; mistaking any of them for
+  // "done" or for "a broken pair" is the class of bug this logic replaced.
+  if (status === 'PROGRESS' || status === 'QUOTA' || status === 'BUSY' || status === 'TIME') {
     properties.deleteProperty(YDP_PAIR_SCORING_IDLE_RUNS_KEY);
     return;
   }
@@ -1040,6 +1041,8 @@ function generateYdpPairScores_(maxPairsToScore, actionName) {
     let skippedCount = 0;
     let quotaHit = false;
     let quotaMessage = '';
+    let serviceBusyHit = false;
+    let serviceBusyMessage = '';
     let stoppedForTime = false;
 
     if (mentees.length === 0) {
@@ -1112,6 +1115,17 @@ function generateYdpPairScores_(maxPairsToScore, actionName) {
             break;
           }
 
+          if (isYdpGeminiServiceUnavailableError_(error)) {
+            // Gemini is briefly overloaded (HTTP 503 "high demand"). This is a
+            // transient hiccup, exactly like a rate limit — NOT a broken pair.
+            // Pause this batch and let the trigger retry next tick instead of
+            // filing an Error row that would count toward switching the trigger
+            // off. Same handling the mentee scoring path already uses.
+            serviceBusyHit = true;
+            serviceBusyMessage = describeYdpPairScoreError_(error);
+            break;
+          }
+
           const readableError = describeYdpPairScoreError_(error);
           existingPairMap[pairId] = upsertYdpPairScoreRow_(pairScoresSheet, existingPair, [
             pairId,
@@ -1149,22 +1163,27 @@ function generateYdpPairScores_(maxPairsToScore, actionName) {
         }
       }
 
-      if (successCount >= maxPairsToScore || quotaHit || stoppedForTime) {
+      if (successCount >= maxPairsToScore || quotaHit || serviceBusyHit || stoppedForTime) {
         break;
       }
     }
 
-    const completedAll = !quotaHit && !stoppedForTime && successCount === 0;
+    // "Complete" means the run walked every eligible pair and found nothing left
+    // to score. A run that stopped early for ANY reason — rate limit, a 503, or
+    // the time cap — is not complete, even when it scored nothing this pass.
+    const completedAll = !quotaHit && !serviceBusyHit && !stoppedForTime && successCount === 0;
     const message = buildYdpPairScoreBatchMessage_({
       successCount: successCount,
       skippedCount: skippedCount,
       errorCount: errorCount,
       quotaHit: quotaHit,
       quotaMessage: quotaMessage,
+      serviceBusyHit: serviceBusyHit,
+      serviceBusyMessage: serviceBusyMessage,
       stoppedForTime: stoppedForTime,
       completedAll: completedAll
     });
-    logYdpMatchingRun_(actionName, quotaHit || stoppedForTime || errorCount ? 'PARTIAL_SUCCESS' : 'SUCCESS', message);
+    logYdpMatchingRun_(actionName, quotaHit || serviceBusyHit || stoppedForTime || errorCount ? 'PARTIAL_SUCCESS' : 'SUCCESS', message);
     notifyYdpMatchingUser_(message);
 
     // Report why the run ended so the scheduled trigger can tell genuine
@@ -1172,6 +1191,7 @@ function generateYdpPairScores_(maxPairsToScore, actionName) {
     // the run walked every eligible pair and found nothing left to score.
     if (completedAll) return 'COMPLETE';
     if (quotaHit) return 'QUOTA';
+    if (serviceBusyHit) return 'BUSY';
     if (stoppedForTime) return 'TIME';
     return 'PROGRESS';
   } catch (error) {
@@ -1720,6 +1740,13 @@ function buildYdpPairScoreBatchMessage_(summary) {
 
     if (summary.quotaMessage) {
       lines.push(summary.quotaMessage);
+    }
+  } else if (summary.serviceBusyHit) {
+    lines.push('');
+    lines.push('Gemini was briefly overloaded (HTTP 503 high demand), so pair scoring paused safely. It retries automatically on the next scheduled run — no action needed.');
+
+    if (summary.serviceBusyMessage) {
+      lines.push(summary.serviceBusyMessage);
     }
   } else if (summary.stoppedForTime) {
     lines.push('');
