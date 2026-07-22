@@ -267,22 +267,29 @@ function previewYdpMentorCountdownEmail() {
 
   try {
     const daysToGo = getYdpDaysUntilReveal_();
-    const email = buildYdpMentorCountdownEmail_('Mentor', daysToGo);
 
+    // Greet with a real mentor's first name as a sample of the live personalization.
+    let sampleName = 'Mentor';
     let recipientNote;
     try {
-      recipientNote = getYdpCountdownMentorRecipients_().length + ' mentor(s) will receive this when you send to all.';
+      const recipients = getYdpCountdownMentorRecipients_();
+      recipientNote = recipients.length + ' mentor(s) will receive this when you send to all.';
+      if (recipients.length) {
+        sampleName = recipients[0].firstName;
+      }
     } catch (error) {
       recipientNote = 'Mentor list not readable yet: ' + String(error.message || error);
     }
+
+    const email = buildYdpMentorCountdownEmail_(sampleName, daysToGo);
 
     const html = [
       '<div style="font-family:Arial,sans-serif;padding:8px;">',
       '<p style="margin:0 0 4px 0;"><strong>Subject:</strong> ' + escapeYdpHtml_(email.subject) + '</p>',
       '<p style="margin:0 0 4px 0;"><strong>Attachments:</strong> ' + escapeYdpHtml_(YDP_MENTOR_COUNTDOWN.handbookLabel) + ' (PDF), ' + escapeYdpHtml_(YDP_MENTOR_COUNTDOWN.codeOfConductLabel) + ' (PDF)</p>',
-      '<p style="margin:0 0 12px 0;color:#555;"><em>Each mentor sees their own first name in the greeting. ' + escapeYdpHtml_(recipientNote) + '</em></p>',
+      '<p style="margin:0 0 12px 0;color:#555;"><em>Greeting shows "' + escapeYdpHtml_(sampleName) + '" as a sample; each mentor sees their own first name. ' + escapeYdpHtml_(recipientNote) + '</em></p>',
       '<hr>',
-      buildYdpMentorCountdownHtml_('Mentor', getYdpCountdownLabel_(daysToGo), 'data:image/png;base64,' + YDP_LOGO_BASE64),
+      buildYdpMentorCountdownHtml_(sampleName, getYdpCountdownLabel_(daysToGo), 'data:image/png;base64,' + YDP_LOGO_BASE64),
       '</div>'
     ].join('');
 
@@ -318,7 +325,21 @@ function sendYdpMentorCountdownTest() {
   try {
     const daysToGo = getYdpDaysUntilReveal_();
     const attachments = getYdpCountdownAttachments_();
-    const email = buildYdpMentorCountdownEmail_('Mentor', daysToGo);
+
+    // Greet with a real mentor's first name so the test shows the same
+    // personalization the live send uses. Falls back to a generic greeting only
+    // if the mentor list cannot be read.
+    let sampleName = 'Mentor';
+    try {
+      const recipients = getYdpCountdownMentorRecipients_();
+      if (recipients.length) {
+        sampleName = recipients[0].firstName;
+      }
+    } catch (sampleError) {
+      // Keep the generic greeting if the mentor list is not readable.
+    }
+
+    const email = buildYdpMentorCountdownEmail_(sampleName, daysToGo);
 
     MailApp.sendEmail({
       to: testRecipient,
@@ -330,7 +351,7 @@ function sendYdpMentorCountdownTest() {
       inlineImages: email.inlineImages
     });
 
-    ui.alert('Test countdown email sent to ' + testRecipient + '.\n\nCheck your inbox, including the two PDF attachments. No mentors were emailed.');
+    ui.alert('Test countdown email sent to ' + testRecipient + '.\n\nThe greeting used "' + sampleName + '" as a sample. The real send greets each mentor by their own first name from Mentor Source Snapshot.\n\nCheck your inbox, including the two PDF attachments. No mentors were emailed.');
   } catch (error) {
     ui.alert('Test countdown email failed:\n\n' + String(error.message || error));
   }

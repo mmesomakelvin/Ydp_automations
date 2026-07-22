@@ -1,3 +1,18 @@
+# YDP Mentorship Hub (Cohort 2)
+
+Web dashboard for the YDP (Young Data Professionals) Mentorship Program, Cohort 2.
+
+**Program documents (for mentors):**
+
+- 📘 [Mentor Onboarding & Expectations Handbook](https://drive.google.com/file/d/1OQ8AckA4ENYyBYy7oQhoZkMnO9p1kVoe/view)
+- 📜 [Code of Conduct](https://drive.google.com/file/d/1-k-lzS3-hI4wJgCypFIO-2kKfDGXgnyr/view)
+
+> Share both Drive files as "Anyone with the link" so mentors and mentees can open them.
+
+---
+
+<sub>Built on Design OS. The original tool README follows.</sub>
+
 <img width="1280" height="640" alt="Design OS" src="https://github.com/user-attachments/assets/a9c04258-7b9a-45b6-8475-3431cdf5dbe9" />
 
 ## The missing design process between your idea and your codebase.
