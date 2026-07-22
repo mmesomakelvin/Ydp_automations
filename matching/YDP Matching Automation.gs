@@ -68,8 +68,330 @@ function onOpen() {
     .addItem('Send match emails to selected pair', 'sendYdpMatchEmailsToSelectedPair')
     .addItem('Send match emails to all unsent matched pairs', 'sendYdpMatchEmailsToAllUnsentPairs')
     .addSeparator()
+    .addItem('Preview mentor countdown email', 'previewYdpMentorCountdownEmail')
+    .addItem('Send mentor countdown — TEST to me', 'sendYdpMentorCountdownTest')
+    .addItem('Send mentor countdown to ALL mentors', 'sendYdpMentorCountdownToAllMentors')
+    .addSeparator()
     .addItem('Test Gemini connection', 'testYdpGeminiConnection')
     .addToUi();
+}
+
+/* ===================================================================
+ * Mentor countdown emails (Cohort 2)
+ *
+ * A daily "we're almost there" email to mentors that counts down to the
+ * Saturday mentee reveal. Today's (Day 1) email notes matching is 89%
+ * done and shares the onboarding handbook + code of conduct, both linked
+ * in the body AND attached as PDFs. The "days to go" number and copy are
+ * driven by the current date, so pressing the button on Wed/Thu/Fri shows
+ * the correct countdown. Always run "Send mentor countdown — TEST to me"
+ * (goes only to you) before sending to all.
+ * =================================================================== */
+const YDP_MENTOR_COUNTDOWN = {
+  revealDate: '2026-07-25',        // Saturday — mentees revealed to mentors
+  timeZone: 'Africa/Lagos',
+  handbookFileId: '1OQ8AckA4ENYyBYy7oQhoZkMnO9p1kVoe',
+  codeOfConductFileId: '1-k-lzS3-hI4wJgCypFIO-2kKfDGXgnyr',
+  handbookUrl: 'https://drive.google.com/file/d/1OQ8AckA4ENYyBYy7oQhoZkMnO9p1kVoe/view',
+  codeOfConductUrl: 'https://drive.google.com/file/d/1-k-lzS3-hI4wJgCypFIO-2kKfDGXgnyr/view',
+  handbookLabel: 'Mentor Onboarding & Expectations Handbook',
+  codeOfConductLabel: 'Code of Conduct',
+  navy: '#14294d',
+  gold: '#c9a227'
+};
+
+function getYdpDaysUntilReveal_() {
+  const tz = YDP_MENTOR_COUNTDOWN.timeZone;
+  const todayStr = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
+  const today = new Date(todayStr + 'T00:00:00Z').getTime();
+  const reveal = new Date(YDP_MENTOR_COUNTDOWN.revealDate + 'T00:00:00Z').getTime();
+  return Math.round((reveal - today) / 86400000);
+}
+
+function getYdpCountdownLabel_(daysToGo) {
+  if (daysToGo <= 0) {
+    return 'MEET YOUR MENTEE TODAY';
+  }
+  if (daysToGo === 1) {
+    return '1 DAY TO GO';
+  }
+  return daysToGo + ' DAYS TO GO';
+}
+
+function getYdpCountdownMentorRecipients_() {
+  const mentorSheet = SpreadsheetApp.getActive().getSheetByName(YDP_MATCHING_CONFIG.sheets.mentorSnapshot);
+
+  if (!mentorSheet || mentorSheet.getLastRow() <= 1) {
+    throw new Error('No mentor rows found in "' + YDP_MATCHING_CONFIG.sheets.mentorSnapshot + '". Run "Sync source snapshots from forms" first.');
+  }
+
+  const seen = {};
+  const recipients = [];
+
+  getYdpMentorProfilesForPairScoring_(mentorSheet).forEach(function(mentor) {
+    const email = String(mentor.email || '').trim();
+
+    if (!isValidYdpEmail_(email)) {
+      return;
+    }
+
+    const key = email.toLowerCase();
+
+    if (seen[key]) {
+      return;
+    }
+
+    seen[key] = true;
+    recipients.push({ email: email, firstName: getYdpFirstName_(mentor.name) });
+  });
+
+  return recipients;
+}
+
+function getYdpCountdownAttachments_() {
+  return [YDP_MENTOR_COUNTDOWN.handbookFileId, YDP_MENTOR_COUNTDOWN.codeOfConductFileId].map(function(fileId) {
+    try {
+      return DriveApp.getFileById(fileId).getBlob();
+    } catch (error) {
+      throw new Error(
+        'Could not read Drive file ' + fileId + ' to attach it. Make sure the file exists, ' +
+        'you have access to it, and it is shared. ' + String(error.message || error)
+      );
+    }
+  });
+}
+
+function buildYdpMentorCountdownEmail_(firstName, daysToGo) {
+  const name = String(firstName || '').trim() || 'Mentor';
+  const label = getYdpCountdownLabel_(daysToGo);
+
+  const body = [
+    'Hi ' + name + ',',
+    '',
+    'Thank you for stepping forward to mentor in the YDP Mentorship Program - Cohort 2.',
+    '',
+    'First, a small note: you may have been expecting your match details around now. Our matching and the mentor dashboard are 89% complete - we are putting the final touches on the pairings so every mentor is matched with a mentee who genuinely fits. We would rather get this right than get it fast, and we are grateful for your patience.',
+    '',
+    'What happens next:',
+    'This Saturday you will receive your matched mentee(s), with their profile and contact details, right after the mentee onboarding session.',
+    '',
+    'While you wait, please review your onboarding materials (also attached to this email as PDFs):',
+    '- ' + YDP_MENTOR_COUNTDOWN.handbookLabel + ': ' + YDP_MENTOR_COUNTDOWN.handbookUrl,
+    '- ' + YDP_MENTOR_COUNTDOWN.codeOfConductLabel + ': ' + YDP_MENTOR_COUNTDOWN.codeOfConductUrl,
+    '',
+    'These cover what is expected of you, how the program runs, and the standards we all commit to. Please read them before Saturday.',
+    '',
+    'We will send a short note each day this week as we count down to your match reveal.',
+    '',
+    'Warm regards,',
+    YDP_MATCHING_CONFIG.senderName
+  ].join('\n');
+
+  return {
+    subject: 'Your YDP mentorship is almost ready - Mentor Handbook inside',
+    body: body,
+    htmlBody: buildYdpMentorCountdownHtml_(name, label)
+  };
+}
+
+function buildYdpMentorCountdownHtml_(name, countdownLabel) {
+  const navy = YDP_MENTOR_COUNTDOWN.navy;
+  const gold = YDP_MENTOR_COUNTDOWN.gold;
+  const safeName = escapeYdpHtml_(name);
+
+  return [
+    '<div style="display:none;max-height:0;overflow:hidden;opacity:0;">We are 89% done matching. Here is what to expect this week.</div>',
+    '<div style="margin:0;padding:0;background:#f4f4f6;">',
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f6;padding:24px 0;">',
+    '<tr><td align="center">',
+    '<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:10px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;">',
+
+    '<tr><td style="background:' + navy + ';padding:32px 32px 24px 32px;text-align:center;">',
+    '<div style="font-family:Georgia,\'Times New Roman\',serif;font-size:40px;font-weight:bold;color:' + gold + ';letter-spacing:2px;">YDP</div>',
+    '<div style="font-size:13px;letter-spacing:3px;color:#ffffff;margin-top:6px;">MENTORSHIP PROGRAM</div>',
+    '<div style="height:3px;width:64px;background:' + gold + ';margin:16px auto 0 auto;font-size:0;line-height:0;">&nbsp;</div>',
+    '</td></tr>',
+
+    '<tr><td style="padding:24px 32px 0 32px;text-align:center;">',
+    '<span style="display:inline-block;border:2px solid ' + gold + ';color:' + navy + ';font-size:13px;font-weight:bold;letter-spacing:1.5px;padding:8px 18px;border-radius:999px;">' + escapeYdpHtml_(countdownLabel) + '</span>',
+    '<div style="font-size:15px;color:#555555;margin-top:10px;">Meet your mentee this <strong>Saturday</strong></div>',
+    '</td></tr>',
+
+    '<tr><td style="padding:24px 32px 8px 32px;color:#222222;font-size:15px;line-height:1.6;">',
+    '<p style="margin:0 0 16px 0;">Hi ' + safeName + ',</p>',
+    '<p style="margin:0 0 16px 0;">Thank you for stepping forward to mentor in the <strong>YDP Mentorship Program &ndash; Cohort 2</strong>.</p>',
+    '<p style="margin:0 0 16px 0;">First, a small note: you may have been expecting your match details around now. Our matching and the mentor dashboard are <strong>89% complete</strong> &mdash; we are putting the final touches on the pairings so every mentor is matched with a mentee who genuinely fits. We would rather get this right than get it fast, and we are grateful for your patience.</p>',
+    '<p style="margin:0 0 6px 0;"><strong>What happens next</strong></p>',
+    '<p style="margin:0 0 16px 0;">&#128197; <strong>This Saturday</strong> &mdash; you will receive your matched mentee(s), with their profile and contact details, right after the mentee onboarding session.</p>',
+    '<p style="margin:0 0 16px 0;">While you wait, please review your onboarding materials. They are attached to this email as PDFs, and you can also open them here:</p>',
+    '</td></tr>',
+
+    '<tr><td style="padding:0 32px 8px 32px;" align="center">',
+    ydpCountdownButton_('&#128214;&nbsp; ' + escapeYdpHtml_(YDP_MENTOR_COUNTDOWN.handbookLabel), YDP_MENTOR_COUNTDOWN.handbookUrl, navy),
+    ydpCountdownButton_('&#128220;&nbsp; ' + escapeYdpHtml_(YDP_MENTOR_COUNTDOWN.codeOfConductLabel), YDP_MENTOR_COUNTDOWN.codeOfConductUrl, navy),
+    '</td></tr>',
+
+    '<tr><td style="padding:8px 32px 24px 32px;color:#222222;font-size:15px;line-height:1.6;">',
+    '<p style="margin:0 0 16px 0;">These cover what is expected of you, how the program runs, and the standards we all commit to. Please read them before Saturday.</p>',
+    '<p style="margin:0 0 16px 0;">We will send a short note each day this week as we count down to your match reveal.</p>',
+    '<p style="margin:0;">Warm regards,<br><strong>' + escapeYdpHtml_(YDP_MATCHING_CONFIG.senderName) + '</strong></p>',
+    '</td></tr>',
+
+    '<tr><td style="background:#f4f4f6;padding:18px 32px;text-align:center;color:#888888;font-size:12px;line-height:1.5;">',
+    'YDP Mentorship Program &bull; Cohort 2<br>You are receiving this because you volunteered as a mentor.',
+    '</td></tr>',
+
+    '</table>',
+    '</td></tr>',
+    '</table>',
+    '</div>'
+  ].join('');
+}
+
+function ydpCountdownButton_(label, url, bg) {
+  return '<a href="' + escapeYdpHtml_(url) + '" style="display:inline-block;background:' + bg + ';color:#ffffff;text-decoration:none;font-size:14px;font-weight:bold;padding:12px 22px;border-radius:6px;margin:6px 4px;">' + label + '</a>';
+}
+
+function previewYdpMentorCountdownEmail() {
+  const ui = SpreadsheetApp.getUi();
+
+  try {
+    const daysToGo = getYdpDaysUntilReveal_();
+    const email = buildYdpMentorCountdownEmail_('Mentor', daysToGo);
+
+    let recipientNote;
+    try {
+      recipientNote = getYdpCountdownMentorRecipients_().length + ' mentor(s) will receive this when you send to all.';
+    } catch (error) {
+      recipientNote = 'Mentor list not readable yet: ' + String(error.message || error);
+    }
+
+    const html = [
+      '<div style="font-family:Arial,sans-serif;padding:8px;">',
+      '<p style="margin:0 0 4px 0;"><strong>Subject:</strong> ' + escapeYdpHtml_(email.subject) + '</p>',
+      '<p style="margin:0 0 4px 0;"><strong>Attachments:</strong> ' + escapeYdpHtml_(YDP_MENTOR_COUNTDOWN.handbookLabel) + ' (PDF), ' + escapeYdpHtml_(YDP_MENTOR_COUNTDOWN.codeOfConductLabel) + ' (PDF)</p>',
+      '<p style="margin:0 0 12px 0;color:#555;"><em>Each mentor sees their own first name in the greeting. ' + escapeYdpHtml_(recipientNote) + '</em></p>',
+      '<hr>',
+      email.htmlBody,
+      '</div>'
+    ].join('');
+
+    ui.showModalDialog(
+      HtmlService.createHtmlOutput(html).setWidth(680).setHeight(720),
+      'Mentor Countdown Email Preview'
+    );
+  } catch (error) {
+    ui.alert('Could not build the countdown preview:\n\n' + String(error.message || error));
+  }
+}
+
+function sendYdpMentorCountdownTest() {
+  const ui = SpreadsheetApp.getUi();
+  const testRecipient = String(Session.getActiveUser().getEmail() || '').trim();
+
+  if (!isValidYdpEmail_(testRecipient)) {
+    ui.alert('Could not detect your email address for the test send. Open the sheet while signed in, then try again.');
+    return;
+  }
+
+  const confirmation = ui.alert(
+    'Send Test Countdown Email',
+    'Send a test copy (with the PDF attachments) to yourself at ' + testRecipient + '?\n\n' +
+    'No mentors will receive anything. You may be asked to authorize Drive access the first time.',
+    ui.ButtonSet.OK_CANCEL
+  );
+
+  if (confirmation !== ui.Button.OK) {
+    return;
+  }
+
+  try {
+    const daysToGo = getYdpDaysUntilReveal_();
+    const attachments = getYdpCountdownAttachments_();
+    const email = buildYdpMentorCountdownEmail_('Mentor', daysToGo);
+
+    MailApp.sendEmail({
+      to: testRecipient,
+      subject: '[TEST] ' + email.subject,
+      body: email.body,
+      htmlBody: email.htmlBody,
+      name: YDP_MATCHING_CONFIG.senderName,
+      attachments: attachments
+    });
+
+    ui.alert('Test countdown email sent to ' + testRecipient + '.\n\nCheck your inbox, including the two PDF attachments. No mentors were emailed.');
+  } catch (error) {
+    ui.alert('Test countdown email failed:\n\n' + String(error.message || error));
+  }
+}
+
+function sendYdpMentorCountdownToAllMentors() {
+  const ui = SpreadsheetApp.getUi();
+
+  let recipients;
+  try {
+    recipients = getYdpCountdownMentorRecipients_();
+  } catch (error) {
+    ui.alert('Could not read the mentor list:\n\n' + String(error.message || error));
+    return;
+  }
+
+  if (recipients.length === 0) {
+    ui.alert('No mentors with valid email addresses were found. Nothing was sent.');
+    return;
+  }
+
+  const remainingQuota = MailApp.getRemainingDailyQuota();
+
+  if (remainingQuota < recipients.length) {
+    ui.alert('Gmail can only send ' + remainingQuota + ' more emails today, but there are ' + recipients.length + ' mentors. Nothing was sent. Try again after the daily quota resets.');
+    return;
+  }
+
+  const confirmation = ui.alert(
+    'Send Countdown Email To All Mentors',
+    'Send today\'s countdown email (with the PDF attachments) to ' + recipients.length + ' mentors now?\n\n' +
+    'This sends the real email to every mentor. Send a test to yourself first if you have not.',
+    ui.ButtonSet.OK_CANCEL
+  );
+
+  if (confirmation !== ui.Button.OK) {
+    return;
+  }
+
+  let attachments;
+  try {
+    attachments = getYdpCountdownAttachments_();
+  } catch (error) {
+    ui.alert('Could not load the PDF attachments, so nothing was sent:\n\n' + String(error.message || error));
+    return;
+  }
+
+  const daysToGo = getYdpDaysUntilReveal_();
+  let sentCount = 0;
+  const failures = [];
+
+  recipients.forEach(function(recipient) {
+    try {
+      const email = buildYdpMentorCountdownEmail_(recipient.firstName, daysToGo);
+      MailApp.sendEmail({
+        to: recipient.email,
+        subject: email.subject,
+        body: email.body,
+        htmlBody: email.htmlBody,
+        name: YDP_MATCHING_CONFIG.senderName,
+        attachments: attachments
+      });
+      sentCount++;
+    } catch (error) {
+      failures.push(recipient.email + ' (' + String(error.message || error) + ')');
+    }
+  });
+
+  const summary = 'Countdown email sent to ' + sentCount + ' of ' + recipients.length + ' mentors.' +
+    (failures.length ? '\n\nFailed:\n' + failures.join('\n') : '');
+  logYdpMatchingRun_('MENTOR_COUNTDOWN_SEND', failures.length ? 'PARTIAL_SUCCESS' : 'SUCCESS', summary);
+  ui.alert(summary);
 }
 
 function setupYdpMatchingWorkbook() {
