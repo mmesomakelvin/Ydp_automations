@@ -790,9 +790,16 @@ function syncYdpMatchingSourceSnapshots() {
 }
 
 function createYdpMatchingDataDictionary() {
-  const sheet = getOrCreateYdpSheet_(SpreadsheetApp.getActive(), 'Data Dictionary');
-  writeYdpMatchingDataDictionary_(sheet, getYdpMatchingDataDictionaryRows_());
-  SpreadsheetApp.getUi().alert('Matching data dictionary created/updated in the "Data Dictionary" tab.');
+  const spreadsheet = SpreadsheetApp.getActive();
+  writeYdpMatchingDataDictionary_(
+    getOrCreateYdpSheet_(spreadsheet, 'Data Dictionary'),
+    getYdpMatchingDataDictionaryRows_()
+  );
+  writeYdpMatchingButtonGuide_(
+    getOrCreateYdpSheet_(spreadsheet, 'Button Guide'),
+    getYdpButtonGuideRows_()
+  );
+  SpreadsheetApp.getUi().alert('Refreshed the "Data Dictionary" and "Button Guide" tabs.');
 }
 
 function getYdpMatchingDataDictionaryRows_() {
@@ -889,6 +896,61 @@ function writeYdpMatchingDataDictionary_(sheet, rows) {
   sheet.setFrozenRows(1);
   sheet.getRange(1, 1, 1, rows[0].length).setFontWeight('bold');
   sheet.autoResizeColumns(1, rows[0].length);
+}
+
+function getYdpButtonGuideRows_() {
+  const menu = YDP_MATCHING_CONFIG.menuName;
+  return [
+    ['Safety Level', 'Menu Name', 'Button Name', 'What It Does', 'When To Run', 'Before Running', 'What It Changes', 'Recommended Frequency'],
+    ['SAFE', menu, 'Setup matching workbook', 'Creates missing tabs and headers, rewrites the four known Source Config rows, and normalizes blank or old Pending Review statuses from saved final scores.', 'During initial setup or when a required tab/header is missing.', 'Confirm this is the YDP Matching Automation workbook and that Source Config contains only the supported settings.', 'Repairs structure, rewrites standard Source Config rows while preserving their current known values, and may normalize old review-status wording; it does not send emails.', 'Once, then only for repair'],
+    ['CAUTION', menu, 'Sync source snapshots from forms', 'Runs workbook setup, then replaces mentor and mentee snapshot tabs from the live form workbooks.', 'After new form responses arrive and before new scoring.', 'Confirm Source Config IDs and response tab settings; do not store unsupported custom settings there.', 'Rewrites standard Source Config rows, may normalize old review statuses, and replaces both snapshots; completed score rows remain. Note: this also clears any tracking columns added to the snapshots.', 'After new applications'],
+    ['SAFE', menu, 'Create data dictionary', 'Refreshes the Data Dictionary and Button Guide tabs.', 'When documentation is missing or automation changes.', 'No preparation is required.', 'Rebuilds documentation tabs only.', 'After each automation update'],
+    ['CAUTION', menu, 'Generate next mentee score', 'Uses Gemini to score the next one unscored mentee.', 'For a controlled scoring test or a single retry.', 'Sync sources and confirm Gemini connection.', 'Adds or retries one Mentee Scores row; skips completed scores.', 'As needed'],
+    ['CAUTION', menu, 'Generate mentee scores batch', 'Uses Gemini to score a small batch of unscored mentees.', 'After the one-row test works.', 'Sync sources and confirm Gemini connection and quota.', 'Adds or retries the next batch; reruns continue from remaining rows and may pause when Gemini quota or service limits are reached.', 'Repeat until complete'],
+    ['CAUTION', menu, 'Generate next pair score', 'Compares one eligible mentee with one mentor using Gemini.', 'For a controlled pair-scoring test or retry.', 'Finish mentee scoring and confirm mentor snapshot data.', 'Adds or retries one Pair Scores row.', 'As needed'],
+    ['CAUTION', menu, 'Generate pair scores batch', 'Scores a small batch of unscored mentee and mentor comparisons.', 'After the one-pair test works.', 'Ensure Can Pair mentees and mentors have IDs; confirm Gemini quota.', 'Adds or retries pair rows; reruns continue until every eligible mentee has every mentor scored and may pause when Gemini quota or service limits are reached.', 'Repeat until complete'],
+    ['CAUTION', menu, 'Turn ON automatic pair scoring', 'Installs a time-based trigger that scores pair batches automatically every few minutes until every eligible pair is scored.', 'After a manual pair-scoring test works and you want scoring to finish unattended.', 'Confirm Gemini keys and quota, and that Can Pair mentees and mentors have IDs.', 'Creates one scheduled trigger; it adds Pair Scores rows over time and switches itself off when scoring is complete or blocked.', 'Once per scoring round'],
+    ['SAFE', menu, 'Turn OFF automatic pair scoring', 'Removes the automatic pair-scoring trigger.', 'To stop unattended pair scoring.', 'No preparation is required.', 'Deletes the pair-scoring trigger; no data is changed.', 'As needed'],
+    ['LIVE ACTION', menu, 'Auto-match from pair scores', 'Selects the highest-scoring available mentor for each fully scored eligible mentee.', 'Only after all available mentors are scored for each mentee and before live match emails are sent.', 'Export or back up existing Match Recommendations and Matched Pairs, confirm no statuses, dates, notes, or email history must be preserved, review Pair Scores, and verify capacity data.', 'Clears and rebuilds Match Recommendations and Matched Pairs, including operational and email-tracking fields; fills stated capacity first, then permits at most +2 overflow.', 'Once per approved matching round'],
+    ['SAFE', menu, 'Preview selected selection email', 'Shows the personalized selection email for one Can Pair mentee.', 'Before test or live selection sends.', 'Select a row in Mentee Scores with Can Pair status.', 'Opens a preview only; no email or tracking changes.', 'Before every selection campaign'],
+    ['SAFE', menu, 'Send test selection email', 'Sends the selected mentee template to an internal test address.', 'After preview and before live selection sends.', 'Select a Can Pair mentee and use an internal email address.', 'Sends one test email; participant tracking is not updated.', 'Before every selection campaign'],
+    ['LIVE ACTION', menu, 'Send selection email to selected mentee', 'Sends the live program-selection email to one selected eligible mentee.', 'For the controlled first live send or a one-off recipient.', 'Preview, test, and select the intended Can Pair row.', 'Sends one live email and updates selection-email tracking.', 'As needed'],
+    ['LIVE ACTION', menu, 'Send selection emails to all eligible unsent mentees', 'Sends selection emails only to Can Pair mentees not already marked SENT.', 'After the selected-row live send is verified.', 'Preview, test, verify Can Pair statuses, and obtain approval.', 'Sends multiple live emails and updates selection-email tracking.', 'Once per selection campaign'],
+    ['SAFE', menu, 'Create Can Pair mentees sheet', 'Builds the Can Pair Mentees tab listing every Can Pair mentee with ID, name, email, and final score, sorted high to low.', 'Whenever you want a fresh roster of eligible mentees.', 'Score mentees first so Gemini Review Status is set.', 'Clears and rebuilds the Can Pair Mentees tab only; no emails.', 'As needed'],
+    ['SAFE', menu, 'Preview mentee onboarding invite', 'Shows the mentee onboarding invite email (Saturday session and Google Meet link) without sending it.', 'Before any onboarding invite send.', 'No preparation is required.', 'Opens a preview only; no email or tracking changes.', 'Before every onboarding send'],
+    ['SAFE', menu, 'Send onboarding invite — TEST to me', 'Sends the onboarding invite to your own email only.', 'After preview and before the live send.', 'No preparation is required.', 'Sends one test email; mentee tracking is not updated.', 'Before every onboarding send'],
+    ['LIVE ACTION', menu, 'Send onboarding invite to Can Pair mentees', 'Sends the onboarding invite to every Can Pair mentee not already marked SENT.', 'After preview and a test send.', 'Preview, test, and confirm the session details and Meet link.', 'Sends live emails and updates Onboarding Invite Email tracking on Mentee Scores.', 'Once per cohort'],
+    ['SAFE', menu, 'Preview selected match emails', 'Shows both mentor and mentee emails for one final matched pair.', 'Before any live match notification.', 'Select a complete row in Matched Pairs.', 'Opens previews only; no email or tracking changes.', 'Before every match campaign'],
+    ['LIVE ACTION', menu, 'Send match emails to selected pair', 'Sends live match notifications for one selected final pair.', 'For the controlled first match send or a one-off pair.', 'Preview both emails and confirm names, emails, and assignment.', 'Sends up to two live emails and updates separate mentor/mentee tracking.', 'As needed'],
+    ['LIVE ACTION', menu, 'Send match emails to all unsent matched pairs', 'Sends remaining mentor and mentee notifications for final matched pairs.', 'After the selected-pair send is verified.', 'Review Matched Pairs, preview, test, and obtain approval.', 'Sends multiple live emails and updates match-email tracking.', 'Once per matching round'],
+    ['SAFE', menu, 'Preview mentor countdown email', 'Shows the day-appropriate mentor countdown email without sending it.', 'Before any live countdown send.', 'No preparation is required.', 'Opens a preview only; no email or tracking changes.', 'Before every countdown send'],
+    ['SAFE', menu, 'Send mentor countdown — TEST to me', 'Sends the mentor countdown email to your own email only.', 'After preview and before the live send.', 'No preparation is required.', 'Sends one test email; mentor tracking is not updated.', 'Before every countdown send'],
+    ['LIVE ACTION', menu, 'Send mentor countdown to ALL mentors', 'Sends the day-appropriate countdown email to every mentor not already marked SENT for that email.', 'To send the day\'s countdown email by hand.', 'Preview and test first, and confirm the day\'s content.', 'Sends live emails and updates the day\'s countdown tracking on Mentor Source Snapshot.', 'Once per countdown day'],
+    ['LIVE ACTION', menu, 'Turn ON scheduled countdown (Fri & Sat, 1 PM)', 'Schedules the Friday and Saturday countdown emails to send automatically at about 1 PM Lagos time.', 'Once you are happy with the Friday and Saturday emails.', 'Preview and test the reminder and reveal-day emails, and confirm the mentor list.', 'Creates one scheduled trigger that sends live emails on Friday and Saturday, skips Thursday, and self-retires after Saturday.', 'Once per cohort'],
+    ['SAFE', menu, 'Turn OFF scheduled countdown', 'Removes the scheduled countdown trigger.', 'To stop the automatic Friday and Saturday countdown sends.', 'No preparation is required.', 'Deletes the countdown trigger; no data is changed.', 'As needed'],
+    ['SAFE', menu, 'Test Gemini connection', 'Checks the configured Gemini model and available API keys.', 'After changing a key/model or when scoring fails.', 'Confirm Script Properties contain the approved Gemini keys.', 'Makes one Gemini test request and writes a Run Log entry.', 'When configuration changes or troubleshooting']
+  ];
+}
+
+function writeYdpMatchingButtonGuide_(sheet, rows) {
+  sheet.clear();
+  sheet.getRange(1, 1, rows.length, rows[0].length).setValues(rows);
+  sheet.setFrozenRows(1);
+  sheet.getRange(1, 1, 1, rows[0].length).setFontWeight('bold');
+  sheet.getRange(1, 1, rows.length, rows[0].length).setVerticalAlignment('top').setWrap(true);
+
+  const levelColors = { 'SAFE': '#d9ead3', 'CAUTION': '#fff2cc', 'LIVE ACTION': '#f4cccc' };
+  for (let r = 1; r < rows.length; r++) {
+    const color = levelColors[String(rows[r][0] || '').trim().toUpperCase()];
+    if (color) {
+      sheet.getRange(r + 1, 1, 1, rows[0].length).setBackground(color);
+    }
+  }
+
+  const widths = [100, 110, 235, 320, 250, 300, 320, 160];
+  widths.forEach(function(width, index) {
+    sheet.setColumnWidth(index + 1, width);
+  });
 }
 
 function testYdpGeminiConnection() {
