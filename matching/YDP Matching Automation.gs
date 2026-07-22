@@ -64,6 +64,11 @@ function onOpen() {
     .addItem('Send selection email to selected mentee', 'sendYdpMenteeSelectionEmailToSelectedRow')
     .addItem('Send selection emails to all eligible unsent mentees', 'sendYdpMenteeSelectionEmailsToAllEligibleUnsent')
     .addSeparator()
+    .addItem('Create Can Pair mentees sheet', 'buildYdpCanPairMenteesSheet')
+    .addItem('Preview mentee onboarding invite', 'previewYdpMenteeOnboardingInvite')
+    .addItem('Send onboarding invite — TEST to me', 'sendYdpMenteeOnboardingInviteTest')
+    .addItem('Send onboarding invite to Can Pair mentees', 'sendYdpMenteeOnboardingInvitesToAll')
+    .addSeparator()
     .addItem('Preview selected match emails', 'previewSelectedYdpMatchEmails')
     .addItem('Send match emails to selected pair', 'sendYdpMatchEmailsToSelectedPair')
     .addItem('Send match emails to all unsent matched pairs', 'sendYdpMatchEmailsToAllUnsentPairs')
@@ -856,7 +861,25 @@ function getYdpMatchingDataDictionaryRows_() {
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Preview selected match emails', 'Shows the mentee and mentor match emails for one selected row.', 'Use before sending match emails.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Send match emails to selected pair', 'Sends match emails for one selected final pair if not already sent.', 'Use for controlled testing or one-off sends.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Send match emails to all unsent matched pairs', 'Sends match emails for every final pair that has not already been notified.', 'Use only after selected-row testing works.'],
-    ['Button', YDP_MATCHING_CONFIG.menuName, 'Test Gemini connection', 'Checks that the Gemini API key works.', 'Run after changing the API key or model.']
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Test Gemini connection', 'Checks that the Gemini API key works.', 'Run after changing the API key or model.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.mentorSnapshot, 'Countdown Intro Email Status', 'Whether the intro mentor countdown email (89% note plus onboarding PDFs) was sent to this mentor.', 'SENT prevents duplicates; ERROR means the send failed.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.mentorSnapshot, 'Countdown Intro Email Sent At', 'When the intro countdown email was sent to this mentor.', 'Audit trail.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.mentorSnapshot, 'Countdown Reminder Email Status', 'Whether the Friday reminder countdown email was sent to this mentor.', 'SENT prevents duplicates.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.mentorSnapshot, 'Countdown Reminder Email Sent At', 'When the reminder countdown email was sent to this mentor.', 'Audit trail.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.mentorSnapshot, 'Countdown Reveal Email Status', 'Whether the Saturday reveal-day countdown email was sent to this mentor.', 'SENT prevents duplicates.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.mentorSnapshot, 'Countdown Reveal Email Sent At', 'When the reveal-day countdown email was sent to this mentor.', 'Audit trail.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.menteeScores, 'Onboarding Invite Email Status', 'Whether the mentee onboarding invite (Saturday session plus Meet link) was sent to this mentee.', 'SENT prevents duplicates; ERROR means the send failed.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.menteeScores, 'Onboarding Invite Email Sent At', 'When the onboarding invite was sent to this mentee.', 'Audit trail.'],
+    ['Sheet', YDP_CAN_PAIR_MENTEES_SHEET, 'Mentee ID / Mentee Name / Mentee Email / Final Score', 'A generated roster of every Can Pair mentee with their final score, sorted high to low.', 'Rebuilt each time you run "Create Can Pair mentees sheet".'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Create Can Pair mentees sheet', 'Builds the "' + YDP_CAN_PAIR_MENTEES_SHEET + '" tab listing every Can Pair mentee (ID, name, email, final score).', 'Run whenever you want a fresh Can Pair roster.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Preview mentee onboarding invite', 'Shows the mentee onboarding invite email without sending it.', 'Use before any live onboarding invite.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Send onboarding invite — TEST to me', 'Sends the onboarding invite to your own email only, with no mentee status changes.', 'Use to inspect the real inbox version safely.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Send onboarding invite to Can Pair mentees', 'Sends the onboarding invite to every Can Pair mentee whose Onboarding Invite Email Status is not SENT.', 'Use after preview and a test send.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Preview mentor countdown email', 'Shows the day-appropriate mentor countdown email without sending it.', 'Use before any live countdown send.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Send mentor countdown — TEST to me', 'Sends the mentor countdown email to your own email only.', 'Use to inspect the real inbox version safely.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Send mentor countdown to ALL mentors', 'Sends the day-appropriate countdown email to every mentor not already marked SENT for that email.', 'Send today\'s email by hand; safe to re-run.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Turn ON scheduled countdown (Fri & Sat, 1 PM)', 'Schedules the Friday and Saturday countdown emails to auto-send at about 1 PM Lagos time.', 'Turn on once the emails look right; it self-retires after Saturday.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Turn OFF scheduled countdown', 'Removes the scheduled countdown trigger.', 'Use to stop automatic countdown sends.']
   ];
 }
 
@@ -882,6 +905,433 @@ function testYdpGeminiConnection() {
     logYdpMatchingRun_('TEST_GEMINI', 'ERROR', error.message);
     SpreadsheetApp.getUi().alert('Gemini connection failed:\n\n' + error.message);
   }
+}
+
+/* ===================================================================
+ * Can Pair mentee roster + mentee onboarding invite (Cohort 2)
+ * =================================================================== */
+const YDP_CAN_PAIR_MENTEES_SHEET = 'Can Pair Mentees';
+
+const YDP_MENTEE_ONBOARDING = {
+  sessionTitle: 'YDP Mentee Onboarding - Cohort 2',
+  sessionDateLabel: 'Saturday, July 25',
+  sessionTimeLabel: '4:00 PM to 5:00 PM',
+  timeZoneLabel: 'Africa/Lagos',
+  meetLink: 'https://meet.google.com/wcz-insq-rrm'
+};
+
+const YDP_ONBOARDING_INVITE_TRACKING = {
+  statusHeader: 'Onboarding Invite Email Status',
+  sentAtHeader: 'Onboarding Invite Email Sent At'
+};
+
+// Reads Can Pair rows from Mentee Scores into { rowNumber, id, name, email, firstName, finalScore }.
+function getYdpCanPairMentees_() {
+  const scoreSheet = getYdpMenteeScoresSheet_();
+
+  if (scoreSheet.getLastRow() <= 1) {
+    throw new Error('No mentee scores found. Score mentees before using this.');
+  }
+
+  const headerMap = getYdpMatchingHeaderMap_(scoreSheet);
+  const values = scoreSheet.getRange(2, 1, scoreSheet.getLastRow() - 1, scoreSheet.getLastColumn()).getValues();
+  const mentees = [];
+
+  values.forEach(function(row, index) {
+    const status = String(getYdpRowValueByHeader_(row, headerMap, 'Gemini Review Status') || '').trim();
+
+    if (status !== 'Can Pair') {
+      return;
+    }
+
+    const name = String(getYdpRowValueByHeader_(row, headerMap, 'Mentee Name') || '').trim();
+    mentees.push({
+      rowNumber: index + 2,
+      id: String(getYdpRowValueByHeader_(row, headerMap, 'Mentee ID') || '').trim(),
+      name: name,
+      email: String(getYdpRowValueByHeader_(row, headerMap, 'Mentee Email') || '').trim(),
+      firstName: getYdpFirstName_(name),
+      finalScore: Number(getYdpRowValueByHeader_(row, headerMap, 'Final Score')) || 0
+    });
+  });
+
+  return mentees;
+}
+
+function buildYdpCanPairMenteesSheet() {
+  const ui = SpreadsheetApp.getUi();
+
+  try {
+    const mentees = getYdpCanPairMentees_();
+    const headers = ['Mentee ID', 'Mentee Name', 'Mentee Email', 'Final Score'];
+    const rows = mentees
+      .slice()
+      .sort(function(a, b) { return b.finalScore - a.finalScore; })
+      .map(function(mentee) {
+        return [mentee.id, mentee.name, mentee.email, mentee.finalScore];
+      });
+
+    const sheet = getOrCreateYdpSheet_(SpreadsheetApp.getActive(), YDP_CAN_PAIR_MENTEES_SHEET);
+    sheet.clearContents();
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold');
+
+    if (rows.length) {
+      sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
+    }
+
+    sheet.setFrozenRows(1);
+    sheet.autoResizeColumns(1, headers.length);
+
+    logYdpMatchingRun_('BUILD_CAN_PAIR_MENTEES', 'SUCCESS', 'Wrote ' + rows.length + ' Can Pair mentees to "' + YDP_CAN_PAIR_MENTEES_SHEET + '".');
+    ui.alert('Created/updated "' + YDP_CAN_PAIR_MENTEES_SHEET + '" with ' + rows.length + ' Can Pair mentees (sorted by Final Score).');
+  } catch (error) {
+    ui.alert('Could not build the Can Pair mentees sheet:\n\n' + String(error.message || error));
+  }
+}
+
+function getYdpOnboardingInviteRecipients_() {
+  const seen = {};
+  const recipients = [];
+
+  getYdpCanPairMentees_().forEach(function(mentee) {
+    if (!isValidYdpEmail_(mentee.email)) {
+      return;
+    }
+
+    const key = mentee.email.toLowerCase();
+
+    if (seen[key]) {
+      return;
+    }
+
+    seen[key] = true;
+    recipients.push({ rowNumber: mentee.rowNumber, email: mentee.email, firstName: mentee.firstName });
+  });
+
+  return recipients;
+}
+
+function ensureYdpOnboardingInviteColumns_(scoreSheet) {
+  const width = Math.max(scoreSheet.getLastColumn(), 1);
+  const headers = scoreSheet.getRange(1, 1, 1, width).getValues()[0].map(function(header) {
+    return String(header || '').trim();
+  });
+
+  const missing = [YDP_ONBOARDING_INVITE_TRACKING.statusHeader, YDP_ONBOARDING_INVITE_TRACKING.sentAtHeader].filter(function(header) {
+    return headers.indexOf(header) === -1;
+  });
+
+  if (missing.length) {
+    scoreSheet.getRange(1, scoreSheet.getLastColumn() + 1, 1, missing.length).setValues([missing]);
+    scoreSheet.setFrozenRows(1);
+  }
+
+  const finalHeaders = scoreSheet.getRange(1, 1, 1, scoreSheet.getLastColumn()).getValues()[0];
+  const map = {};
+  finalHeaders.forEach(function(header, index) {
+    const name = String(header || '').trim();
+    if (name) {
+      map[name] = index + 1;
+    }
+  });
+  return map;
+}
+
+function buildYdpMenteeOnboardingInviteEmail_(firstName) {
+  const name = String(firstName || '').trim() || 'there';
+  const onboarding = YDP_MENTEE_ONBOARDING;
+
+  const body = [
+    'Hi ' + name + ',',
+    '',
+    'First, our apologies for getting back to you just now. The mentor and mentee matching is 89% done, and we are finalizing it.',
+    '',
+    'You are invited to the ' + onboarding.sessionTitle + '.',
+    '',
+    'Date: ' + onboarding.sessionDateLabel,
+    'Time: ' + onboarding.sessionTimeLabel + ' (' + onboarding.timeZoneLabel + ')',
+    'Google Meet link: ' + onboarding.meetLink,
+    '',
+    'This is where the program officially begins, so please do your best to attend. You will get your next steps, and your mentor match will follow shortly after.',
+    '',
+    'See you on Saturday.',
+    '',
+    'Warm regards,',
+    YDP_MATCHING_CONFIG.senderName
+  ].join('\n');
+
+  return {
+    subject: 'You are invited: YDP Mentee Onboarding this Saturday',
+    body: body,
+    htmlBody: buildYdpMenteeOnboardingInviteHtml_(name, 'cid:ydpLogo'),
+    inlineImages: { ydpLogo: getYdpLogoBlob_() }
+  };
+}
+
+function buildYdpMenteeOnboardingInviteHtml_(name, logoSrc) {
+  const navy = YDP_MENTOR_COUNTDOWN.navy;
+  const gold = YDP_MENTOR_COUNTDOWN.gold;
+  const onboarding = YDP_MENTEE_ONBOARDING;
+  const safeName = escapeYdpHtml_(name);
+  const sender = escapeYdpHtml_(YDP_MATCHING_CONFIG.senderName);
+  const src = logoSrc || 'cid:ydpLogo';
+
+  return [
+    '<div style="display:none;max-height:0;overflow:hidden;opacity:0;">Your YDP mentee onboarding is this Saturday.</div>',
+    '<div style="margin:0;padding:0;background:#f4f4f6;">',
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f6;padding:24px 0;">',
+    '<tr><td align="center">',
+    '<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:10px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;">',
+
+    '<tr><td style="background:#ffffff;border-top:5px solid ' + navy + ';padding:26px 32px 18px 32px;text-align:center;">',
+    '<img src="' + src + '" alt="Young Data Professionals" width="300" style="display:block;margin:0 auto;width:300px;max-width:72%;height:auto;">',
+    '<div style="font-size:13px;letter-spacing:3px;color:' + navy + ';margin-top:14px;">MENTORSHIP PROGRAM</div>',
+    '<div style="height:3px;width:64px;background:' + gold + ';margin:14px auto 0 auto;font-size:0;line-height:0;">&nbsp;</div>',
+    '</td></tr>',
+
+    '<tr><td style="padding:24px 32px 0 32px;text-align:center;">',
+    '<span style="display:inline-block;border:2px solid ' + gold + ';color:' + navy + ';font-size:13px;font-weight:bold;letter-spacing:1.5px;padding:8px 18px;border-radius:999px;">YOU ARE INVITED</span>',
+    '<div style="font-size:15px;color:#555555;margin-top:10px;">Mentee onboarding this <strong>Saturday</strong></div>',
+    '</td></tr>',
+
+    '<tr><td style="padding:24px 32px 8px 32px;color:#222222;font-size:15px;line-height:1.6;">',
+    '<p style="margin:0 0 16px 0;">Hi ' + safeName + ',</p>',
+    '<p style="margin:0 0 16px 0;">First, our apologies for getting back to you just now. The mentor and mentee matching is <strong>89% done</strong>, and we are finalizing it.</p>',
+    '<p style="margin:0 0 16px 0;">You are invited to the <strong>' + escapeYdpHtml_(onboarding.sessionTitle) + '</strong>.</p>',
+    '</td></tr>',
+
+    '<tr><td style="padding:0 32px 8px 32px;">',
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6fb;border:1px solid #e2e6ef;border-radius:8px;">',
+    '<tr><td style="padding:18px 20px;color:#222222;font-size:15px;line-height:1.7;">',
+    '<div style="color:#666666;font-size:12px;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">Session details</div>',
+    '<div><strong>Date:</strong> ' + escapeYdpHtml_(onboarding.sessionDateLabel) + '</div>',
+    '<div><strong>Time:</strong> ' + escapeYdpHtml_(onboarding.sessionTimeLabel) + ' (' + escapeYdpHtml_(onboarding.timeZoneLabel) + ')</div>',
+    '<div style="margin-top:8px;"><strong>Google Meet:</strong> <a href="' + escapeYdpHtml_(onboarding.meetLink) + '" style="color:' + navy + ';">' + escapeYdpHtml_(onboarding.meetLink) + '</a></div>',
+    '</td></tr>',
+    '</table>',
+    '</td></tr>',
+
+    '<tr><td style="padding:14px 32px 8px 32px;" align="center">',
+    ydpCountdownButton_('Join the Google Meet', onboarding.meetLink, navy),
+    '</td></tr>',
+
+    '<tr><td style="padding:8px 32px 24px 32px;color:#222222;font-size:15px;line-height:1.6;">',
+    '<p style="margin:0 0 16px 0;">This is where the program officially begins, so please do your best to attend. You will get your next steps, and your mentor match will follow shortly after.</p>',
+    '<p style="margin:0 0 16px 0;">See you on Saturday.</p>',
+    '<p style="margin:0;">Warm regards,<br><strong>' + sender + '</strong></p>',
+    '</td></tr>',
+
+    '<tr><td style="background:#f4f4f6;padding:18px 32px;text-align:center;color:#888888;font-size:12px;line-height:1.5;">',
+    'YDP Mentorship Program &bull; Cohort 2<br>You are receiving this because you were selected as a mentee.',
+    '</td></tr>',
+
+    '</table>',
+    '</td></tr>',
+    '</table>',
+    '</div>'
+  ].join('');
+}
+
+/**
+ * Sends the onboarding invite to every Can Pair mentee not already marked SENT,
+ * writing Status + Sent At tracking to the Mentee Scores sheet. No UI, safe to
+ * reuse from anywhere.
+ */
+function sendYdpMenteeOnboardingInvitesCore_() {
+  const scoreSheet = getYdpMenteeScoresSheet_();
+  const recipients = getYdpOnboardingInviteRecipients_();
+
+  if (recipients.length === 0) {
+    return { sentCount: 0, skippedCount: 0, total: 0, failures: [], summary: 'No Can Pair mentees with valid email addresses were found. Nothing was sent.' };
+  }
+
+  const headerMap = ensureYdpOnboardingInviteColumns_(scoreSheet);
+  const statusCol = headerMap[YDP_ONBOARDING_INVITE_TRACKING.statusHeader];
+  const sentAtCol = headerMap[YDP_ONBOARDING_INVITE_TRACKING.sentAtHeader];
+
+  let sentCount = 0;
+  let skippedCount = 0;
+  const failures = [];
+
+  recipients.forEach(function(recipient) {
+    const currentStatus = String(scoreSheet.getRange(recipient.rowNumber, statusCol).getValue() || '').trim().toUpperCase();
+
+    if (currentStatus === 'SENT') {
+      skippedCount++;
+      return;
+    }
+
+    try {
+      const email = buildYdpMenteeOnboardingInviteEmail_(recipient.firstName);
+      MailApp.sendEmail({
+        to: recipient.email,
+        subject: email.subject,
+        body: email.body,
+        htmlBody: email.htmlBody,
+        name: YDP_MATCHING_CONFIG.senderName,
+        inlineImages: email.inlineImages
+      });
+      scoreSheet.getRange(recipient.rowNumber, statusCol).setValue('SENT');
+      scoreSheet.getRange(recipient.rowNumber, sentAtCol).setValue(new Date());
+      sentCount++;
+    } catch (error) {
+      scoreSheet.getRange(recipient.rowNumber, statusCol).setValue('ERROR');
+      failures.push(recipient.email + ' (' + String(error.message || error) + ')');
+    }
+  });
+
+  const summary = 'Onboarding invite: sent ' + sentCount + ', skipped already-sent ' + skippedCount +
+    ', of ' + recipients.length + ' Can Pair mentees.' +
+    (failures.length ? '\n\nFailed:\n' + failures.join('\n') : '');
+  return { sentCount: sentCount, skippedCount: skippedCount, total: recipients.length, failures: failures, summary: summary };
+}
+
+function previewYdpMenteeOnboardingInvite() {
+  const ui = SpreadsheetApp.getUi();
+
+  try {
+    let sampleName = 'there';
+    let recipientNote;
+
+    try {
+      const recipients = getYdpOnboardingInviteRecipients_();
+      recipientNote = recipients.length + ' Can Pair mentee(s) will receive this.';
+      if (recipients.length) {
+        sampleName = recipients[0].firstName;
+      }
+    } catch (error) {
+      recipientNote = 'Mentee list not readable yet: ' + String(error.message || error);
+    }
+
+    const email = buildYdpMenteeOnboardingInviteEmail_(sampleName);
+    const html = [
+      '<div style="font-family:Arial,sans-serif;padding:8px;">',
+      '<p style="margin:0 0 4px 0;"><strong>Subject:</strong> ' + escapeYdpHtml_(email.subject) + '</p>',
+      '<p style="margin:0 0 12px 0;color:#555;"><em>Greeting shows "' + escapeYdpHtml_(sampleName) + '" as a sample; each mentee sees their own first name. ' + escapeYdpHtml_(recipientNote) + '</em></p>',
+      '<hr>',
+      buildYdpMenteeOnboardingInviteHtml_(sampleName, 'data:image/png;base64,' + YDP_LOGO_BASE64),
+      '</div>'
+    ].join('');
+
+    ui.showModalDialog(
+      HtmlService.createHtmlOutput(html).setWidth(680).setHeight(720),
+      'Mentee Onboarding Invite Preview'
+    );
+  } catch (error) {
+    ui.alert('Could not build the onboarding invite preview:\n\n' + String(error.message || error));
+  }
+}
+
+function sendYdpMenteeOnboardingInviteTest() {
+  const ui = SpreadsheetApp.getUi();
+
+  let testRecipient = '';
+  try {
+    testRecipient = String(Session.getEffectiveUser().getEmail() || '').trim();
+  } catch (emailError) {
+    testRecipient = '';
+  }
+
+  if (!isValidYdpEmail_(testRecipient)) {
+    const response = ui.prompt(
+      'Send Test Onboarding Invite',
+      'Could not detect your email automatically. Enter the address to send the test to:',
+      ui.ButtonSet.OK_CANCEL
+    );
+
+    if (response.getSelectedButton() !== ui.Button.OK) {
+      return;
+    }
+
+    testRecipient = String(response.getResponseText() || '').trim();
+
+    if (!isValidYdpEmail_(testRecipient)) {
+      ui.alert('That is not a valid email address. No test was sent.');
+      return;
+    }
+  }
+
+  const confirmation = ui.alert(
+    'Send Test Onboarding Invite',
+    'Send a test copy to yourself at ' + testRecipient + '?\n\nNo mentees will receive anything.',
+    ui.ButtonSet.OK_CANCEL
+  );
+
+  if (confirmation !== ui.Button.OK) {
+    return;
+  }
+
+  try {
+    let sampleName = 'there';
+    try {
+      const recipients = getYdpOnboardingInviteRecipients_();
+      if (recipients.length) {
+        sampleName = recipients[0].firstName;
+      }
+    } catch (sampleError) {
+      // Keep the generic greeting if the mentee list is not readable.
+    }
+
+    const email = buildYdpMenteeOnboardingInviteEmail_(sampleName);
+    MailApp.sendEmail({
+      to: testRecipient,
+      subject: '[TEST] ' + email.subject,
+      body: email.body,
+      htmlBody: email.htmlBody,
+      name: YDP_MATCHING_CONFIG.senderName,
+      inlineImages: email.inlineImages
+    });
+
+    ui.alert('Test onboarding invite sent to ' + testRecipient + '.\n\nThe greeting used "' + sampleName + '" as a sample. The real send greets each mentee by their own first name and marks each Mentee Scores row SENT so nobody is emailed twice. No mentees were emailed by this test.');
+  } catch (error) {
+    ui.alert('Test onboarding invite failed:\n\n' + String(error.message || error));
+  }
+}
+
+function sendYdpMenteeOnboardingInvitesToAll() {
+  const ui = SpreadsheetApp.getUi();
+
+  let recipients;
+  try {
+    recipients = getYdpOnboardingInviteRecipients_();
+  } catch (error) {
+    ui.alert('Could not read the mentee list:\n\n' + String(error.message || error));
+    return;
+  }
+
+  if (recipients.length === 0) {
+    ui.alert('No Can Pair mentees with valid email addresses were found. Nothing was sent.');
+    return;
+  }
+
+  const remainingQuota = MailApp.getRemainingDailyQuota();
+
+  if (remainingQuota < recipients.length) {
+    ui.alert('Gmail can only send ' + remainingQuota + ' more emails today, but there are ' + recipients.length + ' mentees. Nothing was sent. Try again after the daily quota resets.');
+    return;
+  }
+
+  const confirmation = ui.alert(
+    'Send Onboarding Invite To Can Pair Mentees',
+    'Send the onboarding invite to ' + recipients.length + ' Can Pair mentees now?\n\n' +
+    'Mentees already marked SENT are skipped, so this is safe to run more than once. Send a test to yourself first if you have not.',
+    ui.ButtonSet.OK_CANCEL
+  );
+
+  if (confirmation !== ui.Button.OK) {
+    return;
+  }
+
+  let result;
+  try {
+    result = sendYdpMenteeOnboardingInvitesCore_();
+  } catch (error) {
+    ui.alert('Sending failed, so nothing was sent:\n\n' + String(error.message || error));
+    return;
+  }
+
+  logYdpMatchingRun_('MENTEE_ONBOARDING_INVITE_SEND', result.failures.length ? 'PARTIAL_SUCCESS' : 'SUCCESS', result.summary);
+  ui.alert(result.summary);
 }
 
 function generateYdpMenteeScores() {
