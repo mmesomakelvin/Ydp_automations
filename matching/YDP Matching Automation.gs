@@ -71,6 +71,8 @@ function onOpen() {
     .addItem('Preview mentor countdown email', 'previewYdpMentorCountdownEmail')
     .addItem('Send mentor countdown — TEST to me', 'sendYdpMentorCountdownTest')
     .addItem('Send mentor countdown to ALL mentors', 'sendYdpMentorCountdownToAllMentors')
+    .addItem('Turn ON scheduled countdown (Fri & Sat, 1 PM)', 'installYdpMentorCountdownTrigger')
+    .addItem('Turn OFF scheduled countdown', 'removeYdpMentorCountdownTrigger')
     .addSeparator()
     .addItem('Test Gemini connection', 'testYdpGeminiConnection')
     .addToUi();
@@ -119,12 +121,33 @@ function getYdpDaysUntilReveal_() {
 
 function getYdpCountdownLabel_(daysToGo) {
   if (daysToGo <= 0) {
-    return 'MEET YOUR MENTEE TODAY';
+    return "IT'S TODAY";
   }
   if (daysToGo === 1) {
     return '1 DAY TO GO';
   }
   return daysToGo + ' DAYS TO GO';
+}
+
+function getYdpCountdownVariant_(daysToGo) {
+  // Which email to send for a given distance from the Saturday reveal:
+  //   intro     - the "89% done, here are your onboarding docs" email (with PDFs)
+  //   reminder  - the day-before nudge (no docs)
+  //   revealday - "today is the day" on Saturday (no docs)
+  if (daysToGo <= 0) {
+    return 'revealday';
+  }
+  if (daysToGo === 1) {
+    return 'reminder';
+  }
+  return 'intro';
+}
+
+function getYdpRevealDateLabel_() {
+  // Noon UTC on the reveal date is still that date in Lagos; format e.g.
+  // "Saturday, July 25".
+  const reveal = new Date(YDP_MENTOR_COUNTDOWN.revealDate + 'T12:00:00Z');
+  return Utilities.formatDate(reveal, YDP_MENTOR_COUNTDOWN.timeZone, 'EEEE, MMMM d');
 }
 
 function getYdpCountdownMentorRecipients_() {
@@ -151,7 +174,7 @@ function getYdpCountdownMentorRecipients_() {
     }
 
     seen[key] = true;
-    recipients.push({ email: email, firstName: getYdpFirstName_(mentor.name) });
+    recipients.push({ email: email, firstName: getYdpFirstName_(mentor.name), rowNumber: mentor.rowNumber });
   });
 
   return recipients;
@@ -173,44 +196,128 @@ function getYdpCountdownAttachments_() {
 function buildYdpMentorCountdownEmail_(firstName, daysToGo) {
   const name = String(firstName || '').trim() || 'Mentor';
   const label = getYdpCountdownLabel_(daysToGo);
+  const variant = getYdpCountdownVariant_(daysToGo);
+  const revealLabel = getYdpRevealDateLabel_();
+  const sender = YDP_MATCHING_CONFIG.senderName;
+  let subject;
+  let body;
 
-  const body = [
-    'Hi ' + name + ',',
-    '',
-    'Thank you for stepping forward to mentor in the YDP Mentorship Program, Cohort 2.',
-    '',
-    'First, a small note: you may have been expecting your match details around now. Our matching and the mentor dashboard are 89% complete. We are putting the final touches on the pairings so every mentor is matched with a mentee who genuinely fits. We would rather get this right than get it fast, and we are grateful for your patience.',
-    '',
-    'What happens next:',
-    'This Saturday you will receive your matched mentee(s), with their profile and contact details, right after the mentee onboarding session.',
-    '',
-    'While you wait, please review your onboarding materials (also attached to this email as PDFs):',
-    '- ' + YDP_MENTOR_COUNTDOWN.handbookLabel + ': ' + YDP_MENTOR_COUNTDOWN.handbookUrl,
-    '- ' + YDP_MENTOR_COUNTDOWN.codeOfConductLabel + ': ' + YDP_MENTOR_COUNTDOWN.codeOfConductUrl,
-    '',
-    'These cover what is expected of you, how the program runs, and the standards we all commit to. Please read them before Saturday.',
-    '',
-    'We will send a short note each day this week as we count down to your match reveal.',
-    '',
-    'Warm regards,',
-    YDP_MATCHING_CONFIG.senderName
-  ].join('\n');
+  if (variant === 'reminder') {
+    subject = 'One day to go: you meet your mentee tomorrow';
+    body = [
+      'Hi ' + name + ',',
+      '',
+      'Tomorrow is the day. Right after the mentee onboarding session on ' + revealLabel + ', you will receive your matched mentee(s), with their profile and contact details.',
+      '',
+      'If you have not already, please take a few minutes today to review the onboarding handbook and code of conduct we shared earlier, so you are ready to start strong.',
+      '',
+      'Thank you for being part of this cohort. See you tomorrow.',
+      '',
+      'Warm regards,',
+      sender
+    ].join('\n');
+  } else if (variant === 'revealday') {
+    subject = 'Today is the day: meet your mentee';
+    body = [
+      'Hi ' + name + ',',
+      '',
+      'Today is the day. Later today, right after the mentee onboarding session, you will receive your matched mentee(s), with their profile and contact details.',
+      '',
+      'Thank you for giving your time and experience to guide a young data professional. Let us make this a great cohort.',
+      '',
+      'Warm regards,',
+      sender
+    ].join('\n');
+  } else {
+    subject = 'Your YDP mentorship is almost ready: Mentor Handbook inside';
+    body = [
+      'Hi ' + name + ',',
+      '',
+      'Thank you for stepping forward to mentor in the YDP Mentorship Program, Cohort 2.',
+      '',
+      'First, a small note: you may have been expecting your match details around now. Our matching and the mentor dashboard are 89% complete. We are putting the final touches on the pairings so every mentor is matched with a mentee who genuinely fits. We would rather get this right than get it fast, and we are grateful for your patience.',
+      '',
+      'What happens next:',
+      'This ' + revealLabel + ' you will receive your matched mentee(s), with their profile and contact details, right after the mentee onboarding session.',
+      '',
+      'While you wait, please review your onboarding materials (also attached to this email as PDFs):',
+      '- ' + YDP_MENTOR_COUNTDOWN.handbookLabel + ': ' + YDP_MENTOR_COUNTDOWN.handbookUrl,
+      '- ' + YDP_MENTOR_COUNTDOWN.codeOfConductLabel + ': ' + YDP_MENTOR_COUNTDOWN.codeOfConductUrl,
+      '',
+      'These cover what is expected of you, how the program runs, and the standards we all commit to. Please read them before Saturday.',
+      '',
+      'We will send a short note each day this week as we count down to your match reveal.',
+      '',
+      'Warm regards,',
+      sender
+    ].join('\n');
+  }
 
   return {
-    subject: 'Your YDP mentorship is almost ready: Mentor Handbook inside',
+    subject: subject,
     body: body,
-    htmlBody: buildYdpMentorCountdownHtml_(name, label, 'cid:ydpLogo'),
-    inlineImages: { ydpLogo: getYdpLogoBlob_() }
+    htmlBody: buildYdpMentorCountdownHtml_(name, label, 'cid:ydpLogo', variant),
+    inlineImages: { ydpLogo: getYdpLogoBlob_() },
+    attachDocs: variant === 'intro'
   };
 }
 
-function buildYdpMentorCountdownHtml_(name, countdownLabel, logoSrc) {
+function buildYdpMentorCountdownHtml_(name, countdownLabel, logoSrc, variant) {
   const navy = YDP_MENTOR_COUNTDOWN.navy;
   const gold = YDP_MENTOR_COUNTDOWN.gold;
   const safeName = escapeYdpHtml_(name);
+  const sender = escapeYdpHtml_(YDP_MATCHING_CONFIG.senderName);
+  const revealLabel = escapeYdpHtml_(getYdpRevealDateLabel_());
+
+  let subhead;
+  let bodyRows;
+
+  if (variant === 'reminder') {
+    subhead = 'Meet your mentee <strong>tomorrow</strong>';
+    bodyRows = [
+      '<tr><td style="padding:24px 32px 16px 32px;color:#222222;font-size:15px;line-height:1.6;">',
+      '<p style="margin:0 0 16px 0;">Hi ' + safeName + ',</p>',
+      '<p style="margin:0 0 16px 0;">Tomorrow is the day. Right after the mentee onboarding session on <strong>' + revealLabel + '</strong>, you will receive your matched mentee(s), with their profile and contact details.</p>',
+      '<p style="margin:0 0 16px 0;">If you have not already, please take a few minutes today to review the onboarding handbook and code of conduct we shared earlier, so you are ready to start strong.</p>',
+      '<p style="margin:0 0 16px 0;">Thank you for being part of this cohort. See you tomorrow.</p>',
+      '<p style="margin:0;">Warm regards,<br><strong>' + sender + '</strong></p>',
+      '</td></tr>'
+    ];
+  } else if (variant === 'revealday') {
+    subhead = 'Meet your mentee <strong>today</strong>';
+    bodyRows = [
+      '<tr><td style="padding:24px 32px 16px 32px;color:#222222;font-size:15px;line-height:1.6;">',
+      '<p style="margin:0 0 16px 0;">Hi ' + safeName + ',</p>',
+      '<p style="margin:0 0 16px 0;"><strong>Today is the day.</strong> Later today, right after the mentee onboarding session, you will receive your matched mentee(s), with their profile and contact details.</p>',
+      '<p style="margin:0 0 16px 0;">Thank you for giving your time and experience to guide a young data professional. Let us make this a great cohort.</p>',
+      '<p style="margin:0;">Warm regards,<br><strong>' + sender + '</strong></p>',
+      '</td></tr>'
+    ];
+  } else {
+    subhead = 'Meet your mentee this <strong>Saturday</strong>';
+    bodyRows = [
+      '<tr><td style="padding:24px 32px 8px 32px;color:#222222;font-size:15px;line-height:1.6;">',
+      '<p style="margin:0 0 16px 0;">Hi ' + safeName + ',</p>',
+      '<p style="margin:0 0 16px 0;">Thank you for stepping forward to mentor in the <strong>YDP Mentorship Program, Cohort 2</strong>.</p>',
+      '<p style="margin:0 0 16px 0;">First, a small note: you may have been expecting your match details around now. Our matching and the mentor dashboard are <strong>89% complete</strong>. We are putting the final touches on the pairings so every mentor is matched with a mentee who genuinely fits. We would rather get this right than get it fast, and we are grateful for your patience.</p>',
+      '<p style="margin:0 0 6px 0;"><strong>What happens next</strong></p>',
+      '<p style="margin:0 0 16px 0;">&#128197; <strong>This ' + revealLabel + '</strong> you will receive your matched mentee(s), with their profile and contact details, right after the mentee onboarding session.</p>',
+      '<p style="margin:0 0 16px 0;">While you wait, please review your onboarding materials. They are attached to this email as PDFs, and you can also open them here:</p>',
+      '</td></tr>',
+      '<tr><td style="padding:0 32px 8px 32px;" align="center">',
+      ydpCountdownButton_('&#128214;&nbsp; ' + escapeYdpHtml_(YDP_MENTOR_COUNTDOWN.handbookLabel), YDP_MENTOR_COUNTDOWN.handbookUrl, navy),
+      ydpCountdownButton_('&#128220;&nbsp; ' + escapeYdpHtml_(YDP_MENTOR_COUNTDOWN.codeOfConductLabel), YDP_MENTOR_COUNTDOWN.codeOfConductUrl, navy),
+      '</td></tr>',
+      '<tr><td style="padding:8px 32px 24px 32px;color:#222222;font-size:15px;line-height:1.6;">',
+      '<p style="margin:0 0 16px 0;">These cover what is expected of you, how the program runs, and the standards we all commit to. Please read them before Saturday.</p>',
+      '<p style="margin:0 0 16px 0;">We will send a short note each day this week as we count down to your match reveal.</p>',
+      '<p style="margin:0;">Warm regards,<br><strong>' + sender + '</strong></p>',
+      '</td></tr>'
+    ];
+  }
 
   return [
-    '<div style="display:none;max-height:0;overflow:hidden;opacity:0;">We are 89% done matching. Here is what to expect this week.</div>',
+    '<div style="display:none;max-height:0;overflow:hidden;opacity:0;">Counting down to your match reveal.</div>',
     '<div style="margin:0;padding:0;background:#f4f4f6;">',
     '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f6;padding:24px 0;">',
     '<tr><td align="center">',
@@ -224,29 +331,9 @@ function buildYdpMentorCountdownHtml_(name, countdownLabel, logoSrc) {
 
     '<tr><td style="padding:24px 32px 0 32px;text-align:center;">',
     '<span style="display:inline-block;border:2px solid ' + gold + ';color:' + navy + ';font-size:13px;font-weight:bold;letter-spacing:1.5px;padding:8px 18px;border-radius:999px;">' + escapeYdpHtml_(countdownLabel) + '</span>',
-    '<div style="font-size:15px;color:#555555;margin-top:10px;">Meet your mentee this <strong>Saturday</strong></div>',
-    '</td></tr>',
-
-    '<tr><td style="padding:24px 32px 8px 32px;color:#222222;font-size:15px;line-height:1.6;">',
-    '<p style="margin:0 0 16px 0;">Hi ' + safeName + ',</p>',
-    '<p style="margin:0 0 16px 0;">Thank you for stepping forward to mentor in the <strong>YDP Mentorship Program, Cohort 2</strong>.</p>',
-    '<p style="margin:0 0 16px 0;">First, a small note: you may have been expecting your match details around now. Our matching and the mentor dashboard are <strong>89% complete</strong>. We are putting the final touches on the pairings so every mentor is matched with a mentee who genuinely fits. We would rather get this right than get it fast, and we are grateful for your patience.</p>',
-    '<p style="margin:0 0 6px 0;"><strong>What happens next</strong></p>',
-    '<p style="margin:0 0 16px 0;">&#128197; <strong>This Saturday</strong> you will receive your matched mentee(s), with their profile and contact details, right after the mentee onboarding session.</p>',
-    '<p style="margin:0 0 16px 0;">While you wait, please review your onboarding materials. They are attached to this email as PDFs, and you can also open them here:</p>',
-    '</td></tr>',
-
-    '<tr><td style="padding:0 32px 8px 32px;" align="center">',
-    ydpCountdownButton_('&#128214;&nbsp; ' + escapeYdpHtml_(YDP_MENTOR_COUNTDOWN.handbookLabel), YDP_MENTOR_COUNTDOWN.handbookUrl, navy),
-    ydpCountdownButton_('&#128220;&nbsp; ' + escapeYdpHtml_(YDP_MENTOR_COUNTDOWN.codeOfConductLabel), YDP_MENTOR_COUNTDOWN.codeOfConductUrl, navy),
-    '</td></tr>',
-
-    '<tr><td style="padding:8px 32px 24px 32px;color:#222222;font-size:15px;line-height:1.6;">',
-    '<p style="margin:0 0 16px 0;">These cover what is expected of you, how the program runs, and the standards we all commit to. Please read them before Saturday.</p>',
-    '<p style="margin:0 0 16px 0;">We will send a short note each day this week as we count down to your match reveal.</p>',
-    '<p style="margin:0;">Warm regards,<br><strong>' + escapeYdpHtml_(YDP_MATCHING_CONFIG.senderName) + '</strong></p>',
-    '</td></tr>',
-
+    '<div style="font-size:15px;color:#555555;margin-top:10px;">' + subhead + '</div>',
+    '</td></tr>'
+  ].concat(bodyRows).concat([
     '<tr><td style="background:#f4f4f6;padding:18px 32px;text-align:center;color:#888888;font-size:12px;line-height:1.5;">',
     'YDP Mentorship Program &bull; Cohort 2<br>You are receiving this because you volunteered as a mentor.',
     '</td></tr>',
@@ -255,7 +342,7 @@ function buildYdpMentorCountdownHtml_(name, countdownLabel, logoSrc) {
     '</td></tr>',
     '</table>',
     '</div>'
-  ].join('');
+  ]).join('');
 }
 
 function ydpCountdownButton_(label, url, bg) {
@@ -289,7 +376,7 @@ function previewYdpMentorCountdownEmail() {
       '<p style="margin:0 0 4px 0;"><strong>Attachments:</strong> ' + escapeYdpHtml_(YDP_MENTOR_COUNTDOWN.handbookLabel) + ' (PDF), ' + escapeYdpHtml_(YDP_MENTOR_COUNTDOWN.codeOfConductLabel) + ' (PDF)</p>',
       '<p style="margin:0 0 12px 0;color:#555;"><em>Greeting shows "' + escapeYdpHtml_(sampleName) + '" as a sample; each mentor sees their own first name. ' + escapeYdpHtml_(recipientNote) + '</em></p>',
       '<hr>',
-      buildYdpMentorCountdownHtml_(sampleName, getYdpCountdownLabel_(daysToGo), 'data:image/png;base64,' + YDP_LOGO_BASE64),
+      buildYdpMentorCountdownHtml_(sampleName, getYdpCountdownLabel_(daysToGo), 'data:image/png;base64,' + YDP_LOGO_BASE64, getYdpCountdownVariant_(daysToGo)),
       '</div>'
     ].join('');
 
@@ -336,8 +423,8 @@ function sendYdpMentorCountdownTest() {
 
   const confirmation = ui.alert(
     'Send Test Countdown Email',
-    'Send a test copy (with the PDF attachments) to yourself at ' + testRecipient + '?\n\n' +
-    'No mentors will receive anything. You may be asked to authorize Drive access the first time.',
+    'Send a test copy to yourself at ' + testRecipient + '?\n\n' +
+    'No mentors will receive anything. On days whose email has PDF attachments you may be asked to authorize Drive access.',
     ui.ButtonSet.OK_CANCEL
   );
 
@@ -347,7 +434,6 @@ function sendYdpMentorCountdownTest() {
 
   try {
     const daysToGo = getYdpDaysUntilReveal_();
-    const attachments = getYdpCountdownAttachments_();
 
     // Greet with a real mentor's first name so the test shows the same
     // personalization the live send uses. Falls back to a generic greeting only
@@ -363,18 +449,26 @@ function sendYdpMentorCountdownTest() {
     }
 
     const email = buildYdpMentorCountdownEmail_(sampleName, daysToGo);
-
-    MailApp.sendEmail({
+    const options = {
       to: testRecipient,
       subject: '[TEST] ' + email.subject,
       body: email.body,
       htmlBody: email.htmlBody,
       name: YDP_MATCHING_CONFIG.senderName,
-      attachments: attachments,
       inlineImages: email.inlineImages
-    });
+    };
 
-    ui.alert('Test countdown email sent to ' + testRecipient + '.\n\nThe greeting used "' + sampleName + '" as a sample. The real send greets each mentor by their own first name from Mentor Source Snapshot.\n\nCheck your inbox, including the two PDF attachments. No mentors were emailed.');
+    // Only the intro email carries the onboarding PDFs.
+    if (email.attachDocs) {
+      options.attachments = getYdpCountdownAttachments_();
+    }
+
+    MailApp.sendEmail(options);
+
+    const docNote = email.attachDocs
+      ? 'Check your inbox, including the two PDF attachments.'
+      : "This day's email carries no attachments (the docs go out only on the first email).";
+    ui.alert('Test countdown email sent to ' + testRecipient + '.\n\nThe greeting used "' + sampleName + '" as a sample. The real send greets each mentor by their own first name from Mentor Source Snapshot, and marks each row SENT so nobody is emailed twice.\n\n' + docNote + ' No mentors were emailed by this test.');
   } catch (error) {
     ui.alert('Test countdown email failed:\n\n' + String(error.message || error));
   }
@@ -405,8 +499,8 @@ function sendYdpMentorCountdownToAllMentors() {
 
   const confirmation = ui.alert(
     'Send Countdown Email To All Mentors',
-    'Send today\'s countdown email (with the PDF attachments) to ' + recipients.length + ' mentors now?\n\n' +
-    'This sends the real email to every mentor. Send a test to yourself first if you have not.',
+    'Send today\'s countdown email to the mentors now?\n\n' +
+    'Mentors already marked SENT for today\'s email are skipped, so this is safe to run more than once. Send a test to yourself first if you have not.',
     ui.ButtonSet.OK_CANCEL
   );
 
@@ -414,40 +508,230 @@ function sendYdpMentorCountdownToAllMentors() {
     return;
   }
 
-  let attachments;
+  let result;
   try {
-    attachments = getYdpCountdownAttachments_();
+    result = sendYdpMentorCountdownToAllMentorsCore_();
   } catch (error) {
-    ui.alert('Could not load the PDF attachments, so nothing was sent:\n\n' + String(error.message || error));
+    ui.alert('Sending failed, so nothing was sent:\n\n' + String(error.message || error));
     return;
   }
 
+  logYdpMatchingRun_('MENTOR_COUNTDOWN_SEND', result.failures.length ? 'PARTIAL_SUCCESS' : 'SUCCESS', result.summary);
+  ui.alert(result.summary);
+}
+
+/**
+ * Sends the current day's countdown email to every mentor who is not already
+ * marked SENT for that email, writing per-mentor Status + Sent At tracking to
+ * the Mentor Source Snapshot. No UI, so it is safe to call from the trigger.
+ * Attaches the onboarding PDFs only on the intro email.
+ */
+function sendYdpMentorCountdownToAllMentorsCore_() {
+  const mentorSheet = SpreadsheetApp.getActive().getSheetByName(YDP_MATCHING_CONFIG.sheets.mentorSnapshot);
+
+  if (!mentorSheet || mentorSheet.getLastRow() <= 1) {
+    throw new Error('No mentor rows found in "' + YDP_MATCHING_CONFIG.sheets.mentorSnapshot + '". Run "Sync source snapshots from forms" first.');
+  }
+
+  const recipients = getYdpCountdownMentorRecipients_();
+
+  if (recipients.length === 0) {
+    return { sentCount: 0, skippedCount: 0, total: 0, failures: [], summary: 'No mentors with valid email addresses were found. Nothing was sent.' };
+  }
+
   const daysToGo = getYdpDaysUntilReveal_();
+  const variant = getYdpCountdownVariant_(daysToGo);
+  const tracking = YDP_COUNTDOWN_TRACKING[variant];
+  const headerMap = ensureYdpCountdownTrackingColumns_(mentorSheet);
+  const statusCol = headerMap[tracking.statusHeader];
+  const sentAtCol = headerMap[tracking.sentAtHeader];
+
+  const attachDocs = variant === 'intro';
+  const attachments = attachDocs ? getYdpCountdownAttachments_() : [];
+
   let sentCount = 0;
+  let skippedCount = 0;
   const failures = [];
 
   recipients.forEach(function(recipient) {
+    // Never send the same email twice: skip mentors already marked SENT.
+    const currentStatus = String(mentorSheet.getRange(recipient.rowNumber, statusCol).getValue() || '').trim().toUpperCase();
+
+    if (currentStatus === 'SENT') {
+      skippedCount++;
+      return;
+    }
+
     try {
       const email = buildYdpMentorCountdownEmail_(recipient.firstName, daysToGo);
-      MailApp.sendEmail({
+      const options = {
         to: recipient.email,
         subject: email.subject,
         body: email.body,
         htmlBody: email.htmlBody,
         name: YDP_MATCHING_CONFIG.senderName,
-        attachments: attachments,
         inlineImages: email.inlineImages
-      });
+      };
+
+      if (email.attachDocs) {
+        options.attachments = attachments;
+      }
+
+      MailApp.sendEmail(options);
+      mentorSheet.getRange(recipient.rowNumber, statusCol).setValue('SENT');
+      mentorSheet.getRange(recipient.rowNumber, sentAtCol).setValue(new Date());
       sentCount++;
     } catch (error) {
+      mentorSheet.getRange(recipient.rowNumber, statusCol).setValue('ERROR');
       failures.push(recipient.email + ' (' + String(error.message || error) + ')');
     }
   });
 
-  const summary = 'Countdown email sent to ' + sentCount + ' of ' + recipients.length + ' mentors.' +
+  markYdpCountdownSentToday_();
+
+  const summary = 'Countdown "' + variant + '" email: sent ' + sentCount + ', skipped already-sent ' + skippedCount +
+    ', of ' + recipients.length + ' mentors.' +
     (failures.length ? '\n\nFailed:\n' + failures.join('\n') : '');
-  logYdpMatchingRun_('MENTOR_COUNTDOWN_SEND', failures.length ? 'PARTIAL_SUCCESS' : 'SUCCESS', summary);
-  ui.alert(summary);
+  return { sentCount: sentCount, skippedCount: skippedCount, total: recipients.length, failures: failures, summary: summary };
+}
+
+// Per-email tracking columns written to the Mentor Source Snapshot: one Status
+// + Sent At pair per countdown email, matching the existing "X Email Status" /
+// "X Email Sent At" convention.
+const YDP_COUNTDOWN_TRACKING = {
+  intro:     { statusHeader: 'Countdown Intro Email Status',    sentAtHeader: 'Countdown Intro Email Sent At' },
+  reminder:  { statusHeader: 'Countdown Reminder Email Status', sentAtHeader: 'Countdown Reminder Email Sent At' },
+  revealday: { statusHeader: 'Countdown Reveal Email Status',   sentAtHeader: 'Countdown Reveal Email Sent At' }
+};
+
+/**
+ * Ensures every countdown tracking column exists on the mentor sheet (appending
+ * any that are missing), then returns a { header: columnNumber } map.
+ */
+function ensureYdpCountdownTrackingColumns_(mentorSheet) {
+  const width = Math.max(mentorSheet.getLastColumn(), 1);
+  const headers = mentorSheet.getRange(1, 1, 1, width).getValues()[0].map(function(header) {
+    return String(header || '').trim();
+  });
+
+  const missing = [];
+  Object.keys(YDP_COUNTDOWN_TRACKING).forEach(function(variant) {
+    const tracking = YDP_COUNTDOWN_TRACKING[variant];
+    [tracking.statusHeader, tracking.sentAtHeader].forEach(function(header) {
+      if (headers.indexOf(header) === -1 && missing.indexOf(header) === -1) {
+        missing.push(header);
+      }
+    });
+  });
+
+  if (missing.length) {
+    mentorSheet.getRange(1, mentorSheet.getLastColumn() + 1, 1, missing.length).setValues([missing]);
+    mentorSheet.setFrozenRows(1);
+  }
+
+  const finalHeaders = mentorSheet.getRange(1, 1, 1, mentorSheet.getLastColumn()).getValues()[0];
+  const map = {};
+  finalHeaders.forEach(function(header, index) {
+    const name = String(header || '').trim();
+    if (name) {
+      map[name] = index + 1;
+    }
+  });
+  return map;
+}
+
+// --- Scheduled countdown sends -------------------------------------------
+const YDP_COUNTDOWN_TRIGGER_HANDLER = 'runYdpMentorCountdownOnSchedule';
+const YDP_COUNTDOWN_SENT_DATES_KEY = 'MENTOR_COUNTDOWN_SENT_DATES';
+// Dates (Africa/Lagos) the trigger may auto-send on. Thursday 2026-07-23 is
+// intentionally omitted so nothing goes out that day. Wednesday is sent by hand,
+// so it is not listed either. Keep this list in ascending date order.
+const YDP_COUNTDOWN_AUTO_SEND_DATES = ['2026-07-24', '2026-07-25'];
+
+function markYdpCountdownSentToday_() {
+  const properties = PropertiesService.getScriptProperties();
+  const today = Utilities.formatDate(new Date(), YDP_MENTOR_COUNTDOWN.timeZone, 'yyyy-MM-dd');
+  const sentDates = String(properties.getProperty(YDP_COUNTDOWN_SENT_DATES_KEY) || '');
+
+  if (sentDates.split(',').indexOf(today) === -1) {
+    properties.setProperty(YDP_COUNTDOWN_SENT_DATES_KEY, sentDates ? sentDates + ',' + today : today);
+  }
+}
+
+function ydpCountdownAlreadySentToday_() {
+  const today = Utilities.formatDate(new Date(), YDP_MENTOR_COUNTDOWN.timeZone, 'yyyy-MM-dd');
+  const sentDates = String(PropertiesService.getScriptProperties().getProperty(YDP_COUNTDOWN_SENT_DATES_KEY) || '');
+  return sentDates.split(',').indexOf(today) !== -1;
+}
+
+function runYdpMentorCountdownOnSchedule() {
+  const tz = YDP_MENTOR_COUNTDOWN.timeZone;
+  const today = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
+  const lastDate = YDP_COUNTDOWN_AUTO_SEND_DATES[YDP_COUNTDOWN_AUTO_SEND_DATES.length - 1];
+
+  // Not a scheduled send day (e.g. Thursday): do nothing. Once past the final
+  // scheduled day, retire the trigger so it stops firing for good.
+  if (YDP_COUNTDOWN_AUTO_SEND_DATES.indexOf(today) === -1) {
+    if (today > lastDate) {
+      removeYdpMentorCountdownTriggers_();
+    }
+    return;
+  }
+
+  // Per-day backstop against double-sending the whole batch, even if the
+  // per-mentor tracking columns were cleared.
+  if (ydpCountdownAlreadySentToday_()) {
+    if (today === lastDate) {
+      removeYdpMentorCountdownTriggers_();
+    }
+    return;
+  }
+
+  let result;
+  try {
+    result = sendYdpMentorCountdownToAllMentorsCore_();
+  } catch (error) {
+    logYdpMatchingRun_('MENTOR_COUNTDOWN_SCHEDULED', 'ERROR', 'Scheduled countdown send failed: ' + String(error.message || error));
+    return;
+  }
+
+  logYdpMatchingRun_('MENTOR_COUNTDOWN_SCHEDULED', result.failures.length ? 'PARTIAL_SUCCESS' : 'SUCCESS', result.summary);
+
+  if (today === lastDate) {
+    removeYdpMentorCountdownTriggers_();
+  }
+}
+
+function installYdpMentorCountdownTrigger() {
+  const ui = SpreadsheetApp.getUi();
+  removeYdpMentorCountdownTriggers_();
+  ScriptApp.newTrigger(YDP_COUNTDOWN_TRIGGER_HANDLER)
+    .timeBased()
+    .atHour(13)
+    .everyDays(1)
+    .inTimezone(YDP_MENTOR_COUNTDOWN.timeZone)
+    .create();
+  ui.alert(
+    'Scheduled countdown is ON.\n\n' +
+    'It will send the Friday (Jul 24) and Saturday (Jul 25) mentor emails automatically at about 1 PM Lagos time. Thursday is skipped, and it turns itself off after Saturday.\n\n' +
+    'Today\'s email is not auto-sent. Send that one yourself with "Send mentor countdown to ALL mentors".'
+  );
+}
+
+function removeYdpMentorCountdownTrigger() {
+  const removed = removeYdpMentorCountdownTriggers_();
+  SpreadsheetApp.getUi().alert(removed ? 'Scheduled countdown is OFF.' : 'Scheduled countdown was not on.');
+}
+
+function removeYdpMentorCountdownTriggers_() {
+  let removed = 0;
+  ScriptApp.getProjectTriggers().forEach(function(trigger) {
+    if (trigger.getHandlerFunction() === YDP_COUNTDOWN_TRIGGER_HANDLER) {
+      ScriptApp.deleteTrigger(trigger);
+      removed++;
+    }
+  });
+  return removed;
 }
 
 function setupYdpMatchingWorkbook() {
@@ -1996,6 +2280,7 @@ function getYdpMentorProfilesForPairScoring_(sheet) {
     );
 
     return {
+      rowNumber: rowIndex + 2,
       id: getYdpValueByHeaderRules_(headers, row, [
         ['mentor', 'id']
       ]) || email || 'Mentor Row ' + (rowIndex + 2),
