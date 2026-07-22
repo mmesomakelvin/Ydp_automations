@@ -61,9 +61,15 @@ export function AppLayout({
           ) : (
             /* Main page header with phase nav - full width */
             <div className="flex items-center justify-between gap-4">
-              {/* Theme Toggle on left for balance */}
-              <div className="w-10 shrink-0">
-                {/* Empty spacer for balance */}
+              {/* YDP brand */}
+              <div className="shrink-0">
+                <span className="inline-flex dark:rounded-md dark:bg-white dark:px-1.5 dark:py-1">
+                  <img
+                    src="/ydp-logo.png"
+                    alt="Young Data Professionals"
+                    className="h-6 w-auto"
+                  />
+                </span>
               </div>
 
               {/* Phase Navigation - centered */}

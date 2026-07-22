@@ -304,11 +304,34 @@ function previewYdpMentorCountdownEmail() {
 
 function sendYdpMentorCountdownTest() {
   const ui = SpreadsheetApp.getUi();
-  const testRecipient = String(Session.getActiveUser().getEmail() || '').trim();
+
+  // getEffectiveUser() returns the signed-in owner's address without needing the
+  // userinfo.email scope that getActiveUser() requires (and which we do not
+  // declare). If it still can't be determined, ask so the test always works.
+  let testRecipient = '';
+  try {
+    testRecipient = String(Session.getEffectiveUser().getEmail() || '').trim();
+  } catch (emailError) {
+    testRecipient = '';
+  }
 
   if (!isValidYdpEmail_(testRecipient)) {
-    ui.alert('Could not detect your email address for the test send. Open the sheet while signed in, then try again.');
-    return;
+    const response = ui.prompt(
+      'Send Test Countdown Email',
+      'Could not detect your email automatically. Enter the address to send the test to:',
+      ui.ButtonSet.OK_CANCEL
+    );
+
+    if (response.getSelectedButton() !== ui.Button.OK) {
+      return;
+    }
+
+    testRecipient = String(response.getResponseText() || '').trim();
+
+    if (!isValidYdpEmail_(testRecipient)) {
+      ui.alert('That is not a valid email address. No test was sent.');
+      return;
+    }
   }
 
   const confirmation = ui.alert(
