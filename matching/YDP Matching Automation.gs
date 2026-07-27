@@ -882,13 +882,13 @@ function getYdpMatchingDataDictionaryRows_() {
     ['Sheet', YDP_MATCHING_CONFIG.sheets.mentorSnapshot, 'Countdown Reveal Email Sent At', 'When the reveal-day countdown email was sent to this mentor.', 'Audit trail.'],
     ['Sheet', YDP_MATCHING_CONFIG.sheets.menteeScores, 'Onboarding Invite Email Status', 'Whether the mentee onboarding invite (Saturday session plus Meet link) was sent to this mentee.', 'SENT prevents duplicates; ERROR means the send failed.'],
     ['Sheet', YDP_MATCHING_CONFIG.sheets.menteeScores, 'Onboarding Invite Email Sent At', 'When the onboarding invite was sent to this mentee.', 'Audit trail.'],
-    ['Sheet', YDP_CAN_PAIR_MENTEES_SHEET, 'Mentee ID / Mentee Name / Mentee Email / Final Score', 'A generated roster of every Can Pair mentee with their final score, sorted high to low.', 'Rebuilt each time you run "Create Can Pair mentees sheet".'],
+    ['Sheet', YDP_CAN_PAIR_MENTEES_SHEET, 'Mentee ID / Mentee Name / Mentee Email / Final Score / Gemini Summary', 'A generated roster of every Can Pair mentee with their final score and the Gemini Summary from Mentee Scores, sorted high to low.', 'Rebuilt each time you run "Create Can Pair mentees sheet".'],
     ['Sheet', YDP_MENTOR_LOAD_SHEET, 'Mentor ID / Mentor Name / Mentor Email', 'Identity columns for each mentor on the Mentor Load summary, copied from Mentor Source Snapshot.', 'Rebuilt each time you run "Create mentor load sheet".'],
     ['Sheet', YDP_MENTOR_LOAD_SHEET, 'Signed Up For', 'How many mentees the mentor said they were willing to take on (their stated capacity from the form).', 'Compare against Paired So Far to see remaining room.'],
     ['Sheet', YDP_MENTOR_LOAD_SHEET, 'Paired So Far', 'How many mentees are currently paired with this mentor, counted from rows on the Matched Pairs sheet.', 'A live tally of matches made so far.'],
     ['Sheet', YDP_MENTOR_LOAD_SHEET, 'Remaining Slots', 'Signed Up For minus Paired So Far. Negative means the mentor is over their stated capacity.', 'Spot mentors with open slots or overload at a glance.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Create mentor load sheet', 'Builds the "' + YDP_MENTOR_LOAD_SHEET + '" tab: each mentor with how many mentees they signed up for versus how many they have been paired with so far.', 'Run whenever you want a fresh view of match progress per mentor.'],
-    ['Button', YDP_MATCHING_CONFIG.menuName, 'Create Can Pair mentees sheet', 'Builds the "' + YDP_CAN_PAIR_MENTEES_SHEET + '" tab listing every Can Pair mentee (ID, name, email, final score).', 'Run whenever you want a fresh Can Pair roster.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Create Can Pair mentees sheet', 'Builds the "' + YDP_CAN_PAIR_MENTEES_SHEET + '" tab listing every Can Pair mentee (ID, name, email, final score, Gemini Summary).', 'Run whenever you want a fresh Can Pair roster.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Preview mentee onboarding invite', 'Shows the mentee onboarding invite email without sending it.', 'Use before any live onboarding invite.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Send onboarding invite — TEST to me', 'Sends the onboarding invite to your own email only, with no mentee status changes.', 'Use to inspect the real inbox version safely.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Send onboarding invite to Can Pair mentees', 'Sends the onboarding invite to every Can Pair mentee whose Onboarding Invite Email Status is not SENT.', 'Use after preview and a test send.'],
@@ -928,7 +928,7 @@ function getYdpButtonGuideRows_() {
     ['SAFE', menu, 'Send test selection email', 'Sends the selected mentee template to an internal test address.', 'After preview and before live selection sends.', 'Select a Can Pair mentee and use an internal email address.', 'Sends one test email; participant tracking is not updated.', 'Before every selection campaign'],
     ['LIVE ACTION', menu, 'Send selection email to selected mentee', 'Sends the live program-selection email to one selected eligible mentee.', 'For the controlled first live send or a one-off recipient.', 'Preview, test, and select the intended Can Pair row.', 'Sends one live email and updates selection-email tracking.', 'As needed'],
     ['LIVE ACTION', menu, 'Send selection emails to all eligible unsent mentees', 'Sends selection emails only to Can Pair mentees not already marked SENT.', 'After the selected-row live send is verified.', 'Preview, test, verify Can Pair statuses, and obtain approval.', 'Sends multiple live emails and updates selection-email tracking.', 'Once per selection campaign'],
-    ['SAFE', menu, 'Create Can Pair mentees sheet', 'Builds the Can Pair Mentees tab listing every Can Pair mentee with ID, name, email, and final score, sorted high to low.', 'Whenever you want a fresh roster of eligible mentees.', 'Score mentees first so Gemini Review Status is set.', 'Clears and rebuilds the Can Pair Mentees tab only; no emails.', 'As needed'],
+    ['SAFE', menu, 'Create Can Pair mentees sheet', 'Builds the Can Pair Mentees tab listing every Can Pair mentee with ID, name, email, final score, and the Gemini Summary from Mentee Scores, sorted high to low.', 'Whenever you want a fresh roster of eligible mentees.', 'Score mentees first so Gemini Review Status is set.', 'Clears and rebuilds the Can Pair Mentees tab only; no emails.', 'As needed'],
     ['SAFE', menu, 'Create mentor load sheet', 'Builds the Mentor Load tab: each mentor with how many mentees they signed up for versus how many they have been paired with so far, plus remaining slots, sorted by pairs made.', 'Whenever you want to see match progress per mentor.', 'Sync the mentor snapshot and run matching so Matched Pairs is populated.', 'Clears and rebuilds the Mentor Load tab only; reads Mentor Source Snapshot and Matched Pairs; no emails.', 'As needed'],
     ['SAFE', menu, 'Preview mentee onboarding invite', 'Shows the mentee onboarding invite email (Saturday session and Google Meet link) without sending it.', 'Before any onboarding invite send.', 'No preparation is required.', 'Opens a preview only; no email or tracking changes.', 'Before every onboarding send'],
     ['SAFE', menu, 'Send onboarding invite — TEST to me', 'Sends the onboarding invite to your own email only.', 'After preview and before the live send.', 'No preparation is required.', 'Sends one test email; mentee tracking is not updated.', 'Before every onboarding send'],
@@ -1000,7 +1000,7 @@ const YDP_ONBOARDING_INVITE_TRACKING = {
   sentAtHeader: 'Onboarding Invite Email Sent At'
 };
 
-// Reads Can Pair rows from Mentee Scores into { rowNumber, id, name, email, firstName, finalScore }.
+// Reads Can Pair rows from Mentee Scores into { rowNumber, id, name, email, firstName, finalScore, geminiSummary }.
 function getYdpCanPairMentees_() {
   const scoreSheet = getYdpMenteeScoresSheet_();
 
@@ -1026,7 +1026,8 @@ function getYdpCanPairMentees_() {
       name: name,
       email: String(getYdpRowValueByHeader_(row, headerMap, 'Mentee Email') || '').trim(),
       firstName: getYdpFirstName_(name),
-      finalScore: Number(getYdpRowValueByHeader_(row, headerMap, 'Final Score')) || 0
+      finalScore: Number(getYdpRowValueByHeader_(row, headerMap, 'Final Score')) || 0,
+      geminiSummary: headerMap['Gemini Summary'] ? String(row[headerMap['Gemini Summary'] - 1] || '').trim() : ''
     });
   });
 
@@ -1038,12 +1039,12 @@ function buildYdpCanPairMenteesSheet() {
 
   try {
     const mentees = getYdpCanPairMentees_();
-    const headers = ['Mentee ID', 'Mentee Name', 'Mentee Email', 'Final Score'];
+    const headers = ['Mentee ID', 'Mentee Name', 'Mentee Email', 'Final Score', 'Gemini Summary'];
     const rows = mentees
       .slice()
       .sort(function(a, b) { return b.finalScore - a.finalScore; })
       .map(function(mentee) {
-        return [mentee.id, mentee.name, mentee.email, mentee.finalScore];
+        return [mentee.id, mentee.name, mentee.email, mentee.finalScore, mentee.geminiSummary];
       });
 
     const sheet = getOrCreateYdpSheet_(SpreadsheetApp.getActive(), YDP_CAN_PAIR_MENTEES_SHEET);
@@ -1055,7 +1056,10 @@ function buildYdpCanPairMenteesSheet() {
     }
 
     sheet.setFrozenRows(1);
-    sheet.autoResizeColumns(1, headers.length);
+    // Auto-size the short columns; give the long Gemini Summary a fixed width and wrap.
+    sheet.autoResizeColumns(1, 4);
+    sheet.setColumnWidth(5, 480);
+    sheet.getRange(1, 5, rows.length + 1, 1).setWrap(true);
 
     logYdpMatchingRun_('BUILD_CAN_PAIR_MENTEES', 'SUCCESS', 'Wrote ' + rows.length + ' Can Pair mentees to "' + YDP_CAN_PAIR_MENTEES_SHEET + '".');
     ui.alert('Created/updated "' + YDP_CAN_PAIR_MENTEES_SHEET + '" with ' + rows.length + ' Can Pair mentees (sorted by Final Score).');
