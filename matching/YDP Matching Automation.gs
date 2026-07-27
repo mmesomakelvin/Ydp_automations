@@ -76,6 +76,13 @@ function onOpen() {
     .addItem('Send match emails to selected pair', 'sendYdpMatchEmailsToSelectedPair')
     .addItem('Send match emails to all unsent matched pairs', 'sendYdpMatchEmailsToAllUnsentPairs')
     .addSeparator()
+    .addItem('Preview mentor match invite', 'previewYdpMentorMatchInvite')
+    .addItem('Send mentor invite — TEST to me', 'sendYdpMentorMatchInviteTest')
+    .addItem('Send match invite to ALL mentors', 'sendYdpMentorMatchInvitesToAll')
+    .addItem('Preview mentee match invite', 'previewYdpMenteeMatchInvite')
+    .addItem('Send mentee invite — TEST to me', 'sendYdpMenteeMatchInviteTest')
+    .addItem('Send match invite to ALL mentees', 'sendYdpMenteeMatchInvitesToAll')
+    .addSeparator()
     .addItem('Preview mentor countdown email', 'previewYdpMentorCountdownEmail')
     .addItem('Send mentor countdown — TEST to me', 'sendYdpMentorCountdownTest')
     .addItem('Send mentor countdown to ALL mentors', 'sendYdpMentorCountdownToAllMentors')
@@ -873,6 +880,14 @@ function getYdpMatchingDataDictionaryRows_() {
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Preview selected match emails', 'Shows the mentee and mentor match emails for one selected row.', 'Use before sending match emails.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Send match emails to selected pair', 'Sends match emails for one selected final pair if not already sent.', 'Use for controlled testing or one-off sends.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Send match emails to all unsent matched pairs', 'Sends match emails for every final pair that has not already been notified.', 'Use only after selected-row testing works.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.matchedPairs, 'Mentor Invite Status / Mentor Invite Sent At', 'Whether the website match-invite email was sent to this mentor (marked on every one of their rows), and when. Prevents double-sends.', 'SENT means the mentor was invited to the Hub.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.matchedPairs, 'Mentee Invite Status / Mentee Invite Sent At', 'Whether the website match-invite email was sent to this mentee, and when. Prevents double-sends.', 'SENT means the mentee was invited to the Hub.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Preview mentor match invite', 'Shows the website-driven mentor invite (their mentees by name plus their Hub login) without sending.', 'Before any live mentor invite.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Send mentor invite — TEST to me', 'Sends the mentor invite to your own email only.', 'To inspect the inbox version safely.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Send match invite to ALL mentors', 'Sends each matched mentor one invite listing their mentees and their Hub login (email + Mentor ID); marks their rows SENT.', 'After preview and a test send.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Preview mentee match invite', 'Shows the website-driven mentee invite (their mentor plus their Hub login) without sending.', 'Before any live mentee invite.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Send mentee invite — TEST to me', 'Sends the mentee invite to your own email only.', 'To inspect the inbox version safely.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Send match invite to ALL mentees', 'Sends each matched mentee one invite naming their mentor and their Hub login (email + Mentee ID); marks each row SENT.', 'After preview and a test send.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Test Gemini connection', 'Checks that the Gemini API key works.', 'Run after changing the API key or model.'],
     ['Sheet', YDP_MATCHING_CONFIG.sheets.mentorSnapshot, 'Countdown Intro Email Status', 'Whether the intro mentor countdown email (89% note plus onboarding PDFs) was sent to this mentor.', 'SENT prevents duplicates; ERROR means the send failed.'],
     ['Sheet', YDP_MATCHING_CONFIG.sheets.mentorSnapshot, 'Countdown Intro Email Sent At', 'When the intro countdown email was sent to this mentor.', 'Audit trail.'],
@@ -936,6 +951,12 @@ function getYdpButtonGuideRows_() {
     ['SAFE', menu, 'Preview selected match emails', 'Shows both mentor and mentee emails for one final matched pair.', 'Before any live match notification.', 'Select a complete row in Matched Pairs.', 'Opens previews only; no email or tracking changes.', 'Before every match campaign'],
     ['LIVE ACTION', menu, 'Send match emails to selected pair', 'Sends live match notifications for one selected final pair.', 'For the controlled first match send or a one-off pair.', 'Preview both emails and confirm names, emails, and assignment.', 'Sends up to two live emails and updates separate mentor/mentee tracking.', 'As needed'],
     ['LIVE ACTION', menu, 'Send match emails to all unsent matched pairs', 'Sends remaining mentor and mentee notifications for final matched pairs.', 'After the selected-pair send is verified.', 'Review Matched Pairs, preview, test, and obtain approval.', 'Sends multiple live emails and updates match-email tracking.', 'Once per matching round'],
+    ['SAFE', menu, 'Preview mentor match invite', 'Shows the website-driven mentor invite: their mentees listed by first name plus their Hub login (email + Mentor ID). Full mentee details live on the website.', 'Before any live mentor invite.', 'Run auto-match so Matched Pairs is populated.', 'Opens a preview only; no email or tracking changes.', 'Before the match-invite campaign'],
+    ['SAFE', menu, 'Send mentor invite — TEST to me', 'Sends one mentor invite to your own email using the first mentor as a sample.', 'After preview and before the live send.', 'No preparation is required.', 'Sends one test email; no Matched Pairs tracking is updated.', 'Before the match-invite campaign'],
+    ['LIVE ACTION', menu, 'Send match invite to ALL mentors', 'Sends each matched mentor one website-driven invite listing their mentees and their Hub login, skipping mentors already marked SENT.', 'After preview and a test send, once matches are final.', 'Confirm the website URL and that matches are approved; preview and test first.', 'Sends live emails and marks Mentor Invite Status SENT on every one of each mentor’s Matched Pairs rows.', 'Once per matching round'],
+    ['SAFE', menu, 'Preview mentee match invite', 'Shows the website-driven mentee invite: their mentor named plus their Hub login (email + Mentee ID). Full details live on the website.', 'Before any live mentee invite.', 'Run auto-match so Matched Pairs is populated.', 'Opens a preview only; no email or tracking changes.', 'Before the match-invite campaign'],
+    ['SAFE', menu, 'Send mentee invite — TEST to me', 'Sends one mentee invite to your own email using the first mentee as a sample.', 'After preview and before the live send.', 'No preparation is required.', 'Sends one test email; no Matched Pairs tracking is updated.', 'Before the match-invite campaign'],
+    ['LIVE ACTION', menu, 'Send match invite to ALL mentees', 'Sends each matched mentee one website-driven invite naming their mentor and their Hub login, skipping mentees already marked SENT.', 'After preview and a test send, once matches are final.', 'Confirm the website URL and that matches are approved; preview and test first.', 'Sends live emails and marks Mentee Invite Status SENT on each Matched Pairs row.', 'Once per matching round'],
     ['SAFE', menu, 'Preview mentor countdown email', 'Shows the day-appropriate mentor countdown email without sending it.', 'Before any live countdown send.', 'No preparation is required.', 'Opens a preview only; no email or tracking changes.', 'Before every countdown send'],
     ['SAFE', menu, 'Send mentor countdown — TEST to me', 'Sends the mentor countdown email to your own email only.', 'After preview and before the live send.', 'No preparation is required.', 'Sends one test email; mentor tracking is not updated.', 'Before every countdown send'],
     ['LIVE ACTION', menu, 'Send mentor countdown to ALL mentors', 'Sends the day-appropriate countdown email to every mentor not already marked SENT for that email.', 'To send the day\'s countdown email by hand.', 'Preview and test first, and confirm the day\'s content.', 'Sends live emails and updates the day\'s countdown tracking on Mentor Source Snapshot.', 'Once per countdown day'],
@@ -1516,6 +1537,582 @@ function sendYdpMenteeOnboardingInvitesToAll() {
   }
 
   logYdpMatchingRun_('MENTEE_ONBOARDING_INVITE_SEND', result.failures.length ? 'PARTIAL_SUCCESS' : 'SUCCESS', result.summary);
+  ui.alert(result.summary);
+}
+
+/* ===================================================================
+ * Match invite emails (website-driven)
+ * Each mentor gets ONE email listing their mentees by first name and their
+ * own login (email + Mentor ID); each mentee gets ONE email naming their
+ * mentor. Full details live on the Mentorship Hub, so both are pushed to log
+ * in. Tracking columns on Matched Pairs prevent double-sends.
+ * =================================================================== */
+
+const YDP_HUB_URL = 'https://ydp-automations.vercel.app';
+
+const YDP_MATCH_INVITE_TRACKING = {
+  mentorStatusHeader: 'Mentor Invite Status',
+  mentorSentAtHeader: 'Mentor Invite Sent At',
+  menteeStatusHeader: 'Mentee Invite Status',
+  menteeSentAtHeader: 'Mentee Invite Sent At'
+};
+
+// Joins names as "A", "A and B", or "A, B, and C".
+function ydpJoinNames_(arr) {
+  const list = (arr || []).filter(Boolean);
+  if (list.length === 0) return '';
+  if (list.length === 1) return list[0];
+  if (list.length === 2) return list[0] + ' and ' + list[1];
+  return list.slice(0, -1).join(', ') + ', and ' + list[list.length - 1];
+}
+
+function getYdpMatchedPairsSheetForInvites_() {
+  const sheet = SpreadsheetApp.getActive().getSheetByName(YDP_MATCHING_CONFIG.sheets.matchedPairs);
+  if (!sheet || sheet.getLastRow() <= 1) {
+    throw new Error('No matched pairs found. Run "Auto-match from pair scores" first.');
+  }
+  return sheet;
+}
+
+// One recipient per mentor, aggregating all their mentees.
+function getYdpMentorInviteRecipients_() {
+  const sheet = getYdpMatchedPairsSheetForInvites_();
+  const headerMap = getYdpMatchingHeaderMap_(sheet);
+  const values = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+  const byMentor = {};
+  const order = [];
+
+  values.forEach(function(row, index) {
+    const mentorEmail = String(getYdpRowValueByHeader_(row, headerMap, 'Mentor Email') || '').trim();
+    const mentorId = String(getYdpRowValueByHeader_(row, headerMap, 'Mentor ID') || '').trim();
+    const mentorName = String(getYdpRowValueByHeader_(row, headerMap, 'Mentor Name') || '').trim();
+    const menteeName = String(getYdpRowValueByHeader_(row, headerMap, 'Mentee Name') || '').trim();
+    const track = String(getYdpRowValueByHeader_(row, headerMap, 'Track') || '').trim();
+
+    if (!mentorId || !isValidYdpEmail_(mentorEmail)) {
+      return;
+    }
+
+    const key = mentorEmail.toLowerCase();
+    if (!byMentor[key]) {
+      byMentor[key] = {
+        email: mentorEmail,
+        mentorId: mentorId,
+        mentorName: mentorName,
+        firstName: getYdpFirstName_(mentorName),
+        rowNumbers: [],
+        menteeFirstNames: [],
+        tracks: []
+      };
+      order.push(key);
+    }
+    byMentor[key].rowNumbers.push(index + 2);
+    if (menteeName) byMentor[key].menteeFirstNames.push(getYdpFirstName_(menteeName));
+    if (track && byMentor[key].tracks.indexOf(track) === -1) byMentor[key].tracks.push(track);
+  });
+
+  return order.map(function(k) { return byMentor[k]; });
+}
+
+// One recipient per matched mentee row.
+function getYdpMenteeInviteRecipients_() {
+  const sheet = getYdpMatchedPairsSheetForInvites_();
+  const headerMap = getYdpMatchingHeaderMap_(sheet);
+  const values = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+  const recipients = [];
+
+  values.forEach(function(row, index) {
+    const menteeEmail = String(getYdpRowValueByHeader_(row, headerMap, 'Mentee Email') || '').trim();
+    const menteeId = String(getYdpRowValueByHeader_(row, headerMap, 'Mentee ID') || '').trim();
+    const menteeName = String(getYdpRowValueByHeader_(row, headerMap, 'Mentee Name') || '').trim();
+    const mentorName = String(getYdpRowValueByHeader_(row, headerMap, 'Mentor Name') || '').trim();
+    const track = String(getYdpRowValueByHeader_(row, headerMap, 'Track') || '').trim();
+
+    if (!menteeId || !isValidYdpEmail_(menteeEmail)) {
+      return;
+    }
+
+    recipients.push({
+      rowNumber: index + 2,
+      email: menteeEmail,
+      menteeId: menteeId,
+      firstName: getYdpFirstName_(menteeName),
+      mentorName: mentorName,
+      track: track
+    });
+  });
+
+  return recipients;
+}
+
+// Adds the four invite-tracking columns to Matched Pairs if missing; returns a
+// header -> column map.
+function ensureYdpMatchInviteColumns_(sheet) {
+  const t = YDP_MATCH_INVITE_TRACKING;
+  const wanted = [t.mentorStatusHeader, t.mentorSentAtHeader, t.menteeStatusHeader, t.menteeSentAtHeader];
+  const headers = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), 1)).getValues()[0].map(function(h) {
+    return String(h || '').trim();
+  });
+  const missing = wanted.filter(function(h) { return headers.indexOf(h) === -1; });
+
+  if (missing.length) {
+    sheet.getRange(1, sheet.getLastColumn() + 1, 1, missing.length).setValues([missing]);
+    sheet.setFrozenRows(1);
+  }
+
+  const finalHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const map = {};
+  finalHeaders.forEach(function(h, i) {
+    const name = String(h || '').trim();
+    if (name) map[name] = i + 1;
+  });
+  return map;
+}
+
+// Shared HTML shell for both invites: logo header, badge, body paragraphs, a
+// login box (website + tab + email + ID), and a big "Open the Mentorship Hub"
+// button.
+function buildYdpMatchInviteHtml_(opts) {
+  const navy = YDP_MENTOR_COUNTDOWN.navy;
+  const gold = YDP_MENTOR_COUNTDOWN.gold;
+  const sender = escapeYdpHtml_(YDP_MATCHING_CONFIG.senderName);
+  const src = opts.logoSrc || 'cid:ydpLogo';
+  const url = YDP_HUB_URL;
+  const paras = (opts.bodyParagraphs || []).map(function(p) {
+    return '<p style="margin:0 0 16px 0;">' + p + '</p>';
+  }).join('');
+
+  return [
+    '<div style="display:none;max-height:0;overflow:hidden;opacity:0;">' + escapeYdpHtml_(opts.preheader || '') + '</div>',
+    '<div style="margin:0;padding:0;background:#f4f4f6;">',
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f6;padding:24px 0;">',
+    '<tr><td align="center">',
+    '<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:10px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;">',
+
+    '<tr><td style="background:#ffffff;border-top:5px solid ' + navy + ';padding:26px 32px 18px 32px;text-align:center;">',
+    '<img src="' + src + '" alt="Young Data Professionals" width="300" style="display:block;margin:0 auto;width:300px;max-width:72%;height:auto;">',
+    '<div style="font-size:13px;letter-spacing:3px;color:' + navy + ';margin-top:14px;">MENTORSHIP PROGRAM</div>',
+    '<div style="height:3px;width:64px;background:' + gold + ';margin:14px auto 0 auto;font-size:0;line-height:0;">&nbsp;</div>',
+    '</td></tr>',
+
+    '<tr><td style="padding:24px 32px 0 32px;text-align:center;">',
+    '<span style="display:inline-block;border:2px solid ' + gold + ';color:' + navy + ';font-size:13px;font-weight:bold;letter-spacing:1.5px;padding:8px 18px;border-radius:999px;">' + escapeYdpHtml_(opts.badge) + '</span>',
+    '<div style="font-size:15px;color:#555555;margin-top:10px;">' + opts.subhead + '</div>',
+    '</td></tr>',
+
+    '<tr><td style="padding:24px 32px 8px 32px;color:#222222;font-size:15px;line-height:1.6;">',
+    paras,
+    '</td></tr>',
+
+    '<tr><td style="padding:0 32px 8px 32px;">',
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6fb;border:1px solid #e2e6ef;border-radius:8px;">',
+    '<tr><td style="padding:18px 20px;color:#222222;font-size:15px;line-height:1.8;">',
+    '<div style="color:#666666;font-size:12px;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">Your login</div>',
+    '<div><strong>Website:</strong> <a href="' + url + '" style="color:' + navy + ';">' + url + '</a></div>',
+    '<div><strong>Tab:</strong> Mentor / Mentee</div>',
+    '<div><strong>Email:</strong> ' + escapeYdpHtml_(opts.loginEmail) + '</div>',
+    '<div><strong>Your ID:</strong> ' + escapeYdpHtml_(opts.loginId) + '</div>',
+    '</td></tr>',
+    '</table>',
+    '</td></tr>',
+
+    '<tr><td style="padding:16px 32px 8px 32px;" align="center">',
+    ydpCountdownButton_('Open the Mentorship Hub', url, navy),
+    '</td></tr>',
+
+    '<tr><td style="padding:8px 32px 24px 32px;color:#222222;font-size:15px;line-height:1.6;">',
+    '<p style="margin:0 0 16px 0;">' + opts.closingLine + '</p>',
+    '<p style="margin:0;">Warm regards,<br><strong>' + sender + '</strong></p>',
+    '</td></tr>',
+
+    '<tr><td style="background:#f4f4f6;padding:18px 32px;text-align:center;color:#888888;font-size:12px;line-height:1.5;">',
+    'YDP Mentorship Program &bull; Cohort 2<br>' + escapeYdpHtml_(opts.footerNote),
+    '</td></tr>',
+
+    '</table>',
+    '</td></tr>',
+    '</table>',
+    '</div>'
+  ].join('');
+}
+
+function buildYdpMentorMatchInviteEmail_(recipient, logoSrc) {
+  const name = String(recipient.firstName || '').trim() || 'there';
+  const count = recipient.rowNumbers.length;
+  const menteeWord = count === 1 ? 'mentee' : 'mentees';
+  const menteeList = ydpJoinNames_(recipient.menteeFirstNames);
+  const trackList = ydpJoinNames_(recipient.tracks);
+  const url = YDP_HUB_URL;
+
+  const body = [
+    'Hi ' + name + ',',
+    '',
+    'Great news, your mentee matches for the YDP Mentorship Program, Cohort 2 are ready.',
+    '',
+    'You have been paired with ' + count + ' ' + menteeWord + ': ' + menteeList + '.' + (trackList ? ' Their tracks include ' + trackList + '.' : ''),
+    '',
+    "To see each mentee's full profile, why we matched them to you, and how to reach them (email, phone, LinkedIn), log in to your Mentorship Hub:",
+    '',
+    url,
+    '',
+    'How to log in (choose the "Mentor / Mentee" tab):',
+    'Email: ' + recipient.email + ' (the address this was sent to)',
+    'Your ID: ' + recipient.mentorId,
+    '',
+    'Please log in this week, say hello to your mentees, and agree on a first session. Watch your inbox for onboarding details.',
+    '',
+    'Warm regards,',
+    YDP_MATCHING_CONFIG.senderName
+  ].join('\n');
+
+  const htmlBody = buildYdpMatchInviteHtml_({
+    preheader: 'Your Cohort 2 mentees are ready. Log in to meet them.',
+    badge: "YOU'RE MATCHED",
+    subhead: 'Your <strong>' + count + ' ' + menteeWord + '</strong> are waiting in the Hub',
+    bodyParagraphs: [
+      'Hi ' + escapeYdpHtml_(name) + ',',
+      'Great news, your mentee matches for the <strong>YDP Mentorship Program, Cohort 2</strong> are ready.',
+      'You have been paired with <strong>' + count + ' ' + menteeWord + '</strong>: ' + escapeYdpHtml_(menteeList) + '.' + (trackList ? ' Their tracks include ' + escapeYdpHtml_(trackList) + '.' : ''),
+      "To see each mentee's full profile, why we matched them to you, and how to reach them (email, phone, LinkedIn), log in to your Mentorship Hub."
+    ],
+    loginEmail: recipient.email,
+    loginId: recipient.mentorId,
+    closingLine: 'Please log in this week, say hello to your mentees, and agree on a first session. Watch your inbox for onboarding details.',
+    footerNote: 'You are receiving this because you were matched as a mentor.',
+    logoSrc: logoSrc
+  });
+
+  return {
+    subject: 'Your YDP Cohort 2 mentees are ready - log in to meet them',
+    body: body,
+    htmlBody: htmlBody,
+    inlineImages: { ydpLogo: getYdpLogoBlob_() }
+  };
+}
+
+function buildYdpMenteeMatchInviteEmail_(recipient, logoSrc) {
+  const name = String(recipient.firstName || '').trim() || 'there';
+  const mentorName = String(recipient.mentorName || '').trim() || 'your mentor';
+  const track = String(recipient.track || '').trim();
+  const url = YDP_HUB_URL;
+
+  const body = [
+    'Hi ' + name + ',',
+    '',
+    'Congratulations, you have been matched with a mentor for the YDP Mentorship Program, Cohort 2.',
+    '',
+    'Your mentor is ' + mentorName + (track ? ' (' + track + ')' : '') + '.',
+    '',
+    "To see your mentor's full details, why you were matched, how to reach them, and the other mentees in your group, log in to your Mentorship Hub:",
+    '',
+    url,
+    '',
+    'How to log in (choose the "Mentor / Mentee" tab):',
+    'Email: ' + recipient.email + ' (the address this was sent to)',
+    'Your ID: ' + recipient.menteeId,
+    '',
+    'Please log in this week and introduce yourself to your mentor. Onboarding details will follow.',
+    '',
+    'Warm regards,',
+    YDP_MATCHING_CONFIG.senderName
+  ].join('\n');
+
+  const htmlBody = buildYdpMatchInviteHtml_({
+    preheader: 'You have been matched with your mentor. Log in to see.',
+    badge: "YOU'RE MATCHED",
+    subhead: 'Meet <strong>' + escapeYdpHtml_(mentorName) + '</strong>, your mentor',
+    bodyParagraphs: [
+      'Hi ' + escapeYdpHtml_(name) + ',',
+      'Congratulations, you have been matched with a mentor for the <strong>YDP Mentorship Program, Cohort 2</strong>.',
+      'Your mentor is <strong>' + escapeYdpHtml_(mentorName) + '</strong>' + (track ? ' (' + escapeYdpHtml_(track) + ')' : '') + '.',
+      "To see your mentor's full details, why you were matched, how to reach them, and the other mentees in your group, log in to your Mentorship Hub."
+    ],
+    loginEmail: recipient.email,
+    loginId: recipient.menteeId,
+    closingLine: 'Please log in this week and introduce yourself to your mentor. Onboarding details will follow.',
+    footerNote: 'You are receiving this because you were matched with a mentor.',
+    logoSrc: logoSrc
+  });
+
+  return {
+    subject: "You've been matched with your YDP mentor - log in to see",
+    body: body,
+    htmlBody: htmlBody,
+    inlineImages: { ydpLogo: getYdpLogoBlob_() }
+  };
+}
+
+// Sends the mentor invite to every matched mentor not already marked SENT,
+// marking ALL of that mentor's Matched Pairs rows so nobody is emailed twice.
+function sendYdpMentorMatchInvitesCore_() {
+  const sheet = getYdpMatchedPairsSheetForInvites_();
+  const recipients = getYdpMentorInviteRecipients_();
+
+  if (recipients.length === 0) {
+    return { sentCount: 0, skippedCount: 0, total: 0, failures: [], summary: 'No matched mentors with valid email addresses were found. Nothing was sent.' };
+  }
+
+  const headerMap = ensureYdpMatchInviteColumns_(sheet);
+  const statusCol = headerMap[YDP_MATCH_INVITE_TRACKING.mentorStatusHeader];
+  const sentAtCol = headerMap[YDP_MATCH_INVITE_TRACKING.mentorSentAtHeader];
+
+  let sentCount = 0;
+  let skippedCount = 0;
+  const failures = [];
+
+  recipients.forEach(function(recipient) {
+    const firstRow = recipient.rowNumbers[0];
+    const currentStatus = String(sheet.getRange(firstRow, statusCol).getValue() || '').trim().toUpperCase();
+
+    if (currentStatus === 'SENT') {
+      skippedCount++;
+      return;
+    }
+
+    try {
+      const email = buildYdpMentorMatchInviteEmail_(recipient);
+      MailApp.sendEmail({
+        to: recipient.email,
+        subject: email.subject,
+        body: email.body,
+        htmlBody: email.htmlBody,
+        name: YDP_MATCHING_CONFIG.senderName,
+        inlineImages: email.inlineImages
+      });
+      recipient.rowNumbers.forEach(function(rowNumber) {
+        sheet.getRange(rowNumber, statusCol).setValue('SENT');
+        sheet.getRange(rowNumber, sentAtCol).setValue(new Date());
+      });
+      sentCount++;
+    } catch (error) {
+      sheet.getRange(firstRow, statusCol).setValue('ERROR');
+      failures.push(recipient.email + ' (' + String(error.message || error) + ')');
+    }
+  });
+
+  const summary = 'Mentor match invite: sent ' + sentCount + ', skipped already-sent ' + skippedCount +
+    ', of ' + recipients.length + ' matched mentors.' +
+    (failures.length ? '\n\nFailed:\n' + failures.join('\n') : '');
+  return { sentCount: sentCount, skippedCount: skippedCount, total: recipients.length, failures: failures, summary: summary };
+}
+
+// Sends the mentee invite to every matched mentee row not already marked SENT.
+function sendYdpMenteeMatchInvitesCore_() {
+  const sheet = getYdpMatchedPairsSheetForInvites_();
+  const recipients = getYdpMenteeInviteRecipients_();
+
+  if (recipients.length === 0) {
+    return { sentCount: 0, skippedCount: 0, total: 0, failures: [], summary: 'No matched mentees with valid email addresses were found. Nothing was sent.' };
+  }
+
+  const headerMap = ensureYdpMatchInviteColumns_(sheet);
+  const statusCol = headerMap[YDP_MATCH_INVITE_TRACKING.menteeStatusHeader];
+  const sentAtCol = headerMap[YDP_MATCH_INVITE_TRACKING.menteeSentAtHeader];
+
+  let sentCount = 0;
+  let skippedCount = 0;
+  const failures = [];
+
+  recipients.forEach(function(recipient) {
+    const currentStatus = String(sheet.getRange(recipient.rowNumber, statusCol).getValue() || '').trim().toUpperCase();
+
+    if (currentStatus === 'SENT') {
+      skippedCount++;
+      return;
+    }
+
+    try {
+      const email = buildYdpMenteeMatchInviteEmail_(recipient);
+      MailApp.sendEmail({
+        to: recipient.email,
+        subject: email.subject,
+        body: email.body,
+        htmlBody: email.htmlBody,
+        name: YDP_MATCHING_CONFIG.senderName,
+        inlineImages: email.inlineImages
+      });
+      sheet.getRange(recipient.rowNumber, statusCol).setValue('SENT');
+      sheet.getRange(recipient.rowNumber, sentAtCol).setValue(new Date());
+      sentCount++;
+    } catch (error) {
+      sheet.getRange(recipient.rowNumber, statusCol).setValue('ERROR');
+      failures.push(recipient.email + ' (' + String(error.message || error) + ')');
+    }
+  });
+
+  const summary = 'Mentee match invite: sent ' + sentCount + ', skipped already-sent ' + skippedCount +
+    ', of ' + recipients.length + ' matched mentees.' +
+    (failures.length ? '\n\nFailed:\n' + failures.join('\n') : '');
+  return { sentCount: sentCount, skippedCount: skippedCount, total: recipients.length, failures: failures, summary: summary };
+}
+
+function ydpShowMatchInvitePreview_(email, sampleName, recipientNote, title) {
+  const html = [
+    '<div style="font-family:Arial,sans-serif;padding:8px;">',
+    '<p style="margin:0 0 4px 0;"><strong>Subject:</strong> ' + escapeYdpHtml_(email.subject) + '</p>',
+    '<p style="margin:0 0 12px 0;color:#555;"><em>Sample recipient "' + escapeYdpHtml_(sampleName) + '"; each person sees their own name, login email, and ID. ' + escapeYdpHtml_(recipientNote) + '</em></p>',
+    '<hr>',
+    email.htmlBody,
+    '</div>'
+  ].join('');
+  SpreadsheetApp.getUi().showModalDialog(
+    HtmlService.createHtmlOutput(html).setWidth(680).setHeight(760),
+    title
+  );
+}
+
+function previewYdpMentorMatchInvite() {
+  const ui = SpreadsheetApp.getUi();
+  try {
+    const recipients = getYdpMentorInviteRecipients_();
+    if (recipients.length === 0) {
+      ui.alert('No matched mentors found. Run auto-match first.');
+      return;
+    }
+    const sample = recipients[0];
+    const email = buildYdpMentorMatchInviteEmail_(sample, 'data:image/png;base64,' + YDP_LOGO_BASE64);
+    ydpShowMatchInvitePreview_(email, sample.firstName, recipients.length + ' mentor(s) will receive this.', 'Mentor Match Invite Preview');
+  } catch (error) {
+    ui.alert('Could not build the mentor invite preview:\n\n' + String(error.message || error));
+  }
+}
+
+function previewYdpMenteeMatchInvite() {
+  const ui = SpreadsheetApp.getUi();
+  try {
+    const recipients = getYdpMenteeInviteRecipients_();
+    if (recipients.length === 0) {
+      ui.alert('No matched mentees found. Run auto-match first.');
+      return;
+    }
+    const sample = recipients[0];
+    const email = buildYdpMenteeMatchInviteEmail_(sample, 'data:image/png;base64,' + YDP_LOGO_BASE64);
+    ydpShowMatchInvitePreview_(email, sample.firstName, recipients.length + ' mentee(s) will receive this.', 'Mentee Match Invite Preview');
+  } catch (error) {
+    ui.alert('Could not build the mentee invite preview:\n\n' + String(error.message || error));
+  }
+}
+
+function ydpResolveTestRecipient_(promptTitle) {
+  const ui = SpreadsheetApp.getUi();
+  let testRecipient = '';
+  try {
+    testRecipient = String(Session.getEffectiveUser().getEmail() || '').trim();
+  } catch (emailError) {
+    testRecipient = '';
+  }
+  if (isValidYdpEmail_(testRecipient)) {
+    return testRecipient;
+  }
+  const response = ui.prompt(promptTitle, 'Could not detect your email automatically. Enter the address to send the test to:', ui.ButtonSet.OK_CANCEL);
+  if (response.getSelectedButton() !== ui.Button.OK) {
+    return '';
+  }
+  testRecipient = String(response.getResponseText() || '').trim();
+  if (!isValidYdpEmail_(testRecipient)) {
+    ui.alert('That is not a valid email address. No test was sent.');
+    return '';
+  }
+  return testRecipient;
+}
+
+function sendYdpMentorMatchInviteTest() {
+  const ui = SpreadsheetApp.getUi();
+  const testRecipient = ydpResolveTestRecipient_('Send Test Mentor Invite');
+  if (!testRecipient) return;
+
+  try {
+    const recipients = getYdpMentorInviteRecipients_();
+    if (recipients.length === 0) {
+      ui.alert('No matched mentors found. Run auto-match first.');
+      return;
+    }
+    const email = buildYdpMentorMatchInviteEmail_(recipients[0]);
+    MailApp.sendEmail({ to: testRecipient, subject: '[TEST] ' + email.subject, body: email.body, htmlBody: email.htmlBody, name: YDP_MATCHING_CONFIG.senderName, inlineImages: email.inlineImages });
+    ui.alert('Test mentor invite sent to ' + testRecipient + '.\n\nIt used "' + recipients[0].firstName + '" as a sample. The real send greets each mentor by name, lists their own mentees, shows their Mentor ID, and marks their Matched Pairs rows SENT. No mentors were emailed by this test.');
+  } catch (error) {
+    ui.alert('Test mentor invite failed:\n\n' + String(error.message || error));
+  }
+}
+
+function sendYdpMenteeMatchInviteTest() {
+  const ui = SpreadsheetApp.getUi();
+  const testRecipient = ydpResolveTestRecipient_('Send Test Mentee Invite');
+  if (!testRecipient) return;
+
+  try {
+    const recipients = getYdpMenteeInviteRecipients_();
+    if (recipients.length === 0) {
+      ui.alert('No matched mentees found. Run auto-match first.');
+      return;
+    }
+    const email = buildYdpMenteeMatchInviteEmail_(recipients[0]);
+    MailApp.sendEmail({ to: testRecipient, subject: '[TEST] ' + email.subject, body: email.body, htmlBody: email.htmlBody, name: YDP_MATCHING_CONFIG.senderName, inlineImages: email.inlineImages });
+    ui.alert('Test mentee invite sent to ' + testRecipient + '.\n\nIt used "' + recipients[0].firstName + '" as a sample. The real send greets each mentee by name, names their mentor, shows their Mentee ID, and marks each Matched Pairs row SENT. No mentees were emailed by this test.');
+  } catch (error) {
+    ui.alert('Test mentee invite failed:\n\n' + String(error.message || error));
+  }
+}
+
+function sendYdpMentorMatchInvitesToAll() {
+  const ui = SpreadsheetApp.getUi();
+  let recipients;
+  try {
+    recipients = getYdpMentorInviteRecipients_();
+  } catch (error) {
+    ui.alert('Could not read matched pairs:\n\n' + String(error.message || error));
+    return;
+  }
+  if (recipients.length === 0) {
+    ui.alert('No matched mentors with valid email addresses were found. Nothing was sent.');
+    return;
+  }
+  if (MailApp.getRemainingDailyQuota() < recipients.length) {
+    ui.alert('Gmail can only send ' + MailApp.getRemainingDailyQuota() + ' more emails today, but there are ' + recipients.length + ' mentors. Nothing was sent. Try again after the daily quota resets.');
+    return;
+  }
+  const confirmation = ui.alert('Send Match Invite To All Mentors', 'Send the match invite to ' + recipients.length + ' matched mentors now?\n\nMentors already marked SENT are skipped, so this is safe to run more than once. Send a test to yourself first if you have not.', ui.ButtonSet.OK_CANCEL);
+  if (confirmation !== ui.Button.OK) return;
+
+  let result;
+  try {
+    result = sendYdpMentorMatchInvitesCore_();
+  } catch (error) {
+    ui.alert('Sending failed, so nothing was sent:\n\n' + String(error.message || error));
+    return;
+  }
+  logYdpMatchingRun_('MENTOR_MATCH_INVITE_SEND', result.failures.length ? 'PARTIAL_SUCCESS' : 'SUCCESS', result.summary);
+  ui.alert(result.summary);
+}
+
+function sendYdpMenteeMatchInvitesToAll() {
+  const ui = SpreadsheetApp.getUi();
+  let recipients;
+  try {
+    recipients = getYdpMenteeInviteRecipients_();
+  } catch (error) {
+    ui.alert('Could not read matched pairs:\n\n' + String(error.message || error));
+    return;
+  }
+  if (recipients.length === 0) {
+    ui.alert('No matched mentees with valid email addresses were found. Nothing was sent.');
+    return;
+  }
+  if (MailApp.getRemainingDailyQuota() < recipients.length) {
+    ui.alert('Gmail can only send ' + MailApp.getRemainingDailyQuota() + ' more emails today, but there are ' + recipients.length + ' mentees. Nothing was sent. Try again after the daily quota resets.');
+    return;
+  }
+  const confirmation = ui.alert('Send Match Invite To All Mentees', 'Send the match invite to ' + recipients.length + ' matched mentees now?\n\nMentees already marked SENT are skipped, so this is safe to run more than once. Send a test to yourself first if you have not.', ui.ButtonSet.OK_CANCEL);
+  if (confirmation !== ui.Button.OK) return;
+
+  let result;
+  try {
+    result = sendYdpMenteeMatchInvitesCore_();
+  } catch (error) {
+    ui.alert('Sending failed, so nothing was sent:\n\n' + String(error.message || error));
+    return;
+  }
+  logYdpMatchingRun_('MENTEE_MATCH_INVITE_SEND', result.failures.length ? 'PARTIAL_SUCCESS' : 'SUCCESS', result.summary);
   ui.alert(result.summary);
 }
 
