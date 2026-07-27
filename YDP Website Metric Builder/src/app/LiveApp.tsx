@@ -17,10 +17,13 @@ import {
   toMenteeLookupData,
   toMentorLookupData,
 } from '@/lib/matches'
+import { isSupabaseConfigured } from '@/lib/supabase'
 import { useMatches } from './useMatches'
-import { PasswordGate } from './PasswordGate'
+import { useMyMatches } from './useMyMatches'
+import { PasswordGate, type LoginSubmit } from './PasswordGate'
+import { ParticipantMatch } from './ParticipantMatch'
 
-const PASSWORD_KEY = 'ydp-hub-password'
+const AUTH_KEY = 'ydp-hub-auth'
 
 import dashboardSample from '@/../product/sections/overview-dashboard/data.json'
 import menteeSample from '@/../product/sections/mentee-lookup/data.json'
@@ -36,6 +39,14 @@ import type { MenteeWithMatches } from '@/../product/sections/mentee-lookup/type
 import type { MentorWithMatches } from '@/../product/sections/mentor-lookup/types'
 
 type SectionKey = 'dashboard' | 'mentee-lookup' | 'mentor-lookup' | 'directory'
+
+/**
+ * Who is signed in. Staff see the whole cohort; a participant (mentor/mentee)
+ * is scoped by their own email to just their match.
+ */
+type Auth =
+  | { mode: 'staff'; password: string }
+  | { mode: 'participant'; email: string; password: string }
 
 const SECTIONS: { key: SectionKey; label: string; icon: NavigationItem['icon'] }[] = [
   { key: 'dashboard', label: 'Overview Dashboard', icon: LayoutDashboard },
@@ -59,33 +70,91 @@ const productType = {
   '--font-mono': "'JetBrains Mono', ui-monospace, monospace",
 } as CSSProperties
 
+function loadAuth(): Auth | null {
+  try {
+    const raw = sessionStorage.getItem(AUTH_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as Auth
+    if (parsed?.mode === 'staff' || parsed?.mode === 'participant') return parsed
+    return null
+  } catch {
+    return null
+  }
+}
+
+function authFromSubmit(creds: LoginSubmit): Auth {
+  return creds.mode === 'participant'
+    ? { mode: 'participant', email: creds.email ?? '', password: creds.password }
+    : { mode: 'staff', password: creds.password }
+}
+
 /**
- * The live YDP Mentorship Hub app. Renders the shell with real navigation and
- * feeds each section from Supabase, falling back to bundled sample data until
- * credentials are configured.
+ * The live YDP Mentorship Hub app. Routes between two experiences behind one
+ * login: program staff get the full cohort dashboard; a mentor/mentee gets only
+ * their own match. Until Supabase is configured it shows the staff view on
+ * bundled sample data so the design stays previewable.
  */
 export default function LiveApp() {
-  const [active, setActive] = useState<SectionKey>('dashboard')
-  // Kept in sessionStorage so a refresh doesn't re-prompt, but a new tab does.
-  const [password, setPassword] = useState<string | null>(() =>
-    sessionStorage.getItem(PASSWORD_KEY),
-  )
-  const { rows, loading, error, unauthorized, configured } = useMatches(password)
+  const [auth, setAuth] = useState<Auth | null>(loadAuth)
 
-  const unlock = (value: string) => {
-    sessionStorage.setItem(PASSWORD_KEY, value)
-    setPassword(value)
+  const handleAuth = (creds: LoginSubmit) => {
+    const next = authFromSubmit(creds)
+    sessionStorage.setItem(AUTH_KEY, JSON.stringify(next))
+    setAuth(next)
   }
 
-  // Live data is gated; sample data isn't, so the design stays previewable.
-  if (configured && (password === null || unauthorized)) {
+  const signOut = () => {
+    sessionStorage.removeItem(AUTH_KEY)
+    setAuth(null)
+  }
+
+  // Not configured → sample data, staff view, no gate.
+  if (!isSupabaseConfigured) {
+    return <StaffApp password={null} />
+  }
+
+  if (auth === null) {
     return (
       <div style={productType}>
-        <PasswordGate
-          onSubmit={unlock}
-          incorrect={unauthorized}
-          checking={loading}
-        />
+        <PasswordGate onSubmit={handleAuth} />
+      </div>
+    )
+  }
+
+  if (auth.mode === 'participant') {
+    return (
+      <ParticipantApp
+        email={auth.email}
+        password={auth.password}
+        onReauth={handleAuth}
+        onSignOut={signOut}
+      />
+    )
+  }
+
+  return (
+    <StaffApp password={auth.password} onReauth={handleAuth} onSignOut={signOut} />
+  )
+}
+
+/** The full cohort experience for program staff (and the sample-data preview). */
+function StaffApp({
+  password,
+  onReauth,
+  onSignOut,
+}: {
+  password: string | null
+  onReauth?: (creds: LoginSubmit) => void
+  onSignOut?: () => void
+}) {
+  const [active, setActive] = useState<SectionKey>('dashboard')
+  const { rows, loading, error, unauthorized, configured } = useMatches(password)
+
+  // Wrong staff password → re-prompt with the staff tab preselected.
+  if (configured && unauthorized && onReauth) {
+    return (
+      <div style={productType}>
+        <PasswordGate onSubmit={onReauth} initialMode="staff" incorrect />
       </div>
     )
   }
@@ -108,7 +177,7 @@ export default function LiveApp() {
         user={user}
         cohortLabel="C2"
         onNavigate={(href) => setActive(href as SectionKey)}
-        onLogout={() => console.log('Logout')}
+        onLogout={() => onSignOut?.()}
       >
         {!configured && <SampleDataNotice />}
         {configured && loading && !rows ? (
@@ -121,6 +190,61 @@ export default function LiveApp() {
           <SectionView active={active} live={live} rows={rows} goTo={setActive} />
         )}
       </AppShell>
+    </div>
+  )
+}
+
+/** A single participant's own-match experience, scoped by their email. */
+function ParticipantApp({
+  email,
+  password,
+  onReauth,
+  onSignOut,
+}: {
+  email: string
+  password: string
+  onReauth: (creds: LoginSubmit) => void
+  onSignOut: () => void
+}) {
+  const { view, loading, error, unauthorized, notFound } = useMyMatches(
+    email,
+    password,
+  )
+
+  // Wrong password, or a valid password with no match for that email → re-prompt
+  // on the participant tab, with the right explanation.
+  if (unauthorized || notFound) {
+    return (
+      <div style={productType}>
+        <PasswordGate
+          onSubmit={onReauth}
+          initialMode="participant"
+          incorrect={unauthorized}
+          notFound={notFound}
+        />
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div style={productType}>
+        <LoadFailed message={error.message} />
+      </div>
+    )
+  }
+
+  if (loading || !view) {
+    return (
+      <div style={productType}>
+        <LoadingState />
+      </div>
+    )
+  }
+
+  return (
+    <div style={productType}>
+      <ParticipantMatch view={view} onSignOut={onSignOut} />
     </div>
   )
 }
@@ -233,7 +357,7 @@ function LoadFailed({ message }: { message: string }) {
 
 function LoadingState() {
   return (
-    <div className="flex h-full items-center justify-center py-24 text-slate-400 dark:text-slate-500">
+    <div className="flex h-screen items-center justify-center py-24 text-slate-400 dark:text-slate-500">
       <Loader2 className="mr-2 h-5 w-5 animate-spin" />
       Loading matches…
     </div>

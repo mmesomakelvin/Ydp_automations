@@ -78,6 +78,123 @@ export async function fetchAllMatches(password: string): Promise<MatchRow[]> {
   return (data ?? []) as MatchRow[]
 }
 
+// --- Participant (mentor/mentee) access -------------------------------------
+
+/**
+ * A reduced match row for participants. The `get_my_matches` function returns
+ * only these non-sensitive columns — no scores, risk, notes, or email tracking.
+ */
+export interface ParticipantMatchRow {
+  match_id: string
+  mentee_id: string
+  mentee_name: string
+  mentee_email: string | null
+  mentor_id: string
+  mentor_name: string
+  mentor_email: string | null
+  track: string | null
+}
+
+/**
+ * Fetch only the logged-in participant's own match rows, via the
+ * `get_my_matches` function. Requires the participant password AND their email;
+ * the database verifies the password and scopes the rows to that email.
+ */
+export async function fetchMyMatches(
+  password: string,
+  email: string,
+): Promise<ParticipantMatchRow[]> {
+  if (!supabase) {
+    throw new Error(
+      'Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env.local.',
+    )
+  }
+  const { data, error } = await supabase.rpc('get_my_matches', {
+    p_password: password,
+    p_email: email,
+  })
+  if (error) {
+    if (error.message.includes('Invalid password')) throw new InvalidPasswordError()
+    throw error
+  }
+  return (data ?? []) as ParticipantMatchRow[]
+}
+
+export type ParticipantRole = 'mentee' | 'mentor'
+
+/** One counterpart shown to a participant (the person on the other side). */
+export interface CounterpartCard {
+  matchId: string
+  /** The counterpart's role — the opposite of the logged-in person's role. */
+  role: ParticipantRole
+  name: string
+  email: string
+  track: string
+}
+
+export interface ParticipantView {
+  myName: string
+  /** The logged-in person's own role. */
+  myRole: ParticipantRole
+  /** Heading for the counterpart section, e.g. "Your Mentor" / "Your Mentees". */
+  counterpartHeading: string
+  counterparts: CounterpartCard[]
+}
+
+/**
+ * Turn the participant's own rows into a view model. For each row we work out
+ * which side the logged-in email is on, and surface the OTHER side as their
+ * match: a mentee sees their mentor, a mentor sees their mentee(s). Returns null
+ * when none of the rows actually belong to this email (nothing to show).
+ */
+export function toParticipantView(
+  rows: ParticipantMatchRow[],
+  email: string,
+): ParticipantView | null {
+  const me = email.trim().toLowerCase()
+  const counterparts: CounterpartCard[] = []
+  let myName = ''
+  let myRole: ParticipantRole | null = null
+
+  for (const r of rows) {
+    const menteeEmail = (r.mentee_email ?? '').trim().toLowerCase()
+    const mentorEmail = (r.mentor_email ?? '').trim().toLowerCase()
+
+    if (menteeEmail === me) {
+      myRole = 'mentee'
+      myName = myName || r.mentee_name
+      counterparts.push({
+        matchId: r.match_id,
+        role: 'mentor',
+        name: r.mentor_name,
+        email: r.mentor_email ?? '',
+        track: r.track ?? '—',
+      })
+    } else if (mentorEmail === me) {
+      myRole = 'mentor'
+      myName = myName || r.mentor_name
+      counterparts.push({
+        matchId: r.match_id,
+        role: 'mentee',
+        name: r.mentee_name,
+        email: r.mentee_email ?? '',
+        track: r.track ?? '—',
+      })
+    }
+  }
+
+  if (!myRole) return null
+
+  const counterpartHeading =
+    myRole === 'mentee'
+      ? 'Your Mentor'
+      : counterparts.length > 1
+        ? 'Your Mentees'
+        : 'Your Mentee'
+
+  return { myName, myRole, counterpartHeading, counterparts }
+}
+
 // --- Normalizers -----------------------------------------------------------
 
 /** Pair score from the dedicated column, falling back to the Notes text. */
