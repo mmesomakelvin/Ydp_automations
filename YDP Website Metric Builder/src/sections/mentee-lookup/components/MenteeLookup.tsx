@@ -126,7 +126,7 @@ export function MenteeLookup({
       {/* Body */}
       <div className="mt-6">
         {!selected ? (
-          <EmptyPrompt />
+          <MenteeBrowseList mentees={mentees} onSelect={select} />
         ) : (
           <section>
             {/* Mentee profile */}
@@ -187,18 +187,70 @@ export function MenteeLookup({
   )
 }
 
-function EmptyPrompt() {
+/** Full browsable list of every mentee (staff view). */
+function MenteeBrowseList({
+  mentees,
+  onSelect,
+}: {
+  mentees: MenteeWithMatches[]
+  onSelect: (mentee: MenteeWithMatches) => void
+}) {
+  const sorted = useMemo(
+    () => [...mentees].sort((a, b) => a.menteeName.localeCompare(b.menteeName)),
+    [mentees],
+  )
+
+  if (sorted.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white px-6 py-16 text-center dark:border-slate-700 dark:bg-slate-900">
+        <span className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500">
+          <UsersRound className="h-5 w-5" />
+        </span>
+        <h3 className="mt-4 text-base font-semibold text-slate-900 dark:text-white">
+          No mentees yet
+        </h3>
+      </div>
+    )
+  }
+
   return (
-    <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white px-6 py-16 text-center dark:border-slate-700 dark:bg-slate-900">
-      <span className="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-100 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300">
-        <Search className="h-5 w-5" />
-      </span>
-      <h3 className="mt-4 text-base font-semibold text-slate-900 dark:text-white">
-        Search to see your mentors
-      </h3>
-      <p className="mt-1 max-w-sm text-sm text-slate-500 dark:text-slate-400">
-        Enter your mentee ID or name above and pick yourself from the list.
-      </p>
+    <div>
+      <div className="mb-3 flex items-center gap-2">
+        <UsersRound className="h-4 w-4 text-slate-400" />
+        <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+          All mentees
+        </h3>
+        <span className="text-xs text-slate-400 dark:text-slate-500">
+          {sorted.length} total
+        </span>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {sorted.map((m) => (
+          <button
+            key={m.menteeId}
+            type="button"
+            onClick={() => onSelect(m)}
+            className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 text-left transition-colors hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800"
+          >
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-xs font-semibold text-white dark:bg-indigo-500">
+              {m.menteeName
+                .split(' ')
+                .map((p) => p[0])
+                .slice(0, 2)
+                .join('')
+                .toUpperCase()}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-medium text-slate-900 dark:text-white">
+                {m.menteeName}
+              </span>
+              <span className="block truncate font-mono text-xs text-slate-400 dark:text-slate-500">
+                {m.menteeId} · {m.track}
+              </span>
+            </span>
+          </button>
+        ))}
+      </div>
     </div>
   )
 }
