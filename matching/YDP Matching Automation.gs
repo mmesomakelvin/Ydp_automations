@@ -58,7 +58,7 @@ function onOpen() {
     .addItem('Turn ON automatic pair scoring', 'installYdpPairScoringTrigger')
     .addItem('Turn OFF automatic pair scoring', 'removeYdpPairScoringTrigger')
     .addItem('Auto-match from pair scores', 'autoMatchYdpFromPairScores')
-    .addItem('Turn ON scheduled auto-match (every 6 hrs)', 'installYdpAutoMatchTrigger')
+    .addItem('Turn ON scheduled auto-match (every 2 hrs)', 'installYdpAutoMatchTrigger')
     .addItem('Turn OFF scheduled auto-match', 'removeYdpAutoMatchTrigger')
     .addSeparator()
     .addItem('Preview selected selection email', 'previewSelectedYdpMenteeSelectionEmail')
@@ -864,8 +864,8 @@ function getYdpMatchingDataDictionaryRows_() {
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Generate next pair score', 'Scores one mentee/mentor pair with Gemini.', 'Use as a safe one-pair test.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Generate pair scores batch', 'Scores up to 5 unscored mentee/mentor pairs with Gemini.', 'Use to move matching comparisons forward.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Auto-match from pair scores', 'Selects the best available mentor for each fully scored eligible mentee, then refreshes the Mentor Load sheet.', 'Run after pair scores are complete enough for matching.'],
-    ['Button', YDP_MATCHING_CONFIG.menuName, 'Turn ON scheduled auto-match (every 6 hrs)', 'Installs a trigger that re-runs auto-match every 6 hours and refreshes Mentor Load; never sends email. Skips and switches itself off once any match email is marked SENT.', 'Turn on to keep matches and counts current hands-free before match emails go out.'],
-    ['Button', YDP_MATCHING_CONFIG.menuName, 'Turn OFF scheduled auto-match', 'Removes the every-6-hours auto-match trigger.', 'Turn off before sending match emails, or any time you want matching to stop reshuffling.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Turn ON scheduled auto-match (every 2 hrs)', 'Installs a trigger that re-runs auto-match every 2 hours and refreshes Mentor Load; never sends email. Skips and switches itself off once any match email is marked SENT.', 'Turn on to keep matches and counts current hands-free before match emails go out.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Turn OFF scheduled auto-match', 'Removes the every-2-hours auto-match trigger.', 'Turn off before sending match emails, or any time you want matching to stop reshuffling.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Preview selected selection email', 'Shows the selection email for one selected Can Pair mentee without sending it.', 'Use before any live selection email.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Send test selection email', 'Sends the selected Can Pair mentee template to an email address you enter without updating participant status.', 'Use to inspect the real inbox version safely.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Send selection email to selected mentee', 'Sends the live selection email to one selected Can Pair mentee and records SENT.', 'Use as the controlled first live send.'],
@@ -922,8 +922,8 @@ function getYdpButtonGuideRows_() {
     ['CAUTION', menu, 'Turn ON automatic pair scoring', 'Installs a time-based trigger that scores pair batches automatically every few minutes until every eligible pair is scored.', 'After a manual pair-scoring test works and you want scoring to finish unattended.', 'Confirm Gemini keys and quota, and that Can Pair mentees and mentors have IDs.', 'Creates one scheduled trigger; it adds Pair Scores rows over time and switches itself off when scoring is complete or blocked.', 'Once per scoring round'],
     ['SAFE', menu, 'Turn OFF automatic pair scoring', 'Removes the automatic pair-scoring trigger.', 'To stop unattended pair scoring.', 'No preparation is required.', 'Deletes the pair-scoring trigger; no data is changed.', 'As needed'],
     ['LIVE ACTION', menu, 'Auto-match from pair scores', 'Selects the highest-scoring available mentor for each fully scored eligible mentee, then refreshes the Mentor Load sheet.', 'Only after all available mentors are scored for each mentee and before live match emails are sent.', 'Export or back up existing Match Recommendations and Matched Pairs, confirm no statuses, dates, notes, or email history must be preserved, review Pair Scores, and verify capacity data.', 'Clears and rebuilds Match Recommendations and Matched Pairs, including operational and email-tracking fields; rebuilds Mentor Load; fills stated capacity first, then permits at most +2 overflow.', 'Once per approved matching round'],
-    ['LIVE ACTION', menu, 'Turn ON scheduled auto-match (every 6 hrs)', 'Installs a trigger that re-runs auto-match every 6 hours so Matched Pairs and the Mentor Load counts stay current without pressing the button; never sends email.', 'Turn on while still building matches, before any match emails are sent.', 'Understand that each run clears and rebuilds Matched Pairs, so manual edits to that sheet will not survive; keep it off if you have hand-edited Matched Pairs.', 'Creates a 6-hour time trigger that rewrites Match Recommendations, Matched Pairs, and Mentor Load each run. Auto-safeguard: it skips the rebuild and switches itself off the moment any match email is marked SENT, so it cannot cause duplicate match emails.', 'Turn on during matching; off before match emails'],
-    ['SAFE', menu, 'Turn OFF scheduled auto-match', 'Removes the every-6-hours auto-match trigger.', 'Before sending match emails, or any time you want scheduled matching to stop.', 'No preparation is required.', 'Deletes the scheduled auto-match trigger; no sheet data is changed.', 'As needed'],
+    ['LIVE ACTION', menu, 'Turn ON scheduled auto-match (every 2 hrs)', 'Installs a trigger that re-runs auto-match every 2 hours so Matched Pairs and the Mentor Load counts stay current without pressing the button; never sends email.', 'Turn on while still building matches, before any match emails are sent.', 'Understand that each run clears and rebuilds Matched Pairs, so manual edits to that sheet will not survive; keep it off if you have hand-edited Matched Pairs.', 'Creates a 2-hour time trigger that rewrites Match Recommendations, Matched Pairs, and Mentor Load each run. Auto-safeguard: it skips the rebuild and switches itself off the moment any match email is marked SENT, so it cannot cause duplicate match emails.', 'Turn on during matching; off before match emails'],
+    ['SAFE', menu, 'Turn OFF scheduled auto-match', 'Removes the every-2-hours auto-match trigger.', 'Before sending match emails, or any time you want scheduled matching to stop.', 'No preparation is required.', 'Deletes the scheduled auto-match trigger; no sheet data is changed.', 'As needed'],
     ['SAFE', menu, 'Preview selected selection email', 'Shows the personalized selection email for one Can Pair mentee.', 'Before test or live selection sends.', 'Select a row in Mentee Scores with Can Pair status.', 'Opens a preview only; no email or tracking changes.', 'Before every selection campaign'],
     ['SAFE', menu, 'Send test selection email', 'Sends the selected mentee template to an internal test address.', 'After preview and before live selection sends.', 'Select a Can Pair mentee and use an internal email address.', 'Sends one test email; participant tracking is not updated.', 'Before every selection campaign'],
     ['LIVE ACTION', menu, 'Send selection email to selected mentee', 'Sends the live program-selection email to one selected eligible mentee.', 'For the controlled first live send or a one-off recipient.', 'Preview, test, and select the intended Can Pair row.', 'Sends one live email and updates selection-email tracking.', 'As needed'],
@@ -1796,7 +1796,7 @@ function runYdpPairScoringOnSchedule() {
   properties.setProperty(YDP_PAIR_SCORING_IDLE_RUNS_KEY, String(stuckRuns));
 }
 
-// Shared auto-match logic used by both the menu button and the every-6-hours
+// Shared auto-match logic used by both the menu button and the every-2-hours
 // trigger. Rebuilds Match Recommendations + Matched Pairs from the current pair
 // scores, then refreshes the Mentor Load counts to match. No UI, so it is safe
 // to run from a trigger (which cannot open dialogs). Returns a summary string.
@@ -1856,7 +1856,7 @@ function runYdpAutoMatchFromPairScoresCore_() {
 
 // Menu wrapper: runs auto-match and shows the result. Rebuilding Matched Pairs
 // by hand is always allowed — the SENT safeguard only guards the unattended
-// 6-hour trigger, not this deliberate button press.
+// 2-hour trigger, not this deliberate button press.
 function autoMatchYdpFromPairScores() {
   try {
     const message = runYdpAutoMatchFromPairScoresCore_();
@@ -1868,7 +1868,7 @@ function autoMatchYdpFromPairScores() {
 }
 
 const YDP_AUTO_MATCH_TRIGGER_HANDLER = 'runYdpAutoMatchOnSchedule';
-const YDP_AUTO_MATCH_TRIGGER_HOURS = 6;
+const YDP_AUTO_MATCH_TRIGGER_HOURS = 2;
 
 // Returns true if any match email is already marked SENT on Matched Pairs. Once
 // that is true, rebuilding Matched Pairs would wipe the sent-tracking and risk
@@ -1900,7 +1900,7 @@ function ydpAnyMatchEmailAlreadySent_() {
 }
 
 /**
- * Installs a time-driven trigger that re-runs auto-match every 6 hours so match
+ * Installs a time-driven trigger that re-runs auto-match every 2 hours so match
  * progress and the Mentor Load counts stay current without pressing the button.
  * It only assigns matches from existing pair scores and rewrites sheets; it
  * never sends email. The scheduled run turns itself off the moment any match
