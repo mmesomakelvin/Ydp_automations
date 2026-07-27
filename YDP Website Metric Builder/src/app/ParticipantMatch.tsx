@@ -1,9 +1,22 @@
-import { Mail, PartyPopper, LogOut, ArrowRight, Sparkles } from 'lucide-react'
+import {
+  Mail,
+  PartyPopper,
+  LogOut,
+  ArrowRight,
+  Sparkles,
+  Linkedin,
+} from 'lucide-react'
 import type { ParticipantView, CounterpartCard } from '@/lib/matches'
 
 function firstNameOf(name: string): string {
   const first = name.trim().split(/\s+/)[0]
   return first || 'there'
+}
+
+/** Ensure a LinkedIn value is a clickable absolute URL. */
+function linkedinHref(raw: string): string {
+  const v = raw.trim()
+  return /^https?:\/\//i.test(v) ? v : `https://${v}`
 }
 
 function initialsOf(name: string): string {
@@ -119,6 +132,7 @@ function CounterpartCardView({ card }: { card: CounterpartCard }) {
   const hasEmail = card.email.trim().length > 0
   const hasScore = typeof card.score === 'number'
   const hasReason = card.reason.trim().length > 0
+  const hasLinkedin = card.linkedin.trim().length > 0
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
@@ -163,16 +177,29 @@ function CounterpartCardView({ card }: { card: CounterpartCard }) {
         </div>
       )}
 
-      {hasEmail && (
-        <a
-          href={`mailto:${card.email}`}
-          className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-400"
-        >
-          <Mail className="h-4 w-4" />
-          Email {firstNameOf(card.name)}
-          <ArrowRight className="h-4 w-4" />
-        </a>
-      )}
+      <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+        {hasEmail && (
+          <a
+            href={`mailto:${card.email}`}
+            className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-400"
+          >
+            <Mail className="h-4 w-4" />
+            Email {firstNameOf(card.name)}
+            <ArrowRight className="h-4 w-4" />
+          </a>
+        )}
+        {hasLinkedin && (
+          <a
+            href={linkedinHref(card.linkedin)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+          >
+            <Linkedin className="h-4 w-4" />
+            LinkedIn
+          </a>
+        )}
+      </div>
     </div>
   )
 }

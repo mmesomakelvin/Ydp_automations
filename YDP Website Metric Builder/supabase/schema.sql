@@ -28,6 +28,10 @@ create table if not exists public.matches (
   -- The "why you were matched" text shown to participants (from the sheet's
   -- Skill Match Reason column).
   match_reason                 text,
+  -- LinkedIn profile URLs (from the source snapshots) so each participant can
+  -- see their counterpart's LinkedIn.
+  mentor_linkedin              text,
+  mentee_linkedin              text,
   mentee_match_email_status    text,
   mentee_match_email_sent_at   timestamptz,
   mentor_match_email_status    text,

@@ -95,6 +95,8 @@ export interface ParticipantMatchRow {
   track: string | null
   pair_score: number | null
   match_reason: string | null
+  mentor_linkedin: string | null
+  mentee_linkedin: string | null
 }
 
 /**
@@ -134,6 +136,8 @@ export interface CounterpartCard {
   score: number | null
   /** "Why you were matched" text, or empty if none. */
   reason: string
+  /** Counterpart's LinkedIn URL, or empty if none on file. */
+  linkedin: string
 }
 
 export interface ParticipantView {
@@ -175,6 +179,7 @@ export function toParticipantView(
         track: r.track ?? '—',
         score: r.pair_score,
         reason: r.match_reason ?? '',
+        linkedin: r.mentor_linkedin ?? '',
       })
     } else if (mentorEmail === me) {
       myRole = 'mentor'
@@ -187,6 +192,7 @@ export function toParticipantView(
         track: r.track ?? '—',
         score: r.pair_score,
         reason: r.match_reason ?? '',
+        linkedin: r.mentee_linkedin ?? '',
       })
     }
   }
