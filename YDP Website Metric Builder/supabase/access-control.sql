@@ -91,7 +91,8 @@ returns table (
   pair_score   integer,
   match_reason text,
   mentor_linkedin text,
-  mentee_linkedin text
+  mentee_linkedin text,
+  mentee_summary  text
 )
 language plpgsql
 security definer
@@ -104,7 +105,8 @@ begin
   return query
     select m.match_id, m.mentee_id, m.mentee_name, m.mentee_email,
            m.mentor_id, m.mentor_name, m.mentor_email, m.track,
-           m.pair_score, m.match_reason, m.mentor_linkedin, m.mentee_linkedin
+           m.pair_score, m.match_reason, m.mentor_linkedin, m.mentee_linkedin,
+           m.mentee_summary
     from public.matches m
     where (lower(m.mentee_email) = v_email and lower(m.mentee_id) = v_id)
        or (lower(m.mentor_email) = v_email and lower(m.mentor_id) = v_id);

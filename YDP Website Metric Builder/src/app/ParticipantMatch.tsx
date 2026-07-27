@@ -169,7 +169,7 @@ function CounterpartCardView({ card }: { card: CounterpartCard }) {
       {hasReason && (
         <div className="mt-4 rounded-xl bg-slate-50 p-3.5 dark:bg-slate-800/50">
           <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-            Why you were matched
+            {card.role === 'mentee' ? 'Why we picked this mentee' : 'Why you were matched'}
           </p>
           <p className="mt-1 text-sm leading-relaxed text-slate-700 dark:text-slate-200">
             {card.reason}

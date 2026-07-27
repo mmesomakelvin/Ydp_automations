@@ -32,6 +32,9 @@ create table if not exists public.matches (
   -- see their counterpart's LinkedIn.
   mentor_linkedin              text,
   mentee_linkedin              text,
+  -- The mentee's Gemini Summary (their profile / why we picked them), shown to
+  -- their mentor.
+  mentee_summary               text,
   mentee_match_email_status    text,
   mentee_match_email_sent_at   timestamptz,
   mentor_match_email_status    text,

@@ -97,6 +97,7 @@ export interface ParticipantMatchRow {
   match_reason: string | null
   mentor_linkedin: string | null
   mentee_linkedin: string | null
+  mentee_summary: string | null
 }
 
 /**
@@ -171,6 +172,7 @@ export function toParticipantView(
     if (menteeEmail === me) {
       myRole = 'mentee'
       myName = myName || r.mentee_name
+      // A mentee sees WHY they were matched to this mentor (the skill-match reason).
       counterparts.push({
         matchId: r.match_id,
         role: 'mentor',
@@ -184,6 +186,7 @@ export function toParticipantView(
     } else if (mentorEmail === me) {
       myRole = 'mentor'
       myName = myName || r.mentor_name
+      // A mentor sees the mentee's profile / why we picked them (Gemini Summary).
       counterparts.push({
         matchId: r.match_id,
         role: 'mentee',
@@ -191,7 +194,7 @@ export function toParticipantView(
         email: r.mentee_email ?? '',
         track: r.track ?? '—',
         score: r.pair_score,
-        reason: r.match_reason ?? '',
+        reason: r.mentee_summary ?? '',
         linkedin: r.mentee_linkedin ?? '',
       })
     }
