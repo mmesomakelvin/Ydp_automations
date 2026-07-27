@@ -97,12 +97,13 @@ export interface ParticipantMatchRow {
 
 /**
  * Fetch only the logged-in participant's own match rows, via the
- * `get_my_matches` function. Requires the participant password AND their email;
- * the database verifies the password and scopes the rows to that email.
+ * `get_my_matches` function. The credential is the participant's own email AND
+ * their mentee/mentor ID — the database returns rows only where both match the
+ * same person, so there is no shared password and no way to enumerate the cohort.
  */
 export async function fetchMyMatches(
-  password: string,
   email: string,
+  id: string,
 ): Promise<ParticipantMatchRow[]> {
   if (!supabase) {
     throw new Error(
@@ -110,13 +111,10 @@ export async function fetchMyMatches(
     )
   }
   const { data, error } = await supabase.rpc('get_my_matches', {
-    p_password: password,
     p_email: email,
+    p_id: id,
   })
-  if (error) {
-    if (error.message.includes('Invalid password')) throw new InvalidPasswordError()
-    throw error
-  }
+  if (error) throw error
   return (data ?? []) as ParticipantMatchRow[]
 }
 

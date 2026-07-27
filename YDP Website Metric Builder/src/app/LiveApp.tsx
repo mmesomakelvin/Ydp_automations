@@ -46,7 +46,7 @@ type SectionKey = 'dashboard' | 'mentee-lookup' | 'mentor-lookup' | 'directory'
  */
 type Auth =
   | { mode: 'staff'; password: string }
-  | { mode: 'participant'; email: string; password: string }
+  | { mode: 'participant'; email: string; id: string }
 
 const SECTIONS: { key: SectionKey; label: string; icon: NavigationItem['icon'] }[] = [
   { key: 'dashboard', label: 'Overview Dashboard', icon: LayoutDashboard },
@@ -84,8 +84,8 @@ function loadAuth(): Auth | null {
 
 function authFromSubmit(creds: LoginSubmit): Auth {
   return creds.mode === 'participant'
-    ? { mode: 'participant', email: creds.email ?? '', password: creds.password }
-    : { mode: 'staff', password: creds.password }
+    ? { mode: 'participant', email: creds.email ?? '', id: creds.id ?? '' }
+    : { mode: 'staff', password: creds.password ?? '' }
 }
 
 /**
@@ -125,7 +125,7 @@ export default function LiveApp() {
     return (
       <ParticipantApp
         email={auth.email}
-        password={auth.password}
+        id={auth.id}
         onReauth={handleAuth}
         onSignOut={signOut}
       />
@@ -194,34 +194,26 @@ function StaffApp({
   )
 }
 
-/** A single participant's own-match experience, scoped by their email. */
+/** A single participant's own-match experience, scoped by their email + ID. */
 function ParticipantApp({
   email,
-  password,
+  id,
   onReauth,
   onSignOut,
 }: {
   email: string
-  password: string
+  id: string
   onReauth: (creds: LoginSubmit) => void
   onSignOut: () => void
 }) {
-  const { view, loading, error, unauthorized, notFound } = useMyMatches(
-    email,
-    password,
-  )
+  const { view, loading, error, notFound } = useMyMatches(email, id)
 
-  // Wrong password, or a valid password with no match for that email → re-prompt
-  // on the participant tab, with the right explanation.
-  if (unauthorized || notFound) {
+  // Email + ID didn't match any row → re-prompt on the participant tab with an
+  // explanation (wrong details, or not matched yet).
+  if (notFound) {
     return (
       <div style={productType}>
-        <PasswordGate
-          onSubmit={onReauth}
-          initialMode="participant"
-          incorrect={unauthorized}
-          notFound={notFound}
-        />
+        <PasswordGate onSubmit={onReauth} initialMode="participant" notFound />
       </div>
     )
   }

@@ -63,22 +63,22 @@ grant execute on function public.get_matches(text) to anon;
 -- ===========================================================================
 -- Participant access (mentors & mentees)
 -- ===========================================================================
--- A second, SEPARATE password for participants. A mentor or mentee logs in with
--- their own email plus this shared participant password, and sees ONLY their own
--- pairing — never the rest of the cohort, and never internal fields (scores,
--- risk, notes, email tracking). Staff keep using site_password + get_matches().
+-- Participants sign in with their own EMAIL + their own mentee/mentor ID. There
+-- is no shared password: each person's ID is their personal key, and it must be
+-- paired with the matching email, so nobody can page through the cohort by
+-- guessing sequential IDs. A participant sees ONLY their own pairing, and only
+-- the non-sensitive columns (names, emails, track) — scores, risk, notes, and
+-- email tracking never leave the database on this path. Staff keep using
+-- site_password + get_matches() for the full view.
 
--- Participant password store. Seeds a deliberately unusable placeholder; set the
--- real value with set-password.sql (untracked). Never edit the real value here.
-insert into public.app_config (key, value)
-values ('participant_password', crypt(gen_random_uuid()::text, gen_salt('bf')))
-on conflict (key) do nothing;
+-- The participant door. Returns only the rows where the given email AND id match
+-- the same person (as the mentee, or as the mentor). No password check — the
+-- email+id pair IS the credential. Matching is case-insensitive and trims spaces.
+-- Dropped-and-recreated (not CREATE OR REPLACE) because the parameter list
+-- changed from the earlier password-based version.
+drop function if exists public.get_my_matches(text, text);
 
--- The participant door. Verifies the participant password, then returns only the
--- rows where the given email is the mentee or the mentor, exposing only the
--- non-sensitive columns. Scores, risk, notes, and email tracking never leave the
--- database on this path — even a correct password cannot reach them here.
-create or replace function public.get_my_matches(p_password text, p_email text)
+create function public.get_my_matches(p_email text, p_id text)
 returns table (
   match_id     text,
   mentee_id    text,
@@ -95,21 +95,14 @@ set search_path = public, extensions
 as $$
 declare
   v_email text := lower(trim(p_email));
+  v_id    text := lower(trim(p_id));
 begin
-  if not exists (
-    select 1 from public.app_config
-    where key = 'participant_password'
-      and value = crypt(p_password, value)
-  ) then
-    raise exception 'Invalid password';
-  end if;
-
   return query
     select m.match_id, m.mentee_id, m.mentee_name, m.mentee_email,
            m.mentor_id, m.mentor_name, m.mentor_email, m.track
     from public.matches m
-    where lower(m.mentee_email) = v_email
-       or lower(m.mentor_email) = v_email;
+    where (lower(m.mentee_email) = v_email and lower(m.mentee_id) = v_id)
+       or (lower(m.mentor_email) = v_email and lower(m.mentor_id) = v_id);
 end;
 $$;
 

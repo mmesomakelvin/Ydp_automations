@@ -1,32 +1,35 @@
 import { useState, type FormEvent } from 'react'
-import { Loader2, LockKeyhole, Mail } from 'lucide-react'
+import { Loader2, LockKeyhole, Mail, Fingerprint } from 'lucide-react'
 
 export type LoginMode = 'participant' | 'staff'
 
 export interface LoginSubmit {
   mode: LoginMode
-  password: string
-  /** Present only for participant logins. */
+  /** Staff only. */
+  password?: string
+  /** Participant only. */
   email?: string
+  /** Participant only — their mentee/mentor ID. */
+  id?: string
 }
 
 interface PasswordGateProps {
   onSubmit: (creds: LoginSubmit) => void
   /** Which tab to open on. */
   initialMode?: LoginMode
-  /** Set after a rejected password, so we can explain rather than just clear. */
+  /** Staff only: set after a rejected password. */
   incorrect?: boolean
-  /** Participant only: password was right but no match exists for that email. */
+  /** Participant only: email + ID didn't match a row (wrong details or not matched yet). */
   notFound?: boolean
   checking?: boolean
 }
 
 /**
- * Password screen shown before any match data is requested. Two doors:
- * participants (mentor/mentee) sign in with their email + a shared participant
- * password and see only their own match; program staff sign in with the staff
- * password and see the full cohort. The passwords are verified in the database,
- * not here — this only collects them.
+ * Login screen shown before any match data is requested. Two doors: participants
+ * (mentor/mentee) sign in with their own email + their mentee/mentor ID and see
+ * only their own match; program staff sign in with the staff password and see
+ * the full cohort. Credentials are verified in the database, not here — this
+ * only collects them.
  */
 export function PasswordGate({
   onSubmit,
@@ -37,21 +40,23 @@ export function PasswordGate({
 }: PasswordGateProps) {
   const [mode, setMode] = useState<LoginMode>(initialMode)
   const [email, setEmail] = useState('')
+  const [id, setId] = useState('')
   const [password, setPassword] = useState('')
 
   const isParticipant = mode === 'participant'
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
-    const trimmedPassword = password.trim()
-    const trimmedEmail = email.trim()
-    if (!trimmedPassword) return
-    if (isParticipant && !trimmedEmail) return
-    onSubmit(
-      isParticipant
-        ? { mode, password: trimmedPassword, email: trimmedEmail }
-        : { mode, password: trimmedPassword },
-    )
+    if (isParticipant) {
+      const trimmedEmail = email.trim()
+      const trimmedId = id.trim()
+      if (!trimmedEmail || !trimmedId) return
+      onSubmit({ mode, email: trimmedEmail, id: trimmedId })
+    } else {
+      const trimmedPassword = password.trim()
+      if (!trimmedPassword) return
+      onSubmit({ mode, password: trimmedPassword })
+    }
   }
 
   const tab = (value: LoginMode, label: string) => {
@@ -73,6 +78,12 @@ export function PasswordGate({
     )
   }
 
+  const submitDisabled = checking
+    ? true
+    : isParticipant
+      ? email.trim().length === 0 || id.trim().length === 0
+      : password.trim().length === 0
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-12 dark:bg-slate-950">
       <div className="w-full max-w-sm">
@@ -89,7 +100,7 @@ export function PasswordGate({
           </h1>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             {isParticipant
-              ? 'Enter your email and access password to see your match.'
+              ? 'Enter your email and your ID to see your match.'
               : 'Program staff sign-in for the full cohort view.'}
           </p>
         </div>
@@ -101,63 +112,81 @@ export function PasswordGate({
         </div>
 
         <form onSubmit={handleSubmit} className="mt-4">
-          {isParticipant && (
-            <div className="relative mb-3">
-              <label htmlFor="login-email" className="sr-only">
-                Your email
+          {isParticipant ? (
+            <>
+              <div className="relative mb-3">
+                <label htmlFor="login-email" className="sr-only">
+                  Your email
+                </label>
+                <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  id="login-email"
+                  type="email"
+                  autoFocus
+                  autoComplete="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="The email you registered with"
+                  className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-9 pr-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                />
+              </div>
+
+              <div className="relative">
+                <label htmlFor="login-id" className="sr-only">
+                  Your mentee or mentor ID
+                </label>
+                <Fingerprint className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  id="login-id"
+                  type="text"
+                  autoComplete="off"
+                  autoCapitalize="characters"
+                  value={id}
+                  onChange={(e) => setId(e.target.value)}
+                  placeholder="Your ID, e.g. YDP-C2-Mentee-006"
+                  aria-invalid={notFound || undefined}
+                  className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-9 pr-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                />
+              </div>
+
+              {notFound && (
+                <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+                  No match found for that email and ID. Double-check both against
+                  your YDP email, or contact YDP.
+                </p>
+              )}
+            </>
+          ) : (
+            <>
+              <label htmlFor="site-password" className="sr-only">
+                Access password
               </label>
-              <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input
-                id="login-email"
-                type="email"
-                autoFocus
-                autoComplete="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="The email you registered with"
-                className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-9 pr-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-              />
-            </div>
-          )}
+              <div className="relative">
+                <LockKeyhole className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  id="site-password"
+                  type="password"
+                  autoFocus
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Access password"
+                  aria-invalid={incorrect || undefined}
+                  className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-9 pr-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                />
+              </div>
 
-          <label htmlFor="site-password" className="sr-only">
-            Access password
-          </label>
-          <div className="relative">
-            <LockKeyhole className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <input
-              id="site-password"
-              type="password"
-              autoFocus={!isParticipant}
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Access password"
-              aria-invalid={incorrect || undefined}
-              className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-9 pr-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-            />
-          </div>
-
-          {incorrect && (
-            <p className="mt-2 text-xs text-red-600 dark:text-red-400">
-              That password didn't work. Check it and try again.
-            </p>
-          )}
-
-          {notFound && !incorrect && (
-            <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
-              No match found for that email yet. Double-check the address you
-              registered with, or contact YDP.
-            </p>
+              {incorrect && (
+                <p className="mt-2 text-xs text-red-600 dark:text-red-400">
+                  That password didn't work. Check it and try again.
+                </p>
+              )}
+            </>
           )}
 
           <button
             type="submit"
-            disabled={
-              checking ||
-              password.trim().length === 0 ||
-              (isParticipant && email.trim().length === 0)
-            }
+            disabled={submitDisabled}
             className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-indigo-500 dark:hover:bg-indigo-400"
           >
             {checking && <Loader2 className="h-4 w-4 animate-spin" />}

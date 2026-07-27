@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { isSupabaseConfigured } from '@/lib/supabase'
 import {
   fetchMyMatches,
-  InvalidPasswordError,
   toParticipantView,
   type ParticipantView,
 } from '@/lib/matches'
@@ -11,9 +10,7 @@ export interface MyMatchesState {
   view: ParticipantView | null
   loading: boolean
   error: Error | null
-  /** True when the participant password was rejected. */
-  unauthorized: boolean
-  /** True when the password was accepted but no match exists for the email. */
+  /** True when the email + ID didn't match any row (wrong details, or not matched yet). */
   notFound: boolean
   configured: boolean
 }
@@ -31,31 +28,29 @@ function toError(e: unknown): Error {
 }
 
 /**
- * Loads only the logged-in participant's own match, using their email and the
- * shared participant password. A rejected password sets `unauthorized`; a valid
- * password with no matching row sets `notFound` (a different, gentler message).
+ * Loads only the logged-in participant's own match, using their email and their
+ * mentee/mentor ID. There is no password: the email+ID pair is the credential,
+ * checked in the database. When they don't match any row, `notFound` is set.
  */
 export function useMyMatches(
   email: string | null,
-  password: string | null,
+  id: string | null,
 ): MyMatchesState {
-  const ready = isSupabaseConfigured && email !== null && password !== null
+  const ready = isSupabaseConfigured && email !== null && id !== null
   const [view, setView] = useState<ParticipantView | null>(null)
   const [loading, setLoading] = useState(ready)
   const [error, setError] = useState<Error | null>(null)
-  const [unauthorized, setUnauthorized] = useState(false)
   const [notFound, setNotFound] = useState(false)
 
   useEffect(() => {
-    if (!isSupabaseConfigured || email === null || password === null) return
+    if (!isSupabaseConfigured || email === null || id === null) return
 
     let cancelled = false
     setLoading(true)
-    setUnauthorized(false)
     setNotFound(false)
     setError(null)
 
-    fetchMyMatches(password, email)
+    fetchMyMatches(email, id)
       .then((rows) => {
         if (cancelled) return
         const model = toParticipantView(rows, email)
@@ -64,12 +59,7 @@ export function useMyMatches(
       })
       .catch((e: unknown) => {
         if (cancelled) return
-        if (e instanceof InvalidPasswordError) {
-          setUnauthorized(true)
-          setView(null)
-        } else {
-          setError(toError(e))
-        }
+        setError(toError(e))
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -78,13 +68,12 @@ export function useMyMatches(
     return () => {
       cancelled = true
     }
-  }, [email, password])
+  }, [email, id])
 
   return {
     view,
     loading,
     error,
-    unauthorized,
     notFound,
     configured: isSupabaseConfigured,
   }
