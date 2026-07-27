@@ -66,3 +66,13 @@ create policy "Public read access"
 -- update public.matches
 --   set pair_score = (regexp_match(notes, 'pair score:\s*(\d+)', 'i'))[1]::int
 --   where pair_score is null and notes ~* 'pair score:\s*\d+';
+
+-- Full mentor roster (every mentor, matched or not), so the staff Mentor Lookup
+-- can show mentors who got zero mentees. Populated from the Mentor Load tab.
+-- Access is staff-only via the get_mentor_roster() function (RLS on, no policy).
+create table if not exists public.mentors (
+  mentor_id    text primary key,
+  mentor_name  text not null,
+  mentor_email text
+);
+alter table public.mentors enable row level security;

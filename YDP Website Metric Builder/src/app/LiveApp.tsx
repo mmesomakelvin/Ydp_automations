@@ -16,9 +16,12 @@ import {
   toDashboardData,
   toMenteeLookupData,
   toMentorLookupData,
+  mergeMentorRoster,
+  type MentorRosterRow,
 } from '@/lib/matches'
 import { isSupabaseConfigured } from '@/lib/supabase'
 import { useMatches } from './useMatches'
+import { useMentorRoster } from './useMentorRoster'
 import { useMyMatches } from './useMyMatches'
 import { useMyPeers } from './useMyPeers'
 import { PasswordGate, type LoginSubmit } from './PasswordGate'
@@ -150,6 +153,7 @@ function StaffApp({
 }) {
   const [active, setActive] = useState<SectionKey>('dashboard')
   const { rows, loading, error, unauthorized, configured } = useMatches(password)
+  const mentorRoster = useMentorRoster(password)
 
   // Wrong staff password → re-prompt with the staff tab preselected.
   if (configured && unauthorized && onReauth) {
@@ -188,7 +192,13 @@ function StaffApp({
           // names to someone whose real load failed reads as success.
           <LoadFailed message={error?.message ?? 'No matches returned.'} />
         ) : (
-          <SectionView active={active} live={live} rows={rows} goTo={setActive} />
+          <SectionView
+            active={active}
+            live={live}
+            rows={rows}
+            roster={mentorRoster}
+            goTo={setActive}
+          />
         )}
       </AppShell>
     </div>
@@ -247,11 +257,13 @@ function SectionView({
   active,
   live,
   rows,
+  roster,
   goTo,
 }: {
   active: SectionKey
   live: boolean
   rows: ReturnType<typeof useMatches>['rows']
+  roster: MentorRosterRow[]
   goTo: (key: SectionKey) => void
 }) {
   // Dashboard
@@ -274,9 +286,9 @@ function SectionView({
   }, [live, rows])
 
   const mentors = useMemo<MentorWithMatches[]>(() => {
-    if (live && rows) return toMentorLookupData(rows)
+    if (live && rows) return mergeMentorRoster(toMentorLookupData(rows), roster)
     return mentorSample.mentors as MentorWithMatches[]
-  }, [live, rows])
+  }, [live, rows, roster])
 
   switch (active) {
     case 'dashboard':

@@ -168,6 +168,56 @@ interface PeerMenteeRow {
  * Fetch the other mentees paired with the same mentor as the logged-in mentee,
  * so they can reach out and organise group sessions. Returns [] for a mentor.
  */
+/** A row from the mentor roster (every mentor, matched or not). */
+export interface MentorRosterRow {
+  mentor_id: string
+  mentor_name: string
+  mentor_email: string | null
+}
+
+/** Fetch the full mentor roster (staff only, password-gated). */
+export async function fetchMentorRoster(password: string): Promise<MentorRosterRow[]> {
+  if (!supabase) {
+    throw new Error(
+      'Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env.local.',
+    )
+  }
+  const { data, error } = await supabase.rpc('get_mentor_roster', {
+    p_password: password,
+  })
+  if (error) {
+    if (error.message.includes('Invalid password')) throw new InvalidPasswordError()
+    throw error
+  }
+  return (data ?? []) as MentorRosterRow[]
+}
+
+/**
+ * Merge the mentor roster into the matched-mentor list so EVERY mentor shows in
+ * the staff Mentor Lookup — including those with zero mentees (which the matches
+ * table alone can't surface). Roster-only mentors get an empty match list.
+ */
+export function mergeMentorRoster(
+  matched: MentorWithMatches[],
+  roster: MentorRosterRow[],
+): MentorWithMatches[] {
+  const seen = new Set(matched.map((m) => m.mentorId))
+  const extras: MentorWithMatches[] = roster
+    .filter((r) => !seen.has(r.mentor_id))
+    .map((r) => ({
+      mentorId: r.mentor_id,
+      mentorName: r.mentor_name,
+      mentorEmail: r.mentor_email ?? '',
+      track: '—',
+      menteeCount: 0,
+      averagePairScore: 0,
+      matches: [],
+    }))
+  return [...matched, ...extras].sort((a, b) =>
+    a.mentorName.localeCompare(b.mentorName),
+  )
+}
+
 export async function fetchMyPeers(email: string, id: string): Promise<PeerMentee[]> {
   if (!supabase) {
     throw new Error(

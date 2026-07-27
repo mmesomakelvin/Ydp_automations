@@ -161,3 +161,31 @@ end;
 $$;
 
 grant execute on function public.get_my_peers(text, text) to anon;
+
+
+-- ===========================================================================
+-- Staff mentor roster
+-- ===========================================================================
+-- Returns every mentor (matched or not) for the staff Mentor Lookup, so mentors
+-- with zero mentees can be shown (and flagged red). Staff-only: guarded by the
+-- same site_password as get_matches.
+create or replace function public.get_mentor_roster(p_password text)
+returns setof public.mentors
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+begin
+  if not exists (
+    select 1 from public.app_config
+    where key = 'site_password'
+      and value = crypt(p_password, value)
+  ) then
+    raise exception 'Invalid password';
+  end if;
+
+  return query select * from public.mentors order by mentor_name;
+end;
+$$;
+
+grant execute on function public.get_mentor_roster(text) to anon;
