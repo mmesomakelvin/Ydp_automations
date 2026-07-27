@@ -93,6 +93,8 @@ export interface ParticipantMatchRow {
   mentor_name: string
   mentor_email: string | null
   track: string | null
+  pair_score: number | null
+  match_reason: string | null
 }
 
 /**
@@ -128,6 +130,10 @@ export interface CounterpartCard {
   name: string
   email: string
   track: string
+  /** Match score out of 100, or null if not recorded. */
+  score: number | null
+  /** "Why you were matched" text, or empty if none. */
+  reason: string
 }
 
 export interface ParticipantView {
@@ -167,6 +173,8 @@ export function toParticipantView(
         name: r.mentor_name,
         email: r.mentor_email ?? '',
         track: r.track ?? '—',
+        score: r.pair_score,
+        reason: r.match_reason ?? '',
       })
     } else if (mentorEmail === me) {
       myRole = 'mentor'
@@ -177,6 +185,8 @@ export function toParticipantView(
         name: r.mentee_name,
         email: r.mentee_email ?? '',
         track: r.track ?? '—',
+        score: r.pair_score,
+        reason: r.match_reason ?? '',
       })
     }
   }

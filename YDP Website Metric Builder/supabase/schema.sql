@@ -25,6 +25,9 @@ create table if not exists public.matches (
   -- Dedicated score (0–100). Populate from the sheet, or from the number in
   -- the Notes text ("Total pair score: 97") during import.
   pair_score                   integer,
+  -- The "why you were matched" text shown to participants (from the sheet's
+  -- Skill Match Reason column).
+  match_reason                 text,
   mentee_match_email_status    text,
   mentee_match_email_sent_at   timestamptz,
   mentor_match_email_status    text,

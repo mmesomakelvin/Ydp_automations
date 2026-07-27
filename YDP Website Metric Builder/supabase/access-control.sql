@@ -87,7 +87,9 @@ returns table (
   mentor_id    text,
   mentor_name  text,
   mentor_email text,
-  track        text
+  track        text,
+  pair_score   integer,
+  match_reason text
 )
 language plpgsql
 security definer
@@ -99,7 +101,8 @@ declare
 begin
   return query
     select m.match_id, m.mentee_id, m.mentee_name, m.mentee_email,
-           m.mentor_id, m.mentor_name, m.mentor_email, m.track
+           m.mentor_id, m.mentor_name, m.mentor_email, m.track,
+           m.pair_score, m.match_reason
     from public.matches m
     where (lower(m.mentee_email) = v_email and lower(m.mentee_id) = v_id)
        or (lower(m.mentor_email) = v_email and lower(m.mentor_id) = v_id);
