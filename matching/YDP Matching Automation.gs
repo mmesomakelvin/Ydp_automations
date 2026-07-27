@@ -58,6 +58,8 @@ function onOpen() {
     .addItem('Turn ON automatic pair scoring', 'installYdpPairScoringTrigger')
     .addItem('Turn OFF automatic pair scoring', 'removeYdpPairScoringTrigger')
     .addItem('Auto-match from pair scores', 'autoMatchYdpFromPairScores')
+    .addItem('Turn ON scheduled auto-match (every 6 hrs)', 'installYdpAutoMatchTrigger')
+    .addItem('Turn OFF scheduled auto-match', 'removeYdpAutoMatchTrigger')
     .addSeparator()
     .addItem('Preview selected selection email', 'previewSelectedYdpMenteeSelectionEmail')
     .addItem('Send test selection email', 'sendTestYdpMenteeSelectionEmail')
@@ -861,7 +863,9 @@ function getYdpMatchingDataDictionaryRows_() {
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Generate mentee scores batch', 'Scores up to 3 unscored mentees with Gemini.', 'Use after the one-row test works.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Generate next pair score', 'Scores one mentee/mentor pair with Gemini.', 'Use as a safe one-pair test.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Generate pair scores batch', 'Scores up to 5 unscored mentee/mentor pairs with Gemini.', 'Use to move matching comparisons forward.'],
-    ['Button', YDP_MATCHING_CONFIG.menuName, 'Auto-match from pair scores', 'Selects the best available mentor for each fully scored eligible mentee.', 'Run after pair scores are complete enough for matching.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Auto-match from pair scores', 'Selects the best available mentor for each fully scored eligible mentee, then refreshes the Mentor Load sheet.', 'Run after pair scores are complete enough for matching.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Turn ON scheduled auto-match (every 6 hrs)', 'Installs a trigger that re-runs auto-match every 6 hours and refreshes Mentor Load; never sends email. Skips and switches itself off once any match email is marked SENT.', 'Turn on to keep matches and counts current hands-free before match emails go out.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Turn OFF scheduled auto-match', 'Removes the every-6-hours auto-match trigger.', 'Turn off before sending match emails, or any time you want matching to stop reshuffling.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Preview selected selection email', 'Shows the selection email for one selected Can Pair mentee without sending it.', 'Use before any live selection email.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Send test selection email', 'Sends the selected Can Pair mentee template to an email address you enter without updating participant status.', 'Use to inspect the real inbox version safely.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Send selection email to selected mentee', 'Sends the live selection email to one selected Can Pair mentee and records SENT.', 'Use as the controlled first live send.'],
@@ -917,7 +921,9 @@ function getYdpButtonGuideRows_() {
     ['CAUTION', menu, 'Generate pair scores batch', 'Scores a small batch of unscored mentee and mentor comparisons.', 'After the one-pair test works.', 'Ensure Can Pair mentees and mentors have IDs; confirm Gemini quota.', 'Adds or retries pair rows; reruns continue until every eligible mentee has every mentor scored and may pause when Gemini quota or service limits are reached.', 'Repeat until complete'],
     ['CAUTION', menu, 'Turn ON automatic pair scoring', 'Installs a time-based trigger that scores pair batches automatically every few minutes until every eligible pair is scored.', 'After a manual pair-scoring test works and you want scoring to finish unattended.', 'Confirm Gemini keys and quota, and that Can Pair mentees and mentors have IDs.', 'Creates one scheduled trigger; it adds Pair Scores rows over time and switches itself off when scoring is complete or blocked.', 'Once per scoring round'],
     ['SAFE', menu, 'Turn OFF automatic pair scoring', 'Removes the automatic pair-scoring trigger.', 'To stop unattended pair scoring.', 'No preparation is required.', 'Deletes the pair-scoring trigger; no data is changed.', 'As needed'],
-    ['LIVE ACTION', menu, 'Auto-match from pair scores', 'Selects the highest-scoring available mentor for each fully scored eligible mentee.', 'Only after all available mentors are scored for each mentee and before live match emails are sent.', 'Export or back up existing Match Recommendations and Matched Pairs, confirm no statuses, dates, notes, or email history must be preserved, review Pair Scores, and verify capacity data.', 'Clears and rebuilds Match Recommendations and Matched Pairs, including operational and email-tracking fields; fills stated capacity first, then permits at most +2 overflow.', 'Once per approved matching round'],
+    ['LIVE ACTION', menu, 'Auto-match from pair scores', 'Selects the highest-scoring available mentor for each fully scored eligible mentee, then refreshes the Mentor Load sheet.', 'Only after all available mentors are scored for each mentee and before live match emails are sent.', 'Export or back up existing Match Recommendations and Matched Pairs, confirm no statuses, dates, notes, or email history must be preserved, review Pair Scores, and verify capacity data.', 'Clears and rebuilds Match Recommendations and Matched Pairs, including operational and email-tracking fields; rebuilds Mentor Load; fills stated capacity first, then permits at most +2 overflow.', 'Once per approved matching round'],
+    ['LIVE ACTION', menu, 'Turn ON scheduled auto-match (every 6 hrs)', 'Installs a trigger that re-runs auto-match every 6 hours so Matched Pairs and the Mentor Load counts stay current without pressing the button; never sends email.', 'Turn on while still building matches, before any match emails are sent.', 'Understand that each run clears and rebuilds Matched Pairs, so manual edits to that sheet will not survive; keep it off if you have hand-edited Matched Pairs.', 'Creates a 6-hour time trigger that rewrites Match Recommendations, Matched Pairs, and Mentor Load each run. Auto-safeguard: it skips the rebuild and switches itself off the moment any match email is marked SENT, so it cannot cause duplicate match emails.', 'Turn on during matching; off before match emails'],
+    ['SAFE', menu, 'Turn OFF scheduled auto-match', 'Removes the every-6-hours auto-match trigger.', 'Before sending match emails, or any time you want scheduled matching to stop.', 'No preparation is required.', 'Deletes the scheduled auto-match trigger; no sheet data is changed.', 'As needed'],
     ['SAFE', menu, 'Preview selected selection email', 'Shows the personalized selection email for one Can Pair mentee.', 'Before test or live selection sends.', 'Select a row in Mentee Scores with Can Pair status.', 'Opens a preview only; no email or tracking changes.', 'Before every selection campaign'],
     ['SAFE', menu, 'Send test selection email', 'Sends the selected mentee template to an internal test address.', 'After preview and before live selection sends.', 'Select a Can Pair mentee and use an internal email address.', 'Sends one test email; participant tracking is not updated.', 'Before every selection campaign'],
     ['LIVE ACTION', menu, 'Send selection email to selected mentee', 'Sends the live program-selection email to one selected eligible mentee.', 'For the controlled first live send or a one-off recipient.', 'Preview, test, and select the intended Can Pair row.', 'Sends one live email and updates selection-email tracking.', 'As needed'],
@@ -1087,70 +1093,78 @@ function getYdpMatchedPairCountsByMentor_() {
   return counts;
 }
 
-// Builds the "Mentor Load" tab: one row per mentor showing how many mentees
-// they signed up for (from Mentor Source Snapshot) versus how many they have
-// actually been paired with so far (counted from Matched Pairs).
+// Core builder for the "Mentor Load" tab: one row per mentor showing how many
+// mentees they signed up for (from Mentor Source Snapshot) versus how many they
+// have actually been paired with so far (counted from Matched Pairs). No UI, so
+// it is safe to call from auto-match (button or scheduled trigger). Returns
+// { mentorCount, totalPaired }.
+function writeYdpMentorLoadSheet_() {
+  const mentorSheet = SpreadsheetApp.getActive().getSheetByName(YDP_MATCHING_CONFIG.sheets.mentorSnapshot);
+
+  if (!mentorSheet || mentorSheet.getLastRow() <= 1) {
+    throw new Error('No mentor rows found in "' + YDP_MATCHING_CONFIG.sheets.mentorSnapshot + '". Run "Sync source snapshots from forms" first.');
+  }
+
+  const pairCounts = getYdpMatchedPairCountsByMentor_();
+  const seen = {};
+  const mentors = [];
+
+  getYdpMentorProfilesForPairScoring_(mentorSheet).forEach(function(mentor) {
+    const key = String(mentor.id || '').trim().toLowerCase();
+
+    if (!key || seen[key]) {
+      return;
+    }
+
+    seen[key] = true;
+    const signedUpFor = Number(mentor.statedCapacity) || 0;
+    const pairedSoFar = pairCounts[key] || 0;
+
+    mentors.push({
+      id: mentor.id,
+      name: mentor.name,
+      email: mentor.email,
+      signedUpFor: signedUpFor,
+      pairedSoFar: pairedSoFar,
+      remaining: signedUpFor - pairedSoFar
+    });
+  });
+
+  const headers = ['Mentor ID', 'Mentor Name', 'Mentor Email', 'Signed Up For', 'Paired So Far', 'Remaining Slots'];
+  const rows = mentors
+    .sort(function(a, b) {
+      if (b.pairedSoFar !== a.pairedSoFar) {
+        return b.pairedSoFar - a.pairedSoFar;
+      }
+      return String(a.name).localeCompare(String(b.name));
+    })
+    .map(function(m) {
+      return [m.id, m.name, m.email, m.signedUpFor, m.pairedSoFar, m.remaining];
+    });
+
+  const sheet = getOrCreateYdpSheet_(SpreadsheetApp.getActive(), YDP_MENTOR_LOAD_SHEET);
+  sheet.clearContents();
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold');
+
+  if (rows.length) {
+    sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
+  }
+
+  sheet.setFrozenRows(1);
+  sheet.autoResizeColumns(1, headers.length);
+
+  const totalPaired = rows.reduce(function(sum, r) { return sum + Number(r[4] || 0); }, 0);
+  logYdpMatchingRun_('BUILD_MENTOR_LOAD', 'SUCCESS', 'Wrote ' + rows.length + ' mentors to "' + YDP_MENTOR_LOAD_SHEET + '" (' + totalPaired + ' pairs counted).');
+  return { mentorCount: rows.length, totalPaired: totalPaired };
+}
+
+// Menu wrapper: builds the Mentor Load sheet and reports the result in a dialog.
 function buildYdpMentorLoadSheet() {
   const ui = SpreadsheetApp.getUi();
 
   try {
-    const mentorSheet = SpreadsheetApp.getActive().getSheetByName(YDP_MATCHING_CONFIG.sheets.mentorSnapshot);
-
-    if (!mentorSheet || mentorSheet.getLastRow() <= 1) {
-      throw new Error('No mentor rows found in "' + YDP_MATCHING_CONFIG.sheets.mentorSnapshot + '". Run "Sync source snapshots from forms" first.');
-    }
-
-    const pairCounts = getYdpMatchedPairCountsByMentor_();
-    const seen = {};
-    const mentors = [];
-
-    getYdpMentorProfilesForPairScoring_(mentorSheet).forEach(function(mentor) {
-      const key = String(mentor.id || '').trim().toLowerCase();
-
-      if (!key || seen[key]) {
-        return;
-      }
-
-      seen[key] = true;
-      const signedUpFor = Number(mentor.statedCapacity) || 0;
-      const pairedSoFar = pairCounts[key] || 0;
-
-      mentors.push({
-        id: mentor.id,
-        name: mentor.name,
-        email: mentor.email,
-        signedUpFor: signedUpFor,
-        pairedSoFar: pairedSoFar,
-        remaining: signedUpFor - pairedSoFar
-      });
-    });
-
-    const headers = ['Mentor ID', 'Mentor Name', 'Mentor Email', 'Signed Up For', 'Paired So Far', 'Remaining Slots'];
-    const rows = mentors
-      .sort(function(a, b) {
-        if (b.pairedSoFar !== a.pairedSoFar) {
-          return b.pairedSoFar - a.pairedSoFar;
-        }
-        return String(a.name).localeCompare(String(b.name));
-      })
-      .map(function(m) {
-        return [m.id, m.name, m.email, m.signedUpFor, m.pairedSoFar, m.remaining];
-      });
-
-    const sheet = getOrCreateYdpSheet_(SpreadsheetApp.getActive(), YDP_MENTOR_LOAD_SHEET);
-    sheet.clearContents();
-    sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold');
-
-    if (rows.length) {
-      sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
-    }
-
-    sheet.setFrozenRows(1);
-    sheet.autoResizeColumns(1, headers.length);
-
-    const totalPaired = rows.reduce(function(sum, r) { return sum + Number(r[4] || 0); }, 0);
-    logYdpMatchingRun_('BUILD_MENTOR_LOAD', 'SUCCESS', 'Wrote ' + rows.length + ' mentors to "' + YDP_MENTOR_LOAD_SHEET + '" (' + totalPaired + ' pairs counted).');
-    ui.alert('Created/updated "' + YDP_MENTOR_LOAD_SHEET + '" with ' + rows.length + ' mentors.\n\n' + totalPaired + ' mentees paired so far (counted from "' + YDP_MATCHING_CONFIG.sheets.matchedPairs + '"). Sorted by how many each mentor has been paired with.');
+    const load = writeYdpMentorLoadSheet_();
+    ui.alert('Created/updated "' + YDP_MENTOR_LOAD_SHEET + '" with ' + load.mentorCount + ' mentors.\n\n' + load.totalPaired + ' mentees paired so far (counted from "' + YDP_MATCHING_CONFIG.sheets.matchedPairs + '"). Sorted by how many each mentor has been paired with.');
   } catch (error) {
     ui.alert('Could not build the Mentor Load sheet:\n\n' + String(error.message || error));
   }
@@ -1782,50 +1796,191 @@ function runYdpPairScoringOnSchedule() {
   properties.setProperty(YDP_PAIR_SCORING_IDLE_RUNS_KEY, String(stuckRuns));
 }
 
+// Shared auto-match logic used by both the menu button and the every-6-hours
+// trigger. Rebuilds Match Recommendations + Matched Pairs from the current pair
+// scores, then refreshes the Mentor Load counts to match. No UI, so it is safe
+// to run from a trigger (which cannot open dialogs). Returns a summary string.
+function runYdpAutoMatchFromPairScoresCore_() {
+  const spreadsheet = SpreadsheetApp.getActive();
+  setupYdpMatchingWorkbookTabs_(spreadsheet);
+
+  const menteeScoresSheet = spreadsheet.getSheetByName(YDP_MATCHING_CONFIG.sheets.menteeScores);
+  const mentorSnapshotSheet = spreadsheet.getSheetByName(YDP_MATCHING_CONFIG.sheets.mentorSnapshot);
+  const pairScoresSheet = spreadsheet.getSheetByName(YDP_MATCHING_CONFIG.sheets.pairScores);
+
+  if (!menteeScoresSheet || menteeScoresSheet.getLastRow() <= 1) {
+    throw new Error('No mentee scores found. Score mentees before auto-matching.');
+  }
+
+  if (!mentorSnapshotSheet || mentorSnapshotSheet.getLastRow() <= 1) {
+    throw new Error('No mentor snapshot rows found. Run "Sync source snapshots from forms" first.');
+  }
+
+  if (!pairScoresSheet || pairScoresSheet.getLastRow() <= 1) {
+    throw new Error('No pair scores found. Run "Generate pair scores batch" before auto-matching.');
+  }
+
+  const mentees = getYdpEligibleMenteesForPairScoring_(menteeScoresSheet);
+  const mentors = getYdpMentorProfilesForPairScoring_(mentorSnapshotSheet);
+  const pairScores = getYdpPairScoreRowsForAutoMatching_(pairScoresSheet);
+  const result = selectYdpAutoMatchesFromPairScores_(mentees, mentors, pairScores);
+
+  writeYdpAutoMatchOutputs_(spreadsheet, result);
+
+  // Keep the Mentor Load summary in step with the matches just written, so the
+  // per-mentor "Paired So Far" counts refresh without a second button press.
+  let loadNote = '';
+  try {
+    const load = writeYdpMentorLoadSheet_();
+    loadNote = 'Mentor Load refreshed: ' + load.mentorCount + ' mentors, ' + load.totalPaired + ' mentees paired so far.';
+  } catch (loadError) {
+    loadNote = 'Auto-match succeeded, but the Mentor Load sheet could not be refreshed: ' + String(loadError.message || loadError);
+  }
+
+  const message = [
+    'Auto-match complete.',
+    '',
+    'Matched pairs created: ' + result.matches.length,
+    'Skipped mentees: ' + result.skipped.length,
+    '',
+    result.skipped.length > 0
+      ? 'Some mentees still need more pair scores before they can be auto-matched.'
+      : 'All fully-scored eligible mentees were matched.',
+    '',
+    loadNote
+  ].join('\n');
+
+  logYdpMatchingRun_('AUTO_MATCH_FROM_PAIR_SCORES', result.skipped.length > 0 ? 'PARTIAL_SUCCESS' : 'SUCCESS', message);
+  return message;
+}
+
+// Menu wrapper: runs auto-match and shows the result. Rebuilding Matched Pairs
+// by hand is always allowed — the SENT safeguard only guards the unattended
+// 6-hour trigger, not this deliberate button press.
 function autoMatchYdpFromPairScores() {
   try {
-    const spreadsheet = SpreadsheetApp.getActive();
-    setupYdpMatchingWorkbookTabs_(spreadsheet);
-
-    const menteeScoresSheet = spreadsheet.getSheetByName(YDP_MATCHING_CONFIG.sheets.menteeScores);
-    const mentorSnapshotSheet = spreadsheet.getSheetByName(YDP_MATCHING_CONFIG.sheets.mentorSnapshot);
-    const pairScoresSheet = spreadsheet.getSheetByName(YDP_MATCHING_CONFIG.sheets.pairScores);
-
-    if (!menteeScoresSheet || menteeScoresSheet.getLastRow() <= 1) {
-      throw new Error('No mentee scores found. Score mentees before auto-matching.');
-    }
-
-    if (!mentorSnapshotSheet || mentorSnapshotSheet.getLastRow() <= 1) {
-      throw new Error('No mentor snapshot rows found. Run "Sync source snapshots from forms" first.');
-    }
-
-    if (!pairScoresSheet || pairScoresSheet.getLastRow() <= 1) {
-      throw new Error('No pair scores found. Run "Generate pair scores batch" before auto-matching.');
-    }
-
-    const mentees = getYdpEligibleMenteesForPairScoring_(menteeScoresSheet);
-    const mentors = getYdpMentorProfilesForPairScoring_(mentorSnapshotSheet);
-    const pairScores = getYdpPairScoreRowsForAutoMatching_(pairScoresSheet);
-    const result = selectYdpAutoMatchesFromPairScores_(mentees, mentors, pairScores);
-
-    writeYdpAutoMatchOutputs_(spreadsheet, result);
-
-    const message = [
-      'Auto-match complete.',
-      '',
-      'Matched pairs created: ' + result.matches.length,
-      'Skipped mentees: ' + result.skipped.length,
-      '',
-      result.skipped.length > 0
-        ? 'Some mentees still need more pair scores before they can be auto-matched.'
-        : 'All fully-scored eligible mentees were matched.'
-    ].join('\n');
-
-    logYdpMatchingRun_('AUTO_MATCH_FROM_PAIR_SCORES', result.skipped.length > 0 ? 'PARTIAL_SUCCESS' : 'SUCCESS', message);
+    const message = runYdpAutoMatchFromPairScoresCore_();
     SpreadsheetApp.getUi().alert(message);
   } catch (error) {
     logYdpMatchingRun_('AUTO_MATCH_FROM_PAIR_SCORES', 'ERROR', error.message);
     SpreadsheetApp.getUi().alert('Auto-match failed:\n\n' + error.message);
+  }
+}
+
+const YDP_AUTO_MATCH_TRIGGER_HANDLER = 'runYdpAutoMatchOnSchedule';
+const YDP_AUTO_MATCH_TRIGGER_HOURS = 6;
+
+// Returns true if any match email is already marked SENT on Matched Pairs. Once
+// that is true, rebuilding Matched Pairs would wipe the sent-tracking and risk
+// emailing matches twice — so the scheduled auto-match uses this to stop itself.
+function ydpAnyMatchEmailAlreadySent_() {
+  const sheet = SpreadsheetApp.getActive().getSheetByName(YDP_MATCHING_CONFIG.sheets.matchedPairs);
+
+  if (!sheet || sheet.getLastRow() <= 1) {
+    return false;
+  }
+
+  const headerMap = getYdpMatchingHeaderMap_(sheet);
+  const statusColumns = ['Mentee Match Email Status', 'Mentor Match Email Status']
+    .map(function(header) { return headerMap[header]; })
+    .filter(function(column) { return !!column; });
+
+  if (!statusColumns.length) {
+    return false;
+  }
+
+  const values = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+  const sentStatus = String(YDP_MATCHING_CONFIG.statuses.sent).toUpperCase();
+
+  return values.some(function(row) {
+    return statusColumns.some(function(column) {
+      return String(row[column - 1] || '').trim().toUpperCase() === sentStatus;
+    });
+  });
+}
+
+/**
+ * Installs a time-driven trigger that re-runs auto-match every 6 hours so match
+ * progress and the Mentor Load counts stay current without pressing the button.
+ * It only assigns matches from existing pair scores and rewrites sheets; it
+ * never sends email. The scheduled run turns itself off the moment any match
+ * email has been sent, so it can never clobber sent-tracking.
+ */
+function installYdpAutoMatchTrigger() {
+  try {
+    const removed = removeYdpAutoMatchTriggers_();
+
+    ScriptApp.newTrigger(YDP_AUTO_MATCH_TRIGGER_HANDLER)
+      .timeBased()
+      .everyHours(YDP_AUTO_MATCH_TRIGGER_HOURS)
+      .create();
+
+    const message = [
+      'Scheduled auto-match is ON.',
+      '',
+      'It will re-run "Auto-match from pair scores" every ' + YDP_AUTO_MATCH_TRIGGER_HOURS + ' hours and refresh the Mentor Load sheet each time.',
+      '',
+      'It only assigns matches from existing pair scores; it never sends email.',
+      '',
+      'Safeguard: the moment any match email is marked SENT, this trigger skips the rebuild and switches itself OFF, so it cannot cause duplicate match emails.',
+      '',
+      'To stop it early, use "Turn OFF scheduled auto-match".'
+    ].join('\n');
+
+    logYdpMatchingRun_('INSTALL_AUTO_MATCH_TRIGGER', 'SUCCESS', message + ' (replaced ' + removed + ' existing)');
+    notifyYdpMatchingUser_(message);
+  } catch (error) {
+    logYdpMatchingRun_('INSTALL_AUTO_MATCH_TRIGGER', 'ERROR', error.message);
+    notifyYdpMatchingUser_('Could not turn on scheduled auto-match:\n\n' + error.message);
+  }
+}
+
+function removeYdpAutoMatchTrigger() {
+  try {
+    const removed = removeYdpAutoMatchTriggers_();
+    const message = removed
+      ? 'Scheduled auto-match is OFF.'
+      : 'Scheduled auto-match was not running.';
+    logYdpMatchingRun_('REMOVE_AUTO_MATCH_TRIGGER', 'SUCCESS', message);
+    notifyYdpMatchingUser_(message);
+  } catch (error) {
+    logYdpMatchingRun_('REMOVE_AUTO_MATCH_TRIGGER', 'ERROR', error.message);
+    notifyYdpMatchingUser_('Could not turn off scheduled auto-match:\n\n' + error.message);
+  }
+}
+
+function removeYdpAutoMatchTriggers_() {
+  let removed = 0;
+  ScriptApp.getProjectTriggers().forEach(function (trigger) {
+    if (trigger.getHandlerFunction() === YDP_AUTO_MATCH_TRIGGER_HANDLER) {
+      ScriptApp.deleteTrigger(trigger);
+      removed++;
+    }
+  });
+  return removed;
+}
+
+/**
+ * Trigger entry point for scheduled auto-matching. No UI (dialogs are not
+ * available from a trigger), so everything is recorded in the Run Log. Before
+ * rebuilding anything it checks whether match emails have started going out; if
+ * so it does nothing and retires the trigger, protecting the sent-tracking.
+ */
+function runYdpAutoMatchOnSchedule() {
+  try {
+    if (ydpAnyMatchEmailAlreadySent_()) {
+      removeYdpAutoMatchTriggers_();
+      logYdpMatchingRun_(
+        'AUTO_MATCH_TRIGGER_AUTO_OFF',
+        'SUCCESS',
+        'A match email is already marked SENT, so scheduled auto-match skipped the rebuild and switched itself off to protect match-email tracking. Turn it back on only if you intend to re-match.'
+      );
+      return;
+    }
+
+    runYdpAutoMatchFromPairScoresCore_();
+  } catch (error) {
+    logYdpMatchingRun_('AUTO_MATCH_FROM_PAIR_SCORES', 'ERROR', 'Scheduled auto-match failed: ' + String(error.message || error));
   }
 }
 
