@@ -65,6 +65,7 @@ function onOpen() {
     .addItem('Send selection emails to all eligible unsent mentees', 'sendYdpMenteeSelectionEmailsToAllEligibleUnsent')
     .addSeparator()
     .addItem('Create Can Pair mentees sheet', 'buildYdpCanPairMenteesSheet')
+    .addItem('Create mentor load sheet', 'buildYdpMentorLoadSheet')
     .addItem('Preview mentee onboarding invite', 'previewYdpMenteeOnboardingInvite')
     .addItem('Send onboarding invite — TEST to me', 'sendYdpMenteeOnboardingInviteTest')
     .addItem('Send onboarding invite to Can Pair mentees', 'sendYdpMenteeOnboardingInvitesToAll')
@@ -878,6 +879,11 @@ function getYdpMatchingDataDictionaryRows_() {
     ['Sheet', YDP_MATCHING_CONFIG.sheets.menteeScores, 'Onboarding Invite Email Status', 'Whether the mentee onboarding invite (Saturday session plus Meet link) was sent to this mentee.', 'SENT prevents duplicates; ERROR means the send failed.'],
     ['Sheet', YDP_MATCHING_CONFIG.sheets.menteeScores, 'Onboarding Invite Email Sent At', 'When the onboarding invite was sent to this mentee.', 'Audit trail.'],
     ['Sheet', YDP_CAN_PAIR_MENTEES_SHEET, 'Mentee ID / Mentee Name / Mentee Email / Final Score', 'A generated roster of every Can Pair mentee with their final score, sorted high to low.', 'Rebuilt each time you run "Create Can Pair mentees sheet".'],
+    ['Sheet', YDP_MENTOR_LOAD_SHEET, 'Mentor ID / Mentor Name / Mentor Email', 'Identity columns for each mentor on the Mentor Load summary, copied from Mentor Source Snapshot.', 'Rebuilt each time you run "Create mentor load sheet".'],
+    ['Sheet', YDP_MENTOR_LOAD_SHEET, 'Signed Up For', 'How many mentees the mentor said they were willing to take on (their stated capacity from the form).', 'Compare against Paired So Far to see remaining room.'],
+    ['Sheet', YDP_MENTOR_LOAD_SHEET, 'Paired So Far', 'How many mentees are currently paired with this mentor, counted from rows on the Matched Pairs sheet.', 'A live tally of matches made so far.'],
+    ['Sheet', YDP_MENTOR_LOAD_SHEET, 'Remaining Slots', 'Signed Up For minus Paired So Far. Negative means the mentor is over their stated capacity.', 'Spot mentors with open slots or overload at a glance.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Create mentor load sheet', 'Builds the "' + YDP_MENTOR_LOAD_SHEET + '" tab: each mentor with how many mentees they signed up for versus how many they have been paired with so far.', 'Run whenever you want a fresh view of match progress per mentor.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Create Can Pair mentees sheet', 'Builds the "' + YDP_CAN_PAIR_MENTEES_SHEET + '" tab listing every Can Pair mentee (ID, name, email, final score).', 'Run whenever you want a fresh Can Pair roster.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Preview mentee onboarding invite', 'Shows the mentee onboarding invite email without sending it.', 'Use before any live onboarding invite.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Send onboarding invite — TEST to me', 'Sends the onboarding invite to your own email only, with no mentee status changes.', 'Use to inspect the real inbox version safely.'],
@@ -917,6 +923,7 @@ function getYdpButtonGuideRows_() {
     ['LIVE ACTION', menu, 'Send selection email to selected mentee', 'Sends the live program-selection email to one selected eligible mentee.', 'For the controlled first live send or a one-off recipient.', 'Preview, test, and select the intended Can Pair row.', 'Sends one live email and updates selection-email tracking.', 'As needed'],
     ['LIVE ACTION', menu, 'Send selection emails to all eligible unsent mentees', 'Sends selection emails only to Can Pair mentees not already marked SENT.', 'After the selected-row live send is verified.', 'Preview, test, verify Can Pair statuses, and obtain approval.', 'Sends multiple live emails and updates selection-email tracking.', 'Once per selection campaign'],
     ['SAFE', menu, 'Create Can Pair mentees sheet', 'Builds the Can Pair Mentees tab listing every Can Pair mentee with ID, name, email, and final score, sorted high to low.', 'Whenever you want a fresh roster of eligible mentees.', 'Score mentees first so Gemini Review Status is set.', 'Clears and rebuilds the Can Pair Mentees tab only; no emails.', 'As needed'],
+    ['SAFE', menu, 'Create mentor load sheet', 'Builds the Mentor Load tab: each mentor with how many mentees they signed up for versus how many they have been paired with so far, plus remaining slots, sorted by pairs made.', 'Whenever you want to see match progress per mentor.', 'Sync the mentor snapshot and run matching so Matched Pairs is populated.', 'Clears and rebuilds the Mentor Load tab only; reads Mentor Source Snapshot and Matched Pairs; no emails.', 'As needed'],
     ['SAFE', menu, 'Preview mentee onboarding invite', 'Shows the mentee onboarding invite email (Saturday session and Google Meet link) without sending it.', 'Before any onboarding invite send.', 'No preparation is required.', 'Opens a preview only; no email or tracking changes.', 'Before every onboarding send'],
     ['SAFE', menu, 'Send onboarding invite — TEST to me', 'Sends the onboarding invite to your own email only.', 'After preview and before the live send.', 'No preparation is required.', 'Sends one test email; mentee tracking is not updated.', 'Before every onboarding send'],
     ['LIVE ACTION', menu, 'Send onboarding invite to Can Pair mentees', 'Sends the onboarding invite to every Can Pair mentee not already marked SENT.', 'After preview and a test send.', 'Preview, test, and confirm the session details and Meet link.', 'Sends live emails and updates Onboarding Invite Email tracking on Mentee Scores.', 'Once per cohort'],
@@ -1048,6 +1055,104 @@ function buildYdpCanPairMenteesSheet() {
     ui.alert('Created/updated "' + YDP_CAN_PAIR_MENTEES_SHEET + '" with ' + rows.length + ' Can Pair mentees (sorted by Final Score).');
   } catch (error) {
     ui.alert('Could not build the Can Pair mentees sheet:\n\n' + String(error.message || error));
+  }
+}
+
+const YDP_MENTOR_LOAD_SHEET = 'Mentor Load';
+
+// Counts finalized pairs per mentor by tallying Matched Pairs rows against
+// their Mentor ID. Returns a { lowercased mentor id: count } map.
+function getYdpMatchedPairCountsByMentor_() {
+  const sheet = SpreadsheetApp.getActive().getSheetByName(YDP_MATCHING_CONFIG.sheets.matchedPairs);
+  const counts = {};
+
+  if (!sheet || sheet.getLastRow() <= 1) {
+    return counts;
+  }
+
+  const headerMap = getYdpMatchingHeaderMap_(sheet);
+  const values = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+
+  values.forEach(function(row) {
+    const mentorId = String(getYdpRowValueByHeader_(row, headerMap, 'Mentor ID') || '').trim();
+
+    if (!mentorId) {
+      return;
+    }
+
+    const key = mentorId.toLowerCase();
+    counts[key] = (counts[key] || 0) + 1;
+  });
+
+  return counts;
+}
+
+// Builds the "Mentor Load" tab: one row per mentor showing how many mentees
+// they signed up for (from Mentor Source Snapshot) versus how many they have
+// actually been paired with so far (counted from Matched Pairs).
+function buildYdpMentorLoadSheet() {
+  const ui = SpreadsheetApp.getUi();
+
+  try {
+    const mentorSheet = SpreadsheetApp.getActive().getSheetByName(YDP_MATCHING_CONFIG.sheets.mentorSnapshot);
+
+    if (!mentorSheet || mentorSheet.getLastRow() <= 1) {
+      throw new Error('No mentor rows found in "' + YDP_MATCHING_CONFIG.sheets.mentorSnapshot + '". Run "Sync source snapshots from forms" first.');
+    }
+
+    const pairCounts = getYdpMatchedPairCountsByMentor_();
+    const seen = {};
+    const mentors = [];
+
+    getYdpMentorProfilesForPairScoring_(mentorSheet).forEach(function(mentor) {
+      const key = String(mentor.id || '').trim().toLowerCase();
+
+      if (!key || seen[key]) {
+        return;
+      }
+
+      seen[key] = true;
+      const signedUpFor = Number(mentor.statedCapacity) || 0;
+      const pairedSoFar = pairCounts[key] || 0;
+
+      mentors.push({
+        id: mentor.id,
+        name: mentor.name,
+        email: mentor.email,
+        signedUpFor: signedUpFor,
+        pairedSoFar: pairedSoFar,
+        remaining: signedUpFor - pairedSoFar
+      });
+    });
+
+    const headers = ['Mentor ID', 'Mentor Name', 'Mentor Email', 'Signed Up For', 'Paired So Far', 'Remaining Slots'];
+    const rows = mentors
+      .sort(function(a, b) {
+        if (b.pairedSoFar !== a.pairedSoFar) {
+          return b.pairedSoFar - a.pairedSoFar;
+        }
+        return String(a.name).localeCompare(String(b.name));
+      })
+      .map(function(m) {
+        return [m.id, m.name, m.email, m.signedUpFor, m.pairedSoFar, m.remaining];
+      });
+
+    const sheet = getOrCreateYdpSheet_(SpreadsheetApp.getActive(), YDP_MENTOR_LOAD_SHEET);
+    sheet.clearContents();
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold');
+
+    if (rows.length) {
+      sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
+    }
+
+    sheet.setFrozenRows(1);
+    sheet.autoResizeColumns(1, headers.length);
+
+    const totalPaired = rows.reduce(function(sum, r) { return sum + Number(r[4] || 0); }, 0);
+    logYdpMatchingRun_('BUILD_MENTOR_LOAD', 'SUCCESS', 'Wrote ' + rows.length + ' mentors to "' + YDP_MENTOR_LOAD_SHEET + '" (' + totalPaired + ' pairs counted).');
+    ui.alert('Created/updated "' + YDP_MENTOR_LOAD_SHEET + '" with ' + rows.length + ' mentors.\n\n' + totalPaired + ' mentees paired so far (counted from "' + YDP_MATCHING_CONFIG.sheets.matchedPairs + '"). Sorted by how many each mentor has been paired with.');
+  } catch (error) {
+    ui.alert('Could not build the Mentor Load sheet:\n\n' + String(error.message || error));
   }
 }
 
