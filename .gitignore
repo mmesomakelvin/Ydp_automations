@@ -24,3 +24,7 @@
 
 # Holds the real site password — must never be committed
 **/supabase/set-password.sql
+
+# Real cohort data (participant names, emails, pairings) — must never be
+# committed to a public repo. Run it in Supabase; keep it local only.
+**/supabase/seed.sql
