@@ -20,6 +20,7 @@ import {
 import { isSupabaseConfigured } from '@/lib/supabase'
 import { useMatches } from './useMatches'
 import { useMyMatches } from './useMyMatches'
+import { useMyPeers } from './useMyPeers'
 import { PasswordGate, type LoginSubmit } from './PasswordGate'
 import { ParticipantMatch } from './ParticipantMatch'
 
@@ -207,6 +208,7 @@ function ParticipantApp({
   onSignOut: () => void
 }) {
   const { view, loading, error, notFound } = useMyMatches(email, id)
+  const peers = useMyPeers(email, id)
 
   // Email + ID didn't match any row → re-prompt on the participant tab with an
   // explanation (wrong details, or not matched yet).
@@ -236,7 +238,7 @@ function ParticipantApp({
 
   return (
     <div style={productType}>
-      <ParticipantMatch view={view} onSignOut={onSignOut} />
+      <ParticipantMatch view={view} peers={peers} onSignOut={onSignOut} />
     </div>
   )
 }

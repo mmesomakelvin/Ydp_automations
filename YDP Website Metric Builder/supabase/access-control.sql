@@ -92,6 +92,8 @@ returns table (
   match_reason text,
   mentor_linkedin text,
   mentee_linkedin text,
+  mentor_phone text,
+  mentee_phone text,
   mentee_summary  text
 )
 language plpgsql
@@ -106,7 +108,7 @@ begin
     select m.match_id, m.mentee_id, m.mentee_name, m.mentee_email,
            m.mentor_id, m.mentor_name, m.mentor_email, m.track,
            m.pair_score, m.match_reason, m.mentor_linkedin, m.mentee_linkedin,
-           m.mentee_summary
+           m.mentor_phone, m.mentee_phone, m.mentee_summary
     from public.matches m
     where (lower(m.mentee_email) = v_email and lower(m.mentee_id) = v_id)
        or (lower(m.mentor_email) = v_email and lower(m.mentor_id) = v_id);
@@ -114,3 +116,48 @@ end;
 $$;
 
 grant execute on function public.get_my_matches(text, text) to anon;
+
+-- Peer group for a mentee: the OTHER mentees paired with the same mentor, so a
+-- mentee can reach out to their cohort-mates and organise group sessions. Takes
+-- the same email + ID credential; returns nothing for a mentor (a mentor already
+-- sees all their mentees via get_my_matches). Excludes the caller themselves.
+drop function if exists public.get_my_peers(text, text);
+create function public.get_my_peers(p_email text, p_id text)
+returns table (
+  mentee_id      text,
+  mentee_name    text,
+  mentee_email   text,
+  mentee_phone   text,
+  mentee_linkedin text,
+  track          text
+)
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+declare
+  v_email  text := lower(trim(p_email));
+  v_id     text := lower(trim(p_id));
+  v_mentor text;
+begin
+  -- Find the mentor of the mentee logging in (only if email + id match a mentee).
+  select m.mentor_id into v_mentor
+  from public.matches m
+  where lower(m.mentee_email) = v_email and lower(m.mentee_id) = v_id
+  limit 1;
+
+  if v_mentor is null then
+    return;
+  end if;
+
+  return query
+    select m.mentee_id, m.mentee_name, m.mentee_email, m.mentee_phone,
+           m.mentee_linkedin, m.track
+    from public.matches m
+    where m.mentor_id = v_mentor
+      and lower(m.mentee_id) <> v_id
+    order by m.mentee_name;
+end;
+$$;
+
+grant execute on function public.get_my_peers(text, text) to anon;

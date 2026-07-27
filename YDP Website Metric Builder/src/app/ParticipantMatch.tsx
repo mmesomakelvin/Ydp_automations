@@ -5,8 +5,10 @@ import {
   ArrowRight,
   Sparkles,
   Linkedin,
+  Phone,
+  Users,
 } from 'lucide-react'
-import type { ParticipantView, CounterpartCard } from '@/lib/matches'
+import type { ParticipantView, CounterpartCard, PeerMentee } from '@/lib/matches'
 
 function firstNameOf(name: string): string {
   const first = name.trim().split(/\s+/)[0]
@@ -17,6 +19,12 @@ function firstNameOf(name: string): string {
 function linkedinHref(raw: string): string {
   const v = raw.trim()
   return /^https?:\/\//i.test(v) ? v : `https://${v}`
+}
+
+/** tel: link for the first number in a possibly multi-number field. */
+function telHref(raw: string): string {
+  const first = raw.split(/[;,/]/)[0].trim()
+  return `tel:${first.replace(/[^\d+]/g, '')}`
 }
 
 function initialsOf(name: string): string {
@@ -33,13 +41,17 @@ function initialsOf(name: string): string {
  */
 export function ParticipantMatch({
   view,
+  peers,
   onSignOut,
 }: {
   view: ParticipantView
+  peers: PeerMentee[]
   onSignOut: () => void
 }) {
   const roleLabel = view.myRole === 'mentee' ? 'mentee' : 'mentor'
   const counterpartWord = view.myRole === 'mentee' ? 'mentor' : 'mentee'
+  const mentorFirstName = firstNameOf(view.counterparts[0]?.name ?? 'your mentor')
+  const showPeers = view.myRole === 'mentee' && peers.length > 0
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
@@ -90,6 +102,26 @@ export function ParticipantMatch({
           ))}
         </div>
 
+        {/* Peer group — fellow mentees under the same mentor */}
+        {showPeers && (
+          <>
+            <h2 className="mt-8 mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+              <Users className="h-3.5 w-3.5" />
+              Your group with {mentorFirstName}
+            </h2>
+            <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">
+              You share {mentorFirstName} with {peers.length} other{' '}
+              {peers.length > 1 ? 'mentees' : 'mentee'}. Reach out to plan group
+              sessions and support each other.
+            </p>
+            <div className="space-y-2">
+              {peers.map((p) => (
+                <PeerRow key={p.id} peer={p} />
+              ))}
+            </div>
+          </>
+        )}
+
         {/* Next steps */}
         <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
           <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
@@ -133,6 +165,7 @@ function CounterpartCardView({ card }: { card: CounterpartCard }) {
   const hasScore = typeof card.score === 'number'
   const hasReason = card.reason.trim().length > 0
   const hasLinkedin = card.linkedin.trim().length > 0
+  const hasPhone = card.phone.trim().length > 0
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
@@ -163,6 +196,14 @@ function CounterpartCardView({ card }: { card: CounterpartCard }) {
           <span className="mt-1.5 inline-block rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
             {card.track}
           </span>
+          {hasPhone && (
+            <p className="mt-2 flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-300">
+              <Phone className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+              <a href={telHref(card.phone)} className="hover:underline">
+                {card.phone}
+              </a>
+            </p>
+          )}
         </div>
       </div>
 
@@ -200,6 +241,60 @@ function CounterpartCardView({ card }: { card: CounterpartCard }) {
           </a>
         )}
       </div>
+    </div>
+  )
+}
+
+function PeerRow({ peer }: { peer: PeerMentee }) {
+  const hasEmail = peer.email.trim().length > 0
+  const hasPhone = peer.phone.trim().length > 0
+  const hasLinkedin = peer.linkedin.trim().length > 0
+
+  const chip =
+    'inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+      <div className="flex items-center gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-slate-400 to-slate-500 text-sm font-semibold text-white dark:from-slate-600 dark:to-slate-700">
+          {initialsOf(peer.name)}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">
+            {peer.name}
+          </p>
+          <p className="truncate text-xs text-slate-500 dark:text-slate-400">
+            {peer.track}
+          </p>
+        </div>
+      </div>
+      {(hasEmail || hasPhone || hasLinkedin) && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {hasEmail && (
+            <a href={`mailto:${peer.email}`} className={chip}>
+              <Mail className="h-3.5 w-3.5" />
+              Email
+            </a>
+          )}
+          {hasPhone && (
+            <a href={telHref(peer.phone)} className={chip}>
+              <Phone className="h-3.5 w-3.5" />
+              {peer.phone}
+            </a>
+          )}
+          {hasLinkedin && (
+            <a
+              href={linkedinHref(peer.linkedin)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={chip}
+            >
+              <Linkedin className="h-3.5 w-3.5" />
+              LinkedIn
+            </a>
+          )}
+        </div>
+      )}
     </div>
   )
 }

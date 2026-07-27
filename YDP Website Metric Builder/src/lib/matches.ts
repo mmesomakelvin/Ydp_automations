@@ -97,6 +97,8 @@ export interface ParticipantMatchRow {
   match_reason: string | null
   mentor_linkedin: string | null
   mentee_linkedin: string | null
+  mentor_phone: string | null
+  mentee_phone: string | null
   mentee_summary: string | null
 }
 
@@ -139,6 +141,52 @@ export interface CounterpartCard {
   reason: string
   /** Counterpart's LinkedIn URL, or empty if none on file. */
   linkedin: string
+  /** Counterpart's phone number, or empty if none on file. */
+  phone: string
+}
+
+/** A fellow mentee paired with the same mentor. */
+export interface PeerMentee {
+  id: string
+  name: string
+  email: string
+  phone: string
+  linkedin: string
+  track: string
+}
+
+interface PeerMenteeRow {
+  mentee_id: string
+  mentee_name: string
+  mentee_email: string | null
+  mentee_phone: string | null
+  mentee_linkedin: string | null
+  track: string | null
+}
+
+/**
+ * Fetch the other mentees paired with the same mentor as the logged-in mentee,
+ * so they can reach out and organise group sessions. Returns [] for a mentor.
+ */
+export async function fetchMyPeers(email: string, id: string): Promise<PeerMentee[]> {
+  if (!supabase) {
+    throw new Error(
+      'Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env.local.',
+    )
+  }
+  const { data, error } = await supabase.rpc('get_my_peers', {
+    p_email: email,
+    p_id: id,
+  })
+  if (error) throw error
+  return ((data ?? []) as PeerMenteeRow[]).map((r) => ({
+    id: r.mentee_id,
+    name: r.mentee_name,
+    email: r.mentee_email ?? '',
+    phone: r.mentee_phone ?? '',
+    linkedin: r.mentee_linkedin ?? '',
+    track: r.track ?? '—',
+  }))
 }
 
 export interface ParticipantView {
@@ -172,7 +220,9 @@ export function toParticipantView(
     if (menteeEmail === me) {
       myRole = 'mentee'
       myName = myName || r.mentee_name
-      // A mentee sees WHY they were matched to this mentor (the skill-match reason).
+      // A mentee sees WHY they were matched to this mentor (the skill-match
+      // reason). Manually-swapped pairs have no reason on file, so fall back to a
+      // friendly generic line rather than an empty box.
       counterparts.push({
         matchId: r.match_id,
         role: 'mentor',
@@ -180,8 +230,11 @@ export function toParticipantView(
         email: r.mentor_email ?? '',
         track: r.track ?? '—',
         score: r.pair_score,
-        reason: r.match_reason ?? '',
+        reason:
+          (r.match_reason ?? '').trim() ||
+          'You were paired based on your career goals and your mentor’s experience in your track.',
         linkedin: r.mentor_linkedin ?? '',
+        phone: r.mentor_phone ?? '',
       })
     } else if (mentorEmail === me) {
       myRole = 'mentor'
@@ -196,6 +249,7 @@ export function toParticipantView(
         score: r.pair_score,
         reason: r.mentee_summary ?? '',
         linkedin: r.mentee_linkedin ?? '',
+        phone: r.mentee_phone ?? '',
       })
     }
   }
