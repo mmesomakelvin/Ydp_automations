@@ -2216,6 +2216,7 @@ function getYdpFlaggedNudgeRecipients_(sheet, headerMap) {
     const rowNumber = index + 2;
     const mentorEmail = String(getYdpRowValueByHeader_(row, headerMap, 'Mentor Email') || '').trim();
     const mentorName = String(getYdpRowValueByHeader_(row, headerMap, 'Mentor Name') || '').trim();
+    const mentorId = String(getYdpRowValueByHeader_(row, headerMap, 'Mentor ID') || '').trim();
     const menteeName = String(getYdpRowValueByHeader_(row, headerMap, 'Mentee Name') || '').trim();
     const menteeEmail = String(getYdpRowValueByHeader_(row, headerMap, 'Mentee Email') || '').trim();
     const menteeId = String(getYdpRowValueByHeader_(row, headerMap, 'Mentee ID') || '').trim();
@@ -2228,7 +2229,7 @@ function getYdpFlaggedNudgeRecipients_(sheet, headerMap) {
 
     const key = mentorEmail.toLowerCase();
     if (!byMentor[key]) {
-      byMentor[key] = { mentorEmail: mentorEmail, mentorName: mentorName, firstName: getYdpFirstName_(mentorName), mentees: [] };
+      byMentor[key] = { mentorEmail: mentorEmail, mentorId: mentorId, mentorName: mentorName, firstName: getYdpFirstName_(mentorName), mentees: [] };
       order.push(key);
     }
     byMentor[key].mentees.push({
@@ -2296,8 +2297,11 @@ function buildYdpMentorNudgeEmail_(recipient, phoneMap, logoSrc) {
     '',
     menteeLinesText,
     '',
-    'Full profiles and how to reach them are on your Mentorship Hub:',
-    YDP_HUB_URL,
+    'Full profiles and how to reach them are on your Mentorship Hub. In case you have forgotten how to log in:',
+    'Website: ' + YDP_HUB_URL,
+    'Tab: Mentor / Mentee',
+    'Email: ' + recipient.mentorEmail,
+    'Your ID: ' + recipient.mentorId,
     '',
     content.closing,
     '',
@@ -2308,18 +2312,19 @@ function buildYdpMentorNudgeEmail_(recipient, phoneMap, logoSrc) {
   return {
     subject: content.subject,
     body: body,
-    htmlBody: buildYdpMentorNudgeHtml_(name, recipient.mentees, content, phoneMap, logoSrc),
+    htmlBody: buildYdpMentorNudgeHtml_(name, recipient, content, phoneMap, logoSrc),
     inlineImages: { ydpLogo: getYdpLogoBlob_() },
     tier: tier
   };
 }
 
-function buildYdpMentorNudgeHtml_(name, mentees, content, phoneMap, logoSrc) {
+function buildYdpMentorNudgeHtml_(name, recipient, content, phoneMap, logoSrc) {
   const navy = YDP_MENTOR_COUNTDOWN.navy;
   const gold = YDP_MENTOR_COUNTDOWN.gold;
   const sender = escapeYdpHtml_(YDP_MATCHING_CONFIG.senderName);
   const src = logoSrc || 'cid:ydpLogo';
   const url = YDP_HUB_URL;
+  const mentees = recipient.mentees;
 
   const menteeCards = mentees.map(function(m) {
     const phone = phoneMap[(m.menteeEmail || '').trim().toLowerCase()] || '';
@@ -2360,6 +2365,18 @@ function buildYdpMentorNudgeHtml_(name, mentees, content, phoneMap, logoSrc) {
 
     '<tr><td style="padding:0 32px 8px 32px;">',
     menteeCards,
+    '</td></tr>',
+
+    '<tr><td style="padding:6px 32px 8px 32px;">',
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#fffdf5;border:1px solid ' + gold + ';border-radius:8px;">',
+    '<tr><td style="padding:14px 18px;color:#222222;font-size:14px;line-height:1.8;">',
+    '<div style="color:#8a6d1a;font-size:12px;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">Your login (in case you forgot)</div>',
+    '<div><strong>Website:</strong> <a href="' + url + '" style="color:' + navy + ';">' + url + '</a></div>',
+    '<div><strong>Tab:</strong> Mentor / Mentee</div>',
+    '<div><strong>Email:</strong> ' + escapeYdpHtml_(recipient.mentorEmail) + '</div>',
+    '<div><strong>Your ID:</strong> ' + escapeYdpHtml_(recipient.mentorId) + '</div>',
+    '</td></tr>',
+    '</table>',
     '</td></tr>',
 
     '<tr><td style="padding:14px 32px 8px 32px;" align="center">',
@@ -2501,6 +2518,7 @@ function ydpBuildSampleNudgeRecipient_() {
   const menteeName = String(getYdpRowValueByHeader_(row, headerMap, 'Mentee Name') || 'the Mentee').trim();
   return {
     mentorEmail: String(getYdpRowValueByHeader_(row, headerMap, 'Mentor Email') || '').trim(),
+    mentorId: String(getYdpRowValueByHeader_(row, headerMap, 'Mentor ID') || '').trim(),
     mentorName: mentorName,
     firstName: getYdpFirstName_(mentorName),
     mentees: [{
