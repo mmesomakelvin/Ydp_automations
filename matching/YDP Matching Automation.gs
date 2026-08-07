@@ -63,6 +63,9 @@ function onOpen() {
     .addItem('Sync reassignments now', 'syncYdpReassignmentsFromRecommendations')
     .addItem('Turn ON auto-sync reassignments', 'installYdpReassignAutoTrigger')
     .addItem('Turn OFF auto-sync reassignments', 'removeYdpReassignAutoTrigger')
+    .addItem('Preview reassignment notice', 'previewYdpReassignNotice')
+    .addItem('Send reassignment notice — TEST to me', 'sendYdpReassignNoticeTest')
+    .addItem('Send reassignment notices (flagged)', 'sendYdpReassignNoticesFlagged')
     .addSeparator()
     .addItem('Preview selected selection email', 'previewSelectedYdpMenteeSelectionEmail')
     .addItem('Send test selection email', 'sendTestYdpMenteeSelectionEmail')
@@ -886,6 +889,9 @@ function getYdpMatchingDataDictionaryRows_() {
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Sync reassignments now', 'Reads Match Recommendations and, for any mentee whose Recommended Mentor changed, updates their Matched Pairs row (Match ID, Mentor ID/Name/Email, Track) and flags it (Reassign Notify).', 'After editing Recommended Mentor IDs on Match Recommendations.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Turn ON auto-sync reassignments', 'Installs a trigger so editing a Recommended Mentor ID on Match Recommendations instantly updates the Matched Pairs row. Data only; no email.', 'For hands-off reassignment syncing.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Turn OFF auto-sync reassignments', 'Removes the auto-sync reassignment trigger.', 'To return to the manual "Sync reassignments now" button.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Preview reassignment notice', 'Shows the "your mentor has been updated" mentee email for the first flagged reassignment, without sending.', 'Before notifying moved mentees/mentors.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Send reassignment notice — TEST to me', 'Sends a sample reassignment notice to your own email only.', 'To inspect the inbox version safely.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Send reassignment notices (flagged)', 'Emails each moved mentee (new mentor + login) and each new mentor (a mentee joined you), then clears the Reassign Notify flag.', 'After re-seeding Supabase with the new pairings.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Preview selected selection email', 'Shows the selection email for one selected Can Pair mentee without sending it.', 'Use before any live selection email.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Send test selection email', 'Sends the selected Can Pair mentee template to an email address you enter without updating participant status.', 'Use to inspect the real inbox version safely.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Send selection email to selected mentee', 'Sends the live selection email to one selected Can Pair mentee and records SENT.', 'Use as the controlled first live send.'],
@@ -963,6 +969,9 @@ function getYdpButtonGuideRows_() {
     ['CAUTION', menu, 'Sync reassignments now', 'Pulls changed Recommended Mentor IDs from Match Recommendations into Matched Pairs (Match ID, Mentor ID/Name/Email, Track) and flags the moved pairs for notification.', 'After you edit Recommended Mentor IDs on Match Recommendations.', 'Make your mentor changes on Match Recommendations first.', 'Overwrites Mentor columns + Match ID on the changed Matched Pairs rows and sets Reassign Notify; no email sent.', 'After each batch of reassignments'],
     ['CAUTION', menu, 'Turn ON auto-sync reassignments', 'Installs an on-edit trigger so editing a Recommended Mentor ID instantly updates the mentee\'s Matched Pairs row.', 'For live reassignment syncing as you edit.', 'Understand it rewrites Matched Pairs Mentor columns automatically on each edit.', 'Creates an installable onEdit trigger that updates Matched Pairs; data only, no email.', 'Turn on while reassigning; off when done'],
     ['SAFE', menu, 'Turn OFF auto-sync reassignments', 'Removes the auto-sync reassignment trigger.', 'To return to the manual sync button.', 'No preparation required.', 'Deletes the trigger; no data or email changes.', 'As needed'],
+    ['SAFE', menu, 'Preview reassignment notice', 'Shows the moved-mentee reassignment email (first flagged pair) without sending.', 'Before notifying reassigned mentees/mentors.', 'Sync a reassignment first so a row is flagged.', 'Opens a preview only; no email or flag changes.', 'Before a reassignment notice run'],
+    ['SAFE', menu, 'Send reassignment notice — TEST to me', 'Sends a sample reassignment notice to your own email.', 'After preview and before the live send.', 'No preparation required.', 'Sends one test email; no flags cleared.', 'Before a reassignment notice run'],
+    ['LIVE ACTION', menu, 'Send reassignment notices (flagged)', 'Emails each moved mentee their new mentor + login and each new mentor that a mentee joined them, then clears the Reassign Notify flag.', 'After syncing reassignments AND re-seeding Supabase.', 'Re-seed Supabase first so the Hub shows the new pairing; preview and test.', 'Sends live emails and clears the Reassign Notify flag on notified rows.', 'After each reassignment batch'],
     ['SAFE', menu, 'Preview selected selection email', 'Shows the personalized selection email for one Can Pair mentee.', 'Before test or live selection sends.', 'Select a row in Mentee Scores with Can Pair status.', 'Opens a preview only; no email or tracking changes.', 'Before every selection campaign'],
     ['SAFE', menu, 'Send test selection email', 'Sends the selected mentee template to an internal test address.', 'After preview and before live selection sends.', 'Select a Can Pair mentee and use an internal email address.', 'Sends one test email; participant tracking is not updated.', 'Before every selection campaign'],
     ['LIVE ACTION', menu, 'Send selection email to selected mentee', 'Sends the live program-selection email to one selected eligible mentee.', 'For the controlled first live send or a one-off recipient.', 'Preview, test, and select the intended Can Pair row.', 'Sends one live email and updates selection-email tracking.', 'As needed'],
@@ -3073,6 +3082,253 @@ function removeYdpReassignAutoTrigger() {
     logYdpMatchingRun_('REMOVE_REASSIGN_AUTO_TRIGGER', 'ERROR', error.message);
     ui.alert('Could not turn off auto-sync:\n\n' + String(error.message || error));
   }
+}
+
+/* ---- Reassignment notices: tell the moved mentee + their new mentor ----
+ * Reads Matched Pairs rows flagged by the sync (Reassign Notify = "x"). Each
+ * moved mentee gets a "your mentor has been updated" email; each new mentor gets
+ * a "a mentee has been added to you" email (aggregated if several moved to them).
+ * Clears the flag after sending. Run this AFTER re-seeding Supabase. */
+
+function getYdpReassignNotifyRecipients_() {
+  const sheet = getYdpMatchedPairsSheetForInvites_();
+  const headerMap = ensureYdpReassignColumns_(sheet);
+  const notifyCol = headerMap[YDP_REASSIGN_TRACKING.notifyHeader];
+  const values = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+  const mentees = [];
+  const byMentor = {};
+  const mentorOrder = [];
+
+  values.forEach(function(row, i) {
+    if (!String(row[notifyCol - 1] || '').trim()) {
+      return;
+    }
+    const rowNumber = i + 2;
+    const menteeName = String(getYdpRowValueByHeader_(row, headerMap, 'Mentee Name') || '').trim();
+    const menteeEmail = String(getYdpRowValueByHeader_(row, headerMap, 'Mentee Email') || '').trim();
+    const menteeId = String(getYdpRowValueByHeader_(row, headerMap, 'Mentee ID') || '').trim();
+    const mentorName = String(getYdpRowValueByHeader_(row, headerMap, 'Mentor Name') || '').trim();
+    const mentorEmail = String(getYdpRowValueByHeader_(row, headerMap, 'Mentor Email') || '').trim();
+    const mentorId = String(getYdpRowValueByHeader_(row, headerMap, 'Mentor ID') || '').trim();
+    const track = String(getYdpRowValueByHeader_(row, headerMap, 'Track') || '').trim();
+
+    mentees.push({
+      rowNumber: rowNumber, menteeName: menteeName, firstName: getYdpFirstName_(menteeName),
+      menteeEmail: menteeEmail, menteeId: menteeId, mentorName: mentorName, track: track
+    });
+
+    if (isValidYdpEmail_(mentorEmail)) {
+      const key = mentorEmail.toLowerCase();
+      if (!byMentor[key]) {
+        byMentor[key] = { mentorEmail: mentorEmail, mentorId: mentorId, mentorName: mentorName, firstName: getYdpFirstName_(mentorName), menteeFirstNames: [] };
+        mentorOrder.push(key);
+      }
+      byMentor[key].menteeFirstNames.push(getYdpFirstName_(menteeName));
+    }
+  });
+
+  return { sheet: sheet, notifyCol: notifyCol, mentees: mentees, mentors: mentorOrder.map(function(k) { return byMentor[k]; }) };
+}
+
+function buildYdpMenteeReassignEmail_(m, logoSrc) {
+  const track = String(m.track || '').trim() || 'your track';
+  const body = [
+    'Hi ' + (m.firstName || 'there') + ',',
+    '',
+    'We have updated your mentor pairing for the YDP Mentorship Program, Cohort 2.',
+    '',
+    'Your mentor is now ' + m.mentorName + ' (' + track + ').',
+    '',
+    'Log in to your Mentorship Hub to see their full details and how to reach them:',
+    YDP_HUB_URL,
+    '',
+    'How to log in (choose the "Mentor / Mentee" tab):',
+    'Email: ' + m.menteeEmail,
+    'Your ID: ' + m.menteeId,
+    '',
+    'Please log in and say hello to your new mentor this week.',
+    '',
+    'Warm regards,',
+    YDP_MATCHING_CONFIG.senderName
+  ].join('\n');
+
+  const htmlBody = buildYdpMatchInviteHtml_({
+    preheader: 'Your YDP mentor has been updated.',
+    badge: 'MENTOR UPDATED',
+    subhead: 'Meet your new mentor, <strong>' + escapeYdpHtml_(m.mentorName) + '</strong>',
+    bodyParagraphs: [
+      'Hi ' + escapeYdpHtml_(m.firstName || 'there') + ',',
+      'We have updated your mentor pairing for the <strong>YDP Mentorship Program, Cohort 2</strong>.',
+      'Your mentor is now <strong>' + escapeYdpHtml_(m.mentorName) + '</strong> (' + escapeYdpHtml_(track) + ').',
+      'Log in to your Mentorship Hub to see their full details and how to reach them.'
+    ],
+    loginEmail: m.menteeEmail,
+    loginId: m.menteeId,
+    closingLine: 'Please log in and say hello to your new mentor this week.',
+    footerNote: 'You are receiving this because your mentor pairing was updated.',
+    logoSrc: logoSrc
+  });
+
+  return { subject: 'Your YDP mentor has been updated', body: body, htmlBody: htmlBody, inlineImages: { ydpLogo: getYdpLogoBlob_() } };
+}
+
+function buildYdpMentorReassignEmail_(mentor, logoSrc) {
+  const names = ydpJoinNames_(mentor.menteeFirstNames);
+  const word = mentor.menteeFirstNames.length > 1 ? 'mentees have' : 'mentee has';
+  const body = [
+    'Hi ' + (mentor.firstName || 'there') + ',',
+    '',
+    'A ' + word + ' been paired with you in the YDP Mentorship Program, Cohort 2: ' + names + '.',
+    '',
+    'Please log in to your Mentorship Hub to see their profile and reach out to say hello:',
+    YDP_HUB_URL,
+    '',
+    'How to log in (choose the "Mentor / Mentee" tab):',
+    'Email: ' + mentor.mentorEmail,
+    'Your ID: ' + mentor.mentorId,
+    '',
+    'A warm hello as they get started goes a long way.',
+    '',
+    'Warm regards,',
+    YDP_MATCHING_CONFIG.senderName
+  ].join('\n');
+
+  const htmlBody = buildYdpMatchInviteHtml_({
+    preheader: 'A mentee has been added to you.',
+    badge: 'NEW MENTEE',
+    subhead: 'A mentee has been added to your list',
+    bodyParagraphs: [
+      'Hi ' + escapeYdpHtml_(mentor.firstName || 'there') + ',',
+      'A ' + word + ' been paired with you in the <strong>YDP Mentorship Program, Cohort 2</strong>: <strong>' + escapeYdpHtml_(names) + '</strong>.',
+      'Please log in to your Mentorship Hub to see their profile and reach out to say hello.'
+    ],
+    loginEmail: mentor.mentorEmail,
+    loginId: mentor.mentorId,
+    closingLine: 'A warm hello as they get started goes a long way.',
+    footerNote: 'You are receiving this because a mentee was added to your list.',
+    logoSrc: logoSrc
+  });
+
+  return { subject: 'A mentee has been added to you - YDP Cohort 2', body: body, htmlBody: htmlBody, inlineImages: { ydpLogo: getYdpLogoBlob_() } };
+}
+
+function sendYdpReassignNoticesCore_() {
+  const r = getYdpReassignNotifyRecipients_();
+  if (r.mentees.length === 0) {
+    return { menteeCount: 0, mentorCount: 0, failures: [], summary: 'No reassigned pairs are flagged (Reassign Notify is empty). Nothing was sent.' };
+  }
+
+  const sender = YDP_MATCHING_CONFIG.senderName;
+  let menteeCount = 0;
+  let mentorCount = 0;
+  const failures = [];
+
+  r.mentees.forEach(function(m) {
+    if (!isValidYdpEmail_(m.menteeEmail)) {
+      failures.push('Mentee ' + m.menteeId + ' has no valid email; left flagged.');
+      return;
+    }
+    try {
+      const e = buildYdpMenteeReassignEmail_(m);
+      MailApp.sendEmail({ to: m.menteeEmail, subject: e.subject, body: e.body, htmlBody: e.htmlBody, name: sender, inlineImages: e.inlineImages });
+      menteeCount++;
+      r.sheet.getRange(m.rowNumber, r.notifyCol).setValue('');
+    } catch (error) {
+      failures.push('Mentee ' + m.menteeEmail + ' (' + String(error.message || error) + ')');
+    }
+  });
+
+  r.mentors.forEach(function(mentor) {
+    try {
+      const e = buildYdpMentorReassignEmail_(mentor);
+      MailApp.sendEmail({ to: mentor.mentorEmail, subject: e.subject, body: e.body, htmlBody: e.htmlBody, name: sender, inlineImages: e.inlineImages });
+      mentorCount++;
+    } catch (error) {
+      failures.push('Mentor ' + mentor.mentorEmail + ' (' + String(error.message || error) + ')');
+    }
+  });
+
+  const summary = 'Reassignment notices: emailed ' + menteeCount + ' moved mentee(s) and ' + mentorCount + ' new mentor(s).' +
+    (failures.length ? '\n\nIssues:\n' + failures.join('\n') : '');
+  return { menteeCount: menteeCount, mentorCount: mentorCount, failures: failures, summary: summary };
+}
+
+function previewYdpReassignNotice() {
+  const ui = SpreadsheetApp.getUi();
+  try {
+    const r = getYdpReassignNotifyRecipients_();
+    if (r.mentees.length === 0) {
+      ui.alert('No reassigned pairs are flagged (Reassign Notify is empty). Run "Sync reassignments now" after changing a Recommended Mentor ID.');
+      return;
+    }
+    const e = buildYdpMenteeReassignEmail_(r.mentees[0], 'data:image/png;base64,' + YDP_LOGO_BASE64);
+    const html = [
+      '<div style="font-family:Arial,sans-serif;padding:8px;">',
+      '<p style="margin:0 0 4px 0;"><strong>Subject:</strong> ' + escapeYdpHtml_(e.subject) + '</p>',
+      '<p style="margin:0 0 12px 0;color:#555;"><em>' + r.mentees.length + ' moved mentee(s) and ' + r.mentors.length + ' new mentor(s) are flagged. Showing the mentee email; the new mentor gets a matching "a mentee joined you" note.</em></p>',
+      '<hr>',
+      e.htmlBody,
+      '</div>'
+    ].join('');
+    ui.showModalDialog(HtmlService.createHtmlOutput(html).setWidth(680).setHeight(760), 'Reassignment Notice Preview');
+  } catch (error) {
+    ui.alert('Could not build the reassignment preview:\n\n' + String(error.message || error));
+  }
+}
+
+function sendYdpReassignNoticeTest() {
+  const ui = SpreadsheetApp.getUi();
+  const testRecipient = ydpResolveTestRecipient_('Send Test Reassignment Notice');
+  if (!testRecipient) return;
+  try {
+    const r = getYdpReassignNotifyRecipients_();
+    if (r.mentees.length === 0) {
+      ui.alert('No reassigned pairs are flagged. Nothing to sample.');
+      return;
+    }
+    const e = buildYdpMenteeReassignEmail_(r.mentees[0]);
+    MailApp.sendEmail({ to: testRecipient, subject: '[TEST] ' + e.subject, body: e.body, htmlBody: e.htmlBody, name: YDP_MATCHING_CONFIG.senderName, inlineImages: e.inlineImages });
+    ui.alert('Test reassignment notice sent to ' + testRecipient + '.\n\nNo mentees or mentors were emailed, and no flags were cleared.');
+  } catch (error) {
+    ui.alert('Test reassignment notice failed:\n\n' + String(error.message || error));
+  }
+}
+
+function sendYdpReassignNoticesFlagged() {
+  const ui = SpreadsheetApp.getUi();
+  let r;
+  try {
+    r = getYdpReassignNotifyRecipients_();
+  } catch (error) {
+    ui.alert('Could not read Matched Pairs:\n\n' + String(error.message || error));
+    return;
+  }
+  if (r.mentees.length === 0) {
+    ui.alert('No reassigned pairs are flagged (Reassign Notify is empty). Sync a reassignment first.');
+    return;
+  }
+  const estimated = r.mentees.length + r.mentors.length;
+  if (MailApp.getRemainingDailyQuota() < estimated) {
+    ui.alert('Gmail can only send ' + MailApp.getRemainingDailyQuota() + ' more emails today, but this needs about ' + estimated + '. Nothing was sent.');
+    return;
+  }
+  const confirmation = ui.alert(
+    'Send Reassignment Notices',
+    'Notify ' + r.mentees.length + ' moved mentee(s) and ' + r.mentors.length + ' new mentor(s)?\n\n' +
+    'Make sure you have re-seeded Supabase first, so the Hub shows the new pairing. Send a test to yourself first if you have not.',
+    ui.ButtonSet.OK_CANCEL
+  );
+  if (confirmation !== ui.Button.OK) return;
+
+  let result;
+  try {
+    result = sendYdpReassignNoticesCore_();
+  } catch (error) {
+    ui.alert('Sending failed, so nothing was sent:\n\n' + String(error.message || error));
+    return;
+  }
+  logYdpMatchingRun_('REASSIGN_NOTICE_SEND', result.failures.length ? 'PARTIAL_SUCCESS' : 'SUCCESS', result.summary);
+  ui.alert(result.summary);
 }
 
 function generateYdpMenteeScores() {
