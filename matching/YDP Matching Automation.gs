@@ -83,6 +83,10 @@ function onOpen() {
     .addItem('Send mentee invite — TEST to me', 'sendYdpMenteeMatchInviteTest')
     .addItem('Send match invite to ALL mentees', 'sendYdpMenteeMatchInvitesToAll')
     .addSeparator()
+    .addItem('Preview mentor nudge', 'previewYdpMentorNudge')
+    .addItem('Send mentor nudge — TEST to me', 'sendYdpMentorNudgeTest')
+    .addItem('Send mentor nudges (flagged)', 'sendYdpMentorNudgesFlagged')
+    .addSeparator()
     .addItem('Preview mentor countdown email', 'previewYdpMentorCountdownEmail')
     .addItem('Send mentor countdown — TEST to me', 'sendYdpMentorCountdownTest')
     .addItem('Send mentor countdown to ALL mentors', 'sendYdpMentorCountdownToAllMentors')
@@ -888,6 +892,12 @@ function getYdpMatchingDataDictionaryRows_() {
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Preview mentee match invite', 'Shows the website-driven mentee invite (their mentor plus their Hub login) without sending.', 'Before any live mentee invite.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Send mentee invite — TEST to me', 'Sends the mentee invite to your own email only.', 'To inspect the inbox version safely.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Send match invite to ALL mentees', 'Sends each matched mentee one invite naming their mentor and their Hub login (email + Mentee ID); marks each row SENT.', 'After preview and a test send.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.matchedPairs, 'Needs Nudge', 'Type "x" for a mentee whose mentor is unresponsive, then run "Send mentor nudges (flagged)". Auto-clears after the nudge sends.', 'Flag a pair for a mentor nudge.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.matchedPairs, 'Nudge Count', 'How many times this pair has been nudged. Drives escalation tone (1 warm, 2 firmer, 3+ reassignment notice). Clear it to reset a pair to warm.', 'Read-only history; escalation memory.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.matchedPairs, 'Last Nudged At / Nudge Status', 'When the most recent nudge was sent and whether it succeeded (SENT / ERROR).', 'Audit trail for mentor nudges.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Preview mentor nudge', 'Shows the escalating mentor nudge email (uses the first flagged pair, or a warm sample) without sending.', 'Before nudging unresponsive mentors.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Send mentor nudge — TEST to me', 'Sends a sample nudge to your own email only; changes no flags or tracking.', 'To inspect the inbox version safely.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Send mentor nudges (flagged)', 'Emails every mentor with a Needs Nudge flag (CC you), reassures each flagged mentee, escalates by Nudge Count, then updates tracking and clears the flags.', 'After a mentee reports being unable to reach their mentor.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Test Gemini connection', 'Checks that the Gemini API key works.', 'Run after changing the API key or model.'],
     ['Sheet', YDP_MATCHING_CONFIG.sheets.mentorSnapshot, 'Countdown Intro Email Status', 'Whether the intro mentor countdown email (89% note plus onboarding PDFs) was sent to this mentor.', 'SENT prevents duplicates; ERROR means the send failed.'],
     ['Sheet', YDP_MATCHING_CONFIG.sheets.mentorSnapshot, 'Countdown Intro Email Sent At', 'When the intro countdown email was sent to this mentor.', 'Audit trail.'],
@@ -957,6 +967,9 @@ function getYdpButtonGuideRows_() {
     ['SAFE', menu, 'Preview mentee match invite', 'Shows the website-driven mentee invite: their mentor named plus their Hub login (email + Mentee ID). Full details live on the website.', 'Before any live mentee invite.', 'Run auto-match so Matched Pairs is populated.', 'Opens a preview only; no email or tracking changes.', 'Before the match-invite campaign'],
     ['SAFE', menu, 'Send mentee invite — TEST to me', 'Sends one mentee invite to your own email using the first mentee as a sample.', 'After preview and before the live send.', 'No preparation is required.', 'Sends one test email; no Matched Pairs tracking is updated.', 'Before the match-invite campaign'],
     ['LIVE ACTION', menu, 'Send match invite to ALL mentees', 'Sends each matched mentee one website-driven invite naming their mentor and their Hub login, skipping mentees already marked SENT.', 'After preview and a test send, once matches are final.', 'Confirm the website URL and that matches are approved; preview and test first.', 'Sends live emails and marks Mentee Invite Status SENT on each Matched Pairs row.', 'Once per matching round'],
+    ['SAFE', menu, 'Preview mentor nudge', 'Shows the escalating unresponsive-mentor nudge email (first flagged pair, or a warm sample) without sending.', 'Before nudging mentors.', 'Optionally flag a mentee with "x" in Needs Nudge first.', 'Opens a preview only; no email, flags, or tracking changes.', 'Before a nudge run'],
+    ['SAFE', menu, 'Send mentor nudge — TEST to me', 'Sends a sample nudge to your own email only.', 'After preview and before a live nudge.', 'No preparation required.', 'Sends one test email; no flags or tracking change.', 'Before a nudge run'],
+    ['LIVE ACTION', menu, 'Send mentor nudges (flagged)', 'Emails every mentor flagged with "x" in Needs Nudge (naming only their flagged mentees, CC to you), reassures each flagged mentee, and escalates tone by Nudge Count.', 'When mentees report they cannot reach their mentor.', 'Flag the mentee rows with "x"; preview and test first.', 'Sends live emails; increments Nudge Count, stamps Last Nudged At, sets Nudge Status SENT, and clears the Needs Nudge flag on each nudged row.', 'As needed during the cohort'],
     ['SAFE', menu, 'Preview mentor countdown email', 'Shows the day-appropriate mentor countdown email without sending it.', 'Before any live countdown send.', 'No preparation is required.', 'Opens a preview only; no email or tracking changes.', 'Before every countdown send'],
     ['SAFE', menu, 'Send mentor countdown — TEST to me', 'Sends the mentor countdown email to your own email only.', 'After preview and before the live send.', 'No preparation is required.', 'Sends one test email; mentor tracking is not updated.', 'Before every countdown send'],
     ['LIVE ACTION', menu, 'Send mentor countdown to ALL mentors', 'Sends the day-appropriate countdown email to every mentor not already marked SENT for that email.', 'To send the day\'s countdown email by hand.', 'Preview and test first, and confirm the day\'s content.', 'Sends live emails and updates the day\'s countdown tracking on Mentor Source Snapshot.', 'Once per countdown day'],
@@ -2113,6 +2126,481 @@ function sendYdpMenteeMatchInvitesToAll() {
     return;
   }
   logYdpMatchingRun_('MENTEE_MATCH_INVITE_SEND', result.failures.length ? 'PARTIAL_SUCCESS' : 'SUCCESS', result.summary);
+  ui.alert(result.summary);
+}
+
+/* ===================================================================
+ * Unresponsive mentor nudge
+ * The facilitator flags a mentee (types "x" in the Needs Nudge column on
+ * Matched Pairs) whose mentor has gone quiet, then clicks one button. Each
+ * mentor with flagged mentees gets ONE email naming only those mentees, with
+ * contact + Hub link. Tone escalates by per-pair Nudge Count (repeat over
+ * time). The facilitator is CC'd; each flagged mentee gets a reassurance note.
+ * The flag auto-clears after a successful send. See
+ * artifacts/superpowers/8. Unresponsive Mentor Nudge.md
+ * =================================================================== */
+
+const YDP_MENTOR_NUDGE_TRACKING = {
+  needsNudgeHeader: 'Needs Nudge',
+  countHeader: 'Nudge Count',
+  lastAtHeader: 'Last Nudged At',
+  statusHeader: 'Nudge Status'
+};
+
+// Adds the four nudge-tracking columns to Matched Pairs if missing; returns a
+// header -> column map.
+function ensureYdpMentorNudgeColumns_(sheet) {
+  const t = YDP_MENTOR_NUDGE_TRACKING;
+  const wanted = [t.needsNudgeHeader, t.countHeader, t.lastAtHeader, t.statusHeader];
+  const headers = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), 1)).getValues()[0].map(function(h) {
+    return String(h || '').trim();
+  });
+  const missing = wanted.filter(function(h) { return headers.indexOf(h) === -1; });
+
+  if (missing.length) {
+    sheet.getRange(1, sheet.getLastColumn() + 1, 1, missing.length).setValues([missing]);
+    sheet.setFrozenRows(1);
+  }
+
+  const finalHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const map = {};
+  finalHeaders.forEach(function(h, i) {
+    const name = String(h || '').trim();
+    if (name) map[name] = i + 1;
+  });
+  return map;
+}
+
+// email(lower) -> phone, from the Mentee Source Snapshot. Best-effort.
+function getYdpMenteePhoneMap_() {
+  const map = {};
+  const sheet = SpreadsheetApp.getActive().getSheetByName(YDP_MATCHING_CONFIG.sheets.menteeSnapshot);
+  if (!sheet || sheet.getLastRow() <= 1) {
+    return map;
+  }
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(function(h) {
+    return String(h || '').trim().toLowerCase();
+  });
+  const emailIdx = headers.findIndex(function(h) { return h.indexOf('email') !== -1; });
+  const phoneIdx = headers.findIndex(function(h) { return h.indexOf('phone') !== -1; });
+  if (emailIdx === -1 || phoneIdx === -1) {
+    return map;
+  }
+  const values = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+  values.forEach(function(row) {
+    const email = String(row[emailIdx] || '').trim().toLowerCase();
+    const phone = String(row[phoneIdx] || '').trim();
+    if (email) map[email] = phone;
+  });
+  return map;
+}
+
+// Reads flagged rows from Matched Pairs, grouped by mentor. Each mentee carries
+// newCount = its stored Nudge Count + 1 (this send). Returns { recipients,
+// noMentor } where noMentor lists flagged rows with no usable mentor email.
+function getYdpFlaggedNudgeRecipients_(sheet, headerMap) {
+  const t = YDP_MENTOR_NUDGE_TRACKING;
+  const needsCol = headerMap[t.needsNudgeHeader];
+  const countCol = headerMap[t.countHeader];
+  const values = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+  const byMentor = {};
+  const order = [];
+  const noMentor = [];
+
+  values.forEach(function(row, index) {
+    const flag = String(row[needsCol - 1] || '').trim();
+    if (!flag) {
+      return;
+    }
+
+    const rowNumber = index + 2;
+    const mentorEmail = String(getYdpRowValueByHeader_(row, headerMap, 'Mentor Email') || '').trim();
+    const mentorName = String(getYdpRowValueByHeader_(row, headerMap, 'Mentor Name') || '').trim();
+    const menteeName = String(getYdpRowValueByHeader_(row, headerMap, 'Mentee Name') || '').trim();
+    const menteeEmail = String(getYdpRowValueByHeader_(row, headerMap, 'Mentee Email') || '').trim();
+    const menteeId = String(getYdpRowValueByHeader_(row, headerMap, 'Mentee ID') || '').trim();
+    const currentCount = Number(row[countCol - 1]) || 0;
+
+    if (!isValidYdpEmail_(mentorEmail)) {
+      noMentor.push({ rowNumber: rowNumber, menteeName: menteeName, mentorName: mentorName });
+      return;
+    }
+
+    const key = mentorEmail.toLowerCase();
+    if (!byMentor[key]) {
+      byMentor[key] = { mentorEmail: mentorEmail, mentorName: mentorName, firstName: getYdpFirstName_(mentorName), mentees: [] };
+      order.push(key);
+    }
+    byMentor[key].mentees.push({
+      rowNumber: rowNumber,
+      menteeName: menteeName,
+      firstName: getYdpFirstName_(menteeName),
+      menteeEmail: menteeEmail,
+      menteeId: menteeId,
+      newCount: currentCount + 1
+    });
+  });
+
+  return { recipients: order.map(function(k) { return byMentor[k]; }), noMentor: noMentor };
+}
+
+// Tone content by escalation tier (1 warm, 2 firmer, 3+ escalation notice).
+function ydpNudgeTierContent_(tier) {
+  if (tier >= 3) {
+    return {
+      badge: 'ACTION NEEDED',
+      subject: 'Action needed: your YDP mentee still cannot reach you',
+      subhead: 'A mentee is still waiting to hear from you',
+      intro: 'We have reached out a couple of times about a mentee who has not been able to connect with you. To keep them from falling behind, we really need to hear from you.',
+      closing: 'Please reach out to your mentee this week and reply to this email to confirm your availability. If we do not hear from you, YDP may reassign the mentee so they can get the support they signed up for. We would much rather keep you paired, so a quick note goes a long way.'
+    };
+  }
+  if (tier === 2) {
+    return {
+      badge: 'FOLLOW-UP',
+      subject: 'Following up: your YDP mentee is still waiting',
+      subhead: 'Your mentee is still trying to reach you',
+      intro: 'Following up on our earlier note, the mentee below is still waiting to hear from you. Our facilitator is copied on this email.',
+      closing: 'Please say hello and agree on a first check-in within the next few days. If anything is blocking you, just reply here and we will help.'
+    };
+  }
+  return {
+    badge: 'QUICK NUDGE',
+    subject: 'Your YDP mentee is trying to reach you',
+    subhead: 'Your mentee is trying to reach you',
+    intro: 'One of your mentees has been trying to connect with you and has not been able to yet. A quick hello from you would mean a lot as they get started.',
+    closing: 'Please reach out to say hello and set up a first chat. Their contact is above, and their full profile is on the Mentorship Hub.'
+  };
+}
+
+function buildYdpMentorNudgeEmail_(recipient, phoneMap, logoSrc) {
+  const tier = Math.min(3, Math.max.apply(null, recipient.mentees.map(function(m) { return m.newCount; })));
+  const content = ydpNudgeTierContent_(tier);
+  const name = String(recipient.firstName || '').trim() || 'there';
+
+  const menteeLinesText = recipient.mentees.map(function(m) {
+    const phone = phoneMap[(m.menteeEmail || '').trim().toLowerCase()] || '';
+    return [
+      m.menteeName,
+      m.menteeEmail ? 'Email: ' + m.menteeEmail : '',
+      phone ? 'Phone: ' + phone : ''
+    ].filter(Boolean).join('\n');
+  }).join('\n\n');
+
+  const body = [
+    'Hi ' + name + ',',
+    '',
+    content.intro,
+    '',
+    'Mentee' + (recipient.mentees.length > 1 ? 's' : '') + ' waiting to hear from you:',
+    '',
+    menteeLinesText,
+    '',
+    'Full profiles and how to reach them are on your Mentorship Hub:',
+    YDP_HUB_URL,
+    '',
+    content.closing,
+    '',
+    'Warm regards,',
+    YDP_MATCHING_CONFIG.senderName
+  ].join('\n');
+
+  return {
+    subject: content.subject,
+    body: body,
+    htmlBody: buildYdpMentorNudgeHtml_(name, recipient.mentees, content, phoneMap, logoSrc),
+    inlineImages: { ydpLogo: getYdpLogoBlob_() },
+    tier: tier
+  };
+}
+
+function buildYdpMentorNudgeHtml_(name, mentees, content, phoneMap, logoSrc) {
+  const navy = YDP_MENTOR_COUNTDOWN.navy;
+  const gold = YDP_MENTOR_COUNTDOWN.gold;
+  const sender = escapeYdpHtml_(YDP_MATCHING_CONFIG.senderName);
+  const src = logoSrc || 'cid:ydpLogo';
+  const url = YDP_HUB_URL;
+
+  const menteeCards = mentees.map(function(m) {
+    const phone = phoneMap[(m.menteeEmail || '').trim().toLowerCase()] || '';
+    return [
+      '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6fb;border:1px solid #e2e6ef;border-radius:8px;margin-bottom:10px;">',
+      '<tr><td style="padding:14px 18px;color:#222222;font-size:15px;line-height:1.7;">',
+      '<div style="font-weight:bold;color:' + navy + ';">' + escapeYdpHtml_(m.menteeName) + '</div>',
+      m.menteeEmail ? '<div><strong>Email:</strong> <a href="mailto:' + escapeYdpHtml_(m.menteeEmail) + '" style="color:' + navy + ';">' + escapeYdpHtml_(m.menteeEmail) + '</a></div>' : '',
+      phone ? '<div><strong>Phone:</strong> ' + escapeYdpHtml_(phone) + '</div>' : '',
+      '</td></tr>',
+      '</table>'
+    ].join('');
+  }).join('');
+
+  return [
+    '<div style="display:none;max-height:0;overflow:hidden;opacity:0;">' + escapeYdpHtml_(content.subhead) + '</div>',
+    '<div style="margin:0;padding:0;background:#f4f4f6;">',
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f6;padding:24px 0;">',
+    '<tr><td align="center">',
+    '<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:10px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;">',
+
+    '<tr><td style="background:#ffffff;border-top:5px solid ' + navy + ';padding:26px 32px 18px 32px;text-align:center;">',
+    '<img src="' + src + '" alt="Young Data Professionals" width="300" style="display:block;margin:0 auto;width:300px;max-width:72%;height:auto;">',
+    '<div style="font-size:13px;letter-spacing:3px;color:' + navy + ';margin-top:14px;">MENTORSHIP PROGRAM</div>',
+    '<div style="height:3px;width:64px;background:' + gold + ';margin:14px auto 0 auto;font-size:0;line-height:0;">&nbsp;</div>',
+    '</td></tr>',
+
+    '<tr><td style="padding:24px 32px 0 32px;text-align:center;">',
+    '<span style="display:inline-block;border:2px solid ' + gold + ';color:' + navy + ';font-size:13px;font-weight:bold;letter-spacing:1.5px;padding:8px 18px;border-radius:999px;">' + escapeYdpHtml_(content.badge) + '</span>',
+    '<div style="font-size:15px;color:#555555;margin-top:10px;">' + escapeYdpHtml_(content.subhead) + '</div>',
+    '</td></tr>',
+
+    '<tr><td style="padding:24px 32px 8px 32px;color:#222222;font-size:15px;line-height:1.6;">',
+    '<p style="margin:0 0 16px 0;">Hi ' + escapeYdpHtml_(name) + ',</p>',
+    '<p style="margin:0 0 16px 0;">' + escapeYdpHtml_(content.intro) + '</p>',
+    '<div style="color:#666666;font-size:12px;letter-spacing:1px;text-transform:uppercase;margin:6px 0 10px 0;">Mentee' + (mentees.length > 1 ? 's' : '') + ' waiting to hear from you</div>',
+    '</td></tr>',
+
+    '<tr><td style="padding:0 32px 8px 32px;">',
+    menteeCards,
+    '</td></tr>',
+
+    '<tr><td style="padding:14px 32px 8px 32px;" align="center">',
+    ydpCountdownButton_('Open the Mentorship Hub', url, navy),
+    '</td></tr>',
+
+    '<tr><td style="padding:8px 32px 24px 32px;color:#222222;font-size:15px;line-height:1.6;">',
+    '<p style="margin:0 0 16px 0;">' + escapeYdpHtml_(content.closing) + '</p>',
+    '<p style="margin:0;">Warm regards,<br><strong>' + sender + '</strong></p>',
+    '</td></tr>',
+
+    '<tr><td style="background:#f4f4f6;padding:18px 32px;text-align:center;color:#888888;font-size:12px;line-height:1.5;">',
+    'YDP Mentorship Program &bull; Cohort 2<br>You are receiving this because a mentee you are paired with is trying to reach you.',
+    '</td></tr>',
+
+    '</table>',
+    '</td></tr>',
+    '</table>',
+    '</div>'
+  ].join('');
+}
+
+function buildYdpMenteeNudgeReassuranceEmail_(menteeFirstName, mentorName) {
+  const name = String(menteeFirstName || '').trim() || 'there';
+  const mentor = String(mentorName || '').trim() || 'your mentor';
+  const body = [
+    'Hi ' + name + ',',
+    '',
+    'Thanks for letting us know. We have reminded ' + mentor + ' and asked them to reach out to you.',
+    '',
+    'Please give them a couple of days to respond. If you still do not hear back, just message us again and we will step in.',
+    '',
+    'Warm regards,',
+    YDP_MATCHING_CONFIG.senderName
+  ].join('\n');
+
+  return {
+    subject: 'We have reminded your YDP mentor',
+    body: body,
+    htmlBody: convertYdpPlainTextToHtml_(body)
+  };
+}
+
+// Live send: nudge every mentor with flagged mentees, CC the facilitator, send
+// each flagged mentee a reassurance note, then update tracking and clear flags.
+function sendYdpMentorNudgesCore_() {
+  const sheet = getYdpMatchedPairsSheetForInvites_();
+  const headerMap = ensureYdpMentorNudgeColumns_(sheet);
+  const t = YDP_MENTOR_NUDGE_TRACKING;
+  const needsCol = headerMap[t.needsNudgeHeader];
+  const countCol = headerMap[t.countHeader];
+  const lastCol = headerMap[t.lastAtHeader];
+  const statusCol = headerMap[t.statusHeader];
+
+  const flagged = getYdpFlaggedNudgeRecipients_(sheet, headerMap);
+  const recipients = flagged.recipients;
+
+  if (recipients.length === 0 && flagged.noMentor.length === 0) {
+    return { mentorCount: 0, menteeCount: 0, failures: [], summary: 'No mentees are flagged (Needs Nudge is empty). Nothing was sent.' };
+  }
+
+  const phoneMap = getYdpMenteePhoneMap_();
+  let facilitator = '';
+  try {
+    facilitator = String(Session.getEffectiveUser().getEmail() || '').trim();
+  } catch (e) {
+    facilitator = '';
+  }
+
+  let mentorCount = 0;
+  let menteeCount = 0;
+  const failures = [];
+  const now = new Date();
+
+  recipients.forEach(function(recipient) {
+    try {
+      const email = buildYdpMentorNudgeEmail_(recipient, phoneMap);
+      const options = {
+        to: recipient.mentorEmail,
+        subject: email.subject,
+        body: email.body,
+        htmlBody: email.htmlBody,
+        name: YDP_MATCHING_CONFIG.senderName,
+        inlineImages: email.inlineImages
+      };
+      if (isValidYdpEmail_(facilitator)) {
+        options.cc = facilitator;
+      }
+      MailApp.sendEmail(options);
+      mentorCount++;
+
+      // Per flagged mentee: reassurance email + tracking update + clear the flag.
+      recipient.mentees.forEach(function(m) {
+        if (isValidYdpEmail_(m.menteeEmail)) {
+          try {
+            const reassure = buildYdpMenteeNudgeReassuranceEmail_(m.firstName, recipient.mentorName);
+            MailApp.sendEmail({
+              to: m.menteeEmail,
+              subject: reassure.subject,
+              body: reassure.body,
+              htmlBody: reassure.htmlBody,
+              name: YDP_MATCHING_CONFIG.senderName
+            });
+            menteeCount++;
+          } catch (reassureError) {
+            failures.push('Reassurance to ' + m.menteeEmail + ' (' + String(reassureError.message || reassureError) + ')');
+          }
+        }
+        sheet.getRange(m.rowNumber, countCol).setValue(m.newCount);
+        sheet.getRange(m.rowNumber, lastCol).setValue(now);
+        sheet.getRange(m.rowNumber, statusCol).setValue('SENT');
+        sheet.getRange(m.rowNumber, needsCol).setValue('');
+      });
+    } catch (error) {
+      recipient.mentees.forEach(function(m) {
+        sheet.getRange(m.rowNumber, statusCol).setValue('ERROR');
+      });
+      failures.push(recipient.mentorEmail + ' (' + String(error.message || error) + ')');
+    }
+  });
+
+  // Flagged rows whose mentor had no usable email: mark ERROR, keep the flag.
+  flagged.noMentor.forEach(function(item) {
+    sheet.getRange(item.rowNumber, statusCol).setValue('ERROR');
+    failures.push('No mentor email for flagged mentee ' + item.menteeName + ' (row ' + item.rowNumber + ')');
+  });
+
+  const summary = 'Mentor nudge: emailed ' + mentorCount + ' mentor(s) and reassured ' + menteeCount + ' mentee(s).' +
+    (flagged.noMentor.length ? '\n\n' + flagged.noMentor.length + ' flagged row(s) had no mentor email and were left flagged.' : '') +
+    (failures.length ? '\n\nIssues:\n' + failures.join('\n') : '');
+  return { mentorCount: mentorCount, menteeCount: menteeCount, failures: failures, summary: summary };
+}
+
+function ydpBuildSampleNudgeRecipient_() {
+  const sheet = getYdpMatchedPairsSheetForInvites_();
+  const headerMap = getYdpMatchingHeaderMap_(sheet);
+  const row = sheet.getRange(2, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const mentorName = String(getYdpRowValueByHeader_(row, headerMap, 'Mentor Name') || 'the Mentor').trim();
+  const menteeName = String(getYdpRowValueByHeader_(row, headerMap, 'Mentee Name') || 'the Mentee').trim();
+  return {
+    mentorEmail: String(getYdpRowValueByHeader_(row, headerMap, 'Mentor Email') || '').trim(),
+    mentorName: mentorName,
+    firstName: getYdpFirstName_(mentorName),
+    mentees: [{
+      rowNumber: 2,
+      menteeName: menteeName,
+      firstName: getYdpFirstName_(menteeName),
+      menteeEmail: String(getYdpRowValueByHeader_(row, headerMap, 'Mentee Email') || '').trim(),
+      menteeId: String(getYdpRowValueByHeader_(row, headerMap, 'Mentee ID') || '').trim(),
+      newCount: 1
+    }]
+  };
+}
+
+function previewYdpMentorNudge() {
+  const ui = SpreadsheetApp.getUi();
+  try {
+    const sheet = getYdpMatchedPairsSheetForInvites_();
+    const headerMap = ensureYdpMentorNudgeColumns_(sheet);
+    const flagged = getYdpFlaggedNudgeRecipients_(sheet, headerMap);
+    const phoneMap = getYdpMenteePhoneMap_();
+    const recipient = flagged.recipients.length ? flagged.recipients[0] : ydpBuildSampleNudgeRecipient_();
+    const note = flagged.recipients.length
+      ? flagged.recipients.length + ' mentor(s) are currently flagged. Showing the first.'
+      : 'No mentees are flagged yet. Showing a sample using the first Matched Pairs row (warm tier).';
+    const email = buildYdpMentorNudgeEmail_(recipient, phoneMap, 'data:image/png;base64,' + YDP_LOGO_BASE64);
+    const html = [
+      '<div style="font-family:Arial,sans-serif;padding:8px;">',
+      '<p style="margin:0 0 4px 0;"><strong>Subject:</strong> ' + escapeYdpHtml_(email.subject) + '</p>',
+      '<p style="margin:0 0 12px 0;color:#555;"><em>Tier ' + email.tier + '. ' + escapeYdpHtml_(note) + ' You (' + escapeYdpHtml_(String(Session.getEffectiveUser().getEmail() || 'the facilitator')) + ') are CC\'d on the real send.</em></p>',
+      '<hr>',
+      email.htmlBody,
+      '</div>'
+    ].join('');
+    ui.showModalDialog(HtmlService.createHtmlOutput(html).setWidth(680).setHeight(760), 'Mentor Nudge Preview');
+  } catch (error) {
+    ui.alert('Could not build the mentor nudge preview:\n\n' + String(error.message || error));
+  }
+}
+
+function sendYdpMentorNudgeTest() {
+  const ui = SpreadsheetApp.getUi();
+  const testRecipient = ydpResolveTestRecipient_('Send Test Mentor Nudge');
+  if (!testRecipient) return;
+
+  try {
+    const sheet = getYdpMatchedPairsSheetForInvites_();
+    const headerMap = ensureYdpMentorNudgeColumns_(sheet);
+    const flagged = getYdpFlaggedNudgeRecipients_(sheet, headerMap);
+    const phoneMap = getYdpMenteePhoneMap_();
+    const recipient = flagged.recipients.length ? flagged.recipients[0] : ydpBuildSampleNudgeRecipient_();
+    const email = buildYdpMentorNudgeEmail_(recipient, phoneMap);
+    MailApp.sendEmail({ to: testRecipient, subject: '[TEST] ' + email.subject, body: email.body, htmlBody: email.htmlBody, name: YDP_MATCHING_CONFIG.senderName, inlineImages: email.inlineImages });
+    ui.alert('Test mentor nudge sent to ' + testRecipient + ' (tier ' + email.tier + ').\n\nNo mentors or mentees were emailed, and no flags or tracking were changed by this test.');
+  } catch (error) {
+    ui.alert('Test mentor nudge failed:\n\n' + String(error.message || error));
+  }
+}
+
+function sendYdpMentorNudgesFlagged() {
+  const ui = SpreadsheetApp.getUi();
+
+  let sheet;
+  let flagged;
+  try {
+    sheet = getYdpMatchedPairsSheetForInvites_();
+    const headerMap = ensureYdpMentorNudgeColumns_(sheet);
+    flagged = getYdpFlaggedNudgeRecipients_(sheet, headerMap);
+  } catch (error) {
+    ui.alert('Could not read Matched Pairs:\n\n' + String(error.message || error));
+    return;
+  }
+
+  if (flagged.recipients.length === 0 && flagged.noMentor.length === 0) {
+    ui.alert('No mentees are flagged. Type "x" in the Needs Nudge column for any mentee whose mentor is unresponsive, then run this again.');
+    return;
+  }
+
+  const flaggedMenteeCount = flagged.recipients.reduce(function(sum, r) { return sum + r.mentees.length; }, 0);
+  const estimatedEmails = flagged.recipients.length + flaggedMenteeCount;
+  if (MailApp.getRemainingDailyQuota() < estimatedEmails) {
+    ui.alert('Gmail can only send ' + MailApp.getRemainingDailyQuota() + ' more emails today, but this needs about ' + estimatedEmails + '. Nothing was sent. Try again after the daily quota resets.');
+    return;
+  }
+
+  const confirmation = ui.alert(
+    'Send Mentor Nudges',
+    'Nudge ' + flagged.recipients.length + ' mentor(s) about ' + flaggedMenteeCount + ' flagged mentee(s)?\n\n' +
+    'Each mentor is emailed once (CC to you), each flagged mentee gets a reassurance note, and the flags then clear. Send a test to yourself first if you have not.',
+    ui.ButtonSet.OK_CANCEL
+  );
+  if (confirmation !== ui.Button.OK) return;
+
+  let result;
+  try {
+    result = sendYdpMentorNudgesCore_();
+  } catch (error) {
+    ui.alert('Sending failed, so nothing was sent:\n\n' + String(error.message || error));
+    return;
+  }
+  logYdpMatchingRun_('MENTOR_NUDGE_SEND', result.failures.length ? 'PARTIAL_SUCCESS' : 'SUCCESS', result.summary);
   ui.alert(result.summary);
 }
 
