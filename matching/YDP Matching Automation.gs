@@ -2525,11 +2525,17 @@ function previewYdpMentorNudge() {
     const note = flagged.recipients.length
       ? flagged.recipients.length + ' mentor(s) are currently flagged. Showing the first.'
       : 'No mentees are flagged yet. Showing a sample using the first Matched Pairs row (warm tier).';
+    let facilitatorLabel = 'the facilitator';
+    try {
+      facilitatorLabel = String(Session.getEffectiveUser().getEmail() || 'the facilitator');
+    } catch (e) {
+      facilitatorLabel = 'the facilitator';
+    }
     const email = buildYdpMentorNudgeEmail_(recipient, phoneMap, 'data:image/png;base64,' + YDP_LOGO_BASE64);
     const html = [
       '<div style="font-family:Arial,sans-serif;padding:8px;">',
       '<p style="margin:0 0 4px 0;"><strong>Subject:</strong> ' + escapeYdpHtml_(email.subject) + '</p>',
-      '<p style="margin:0 0 12px 0;color:#555;"><em>Tier ' + email.tier + '. ' + escapeYdpHtml_(note) + ' You (' + escapeYdpHtml_(String(Session.getEffectiveUser().getEmail() || 'the facilitator')) + ') are CC\'d on the real send.</em></p>',
+      '<p style="margin:0 0 12px 0;color:#555;"><em>Tier ' + email.tier + '. ' + escapeYdpHtml_(note) + ' You (' + escapeYdpHtml_(facilitatorLabel) + ') are CC\'d on the real send.</em></p>',
       '<hr>',
       email.htmlBody,
       '</div>'
