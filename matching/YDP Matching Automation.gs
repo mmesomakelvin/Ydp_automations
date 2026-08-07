@@ -86,6 +86,8 @@ function onOpen() {
     .addItem('Preview mentor nudge', 'previewYdpMentorNudge')
     .addItem('Send mentor nudge — TEST to me', 'sendYdpMentorNudgeTest')
     .addItem('Send mentor nudges (flagged)', 'sendYdpMentorNudgesFlagged')
+    .addItem('Turn ON auto-nudge (send on x)', 'installYdpNudgeAutoTrigger')
+    .addItem('Turn OFF auto-nudge', 'removeYdpNudgeAutoTrigger')
     .addSeparator()
     .addItem('Preview mentor countdown email', 'previewYdpMentorCountdownEmail')
     .addItem('Send mentor countdown — TEST to me', 'sendYdpMentorCountdownTest')
@@ -898,6 +900,8 @@ function getYdpMatchingDataDictionaryRows_() {
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Preview mentor nudge', 'Shows the escalating mentor nudge email (uses the first flagged pair, or a warm sample) without sending.', 'Before nudging unresponsive mentors.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Send mentor nudge — TEST to me', 'Sends a sample nudge to your own email only; changes no flags or tracking.', 'To inspect the inbox version safely.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Send mentor nudges (flagged)', 'Emails every mentor with a Needs Nudge flag (CC you), reassures each flagged mentee, escalates by Nudge Count, then updates tracking and clears the flags.', 'After a mentee reports being unable to reach their mentor.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Turn ON auto-nudge (send on x)', 'Installs a trigger so typing "x" in Needs Nudge instantly nudges that mentor (no preview/confirm). Off by default.', 'When you want flags to send live as you type them.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Turn OFF auto-nudge', 'Removes the auto-nudge trigger; typing "x" no longer sends automatically.', 'To go back to the manual "Send mentor nudges (flagged)" button.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Test Gemini connection', 'Checks that the Gemini API key works.', 'Run after changing the API key or model.'],
     ['Sheet', YDP_MATCHING_CONFIG.sheets.mentorSnapshot, 'Countdown Intro Email Status', 'Whether the intro mentor countdown email (89% note plus onboarding PDFs) was sent to this mentor.', 'SENT prevents duplicates; ERROR means the send failed.'],
     ['Sheet', YDP_MATCHING_CONFIG.sheets.mentorSnapshot, 'Countdown Intro Email Sent At', 'When the intro countdown email was sent to this mentor.', 'Audit trail.'],
@@ -970,6 +974,8 @@ function getYdpButtonGuideRows_() {
     ['SAFE', menu, 'Preview mentor nudge', 'Shows the escalating unresponsive-mentor nudge email (first flagged pair, or a warm sample) without sending.', 'Before nudging mentors.', 'Optionally flag a mentee with "x" in Needs Nudge first.', 'Opens a preview only; no email, flags, or tracking changes.', 'Before a nudge run'],
     ['SAFE', menu, 'Send mentor nudge — TEST to me', 'Sends a sample nudge to your own email only.', 'After preview and before a live nudge.', 'No preparation required.', 'Sends one test email; no flags or tracking change.', 'Before a nudge run'],
     ['LIVE ACTION', menu, 'Send mentor nudges (flagged)', 'Emails every mentor flagged with "x" in Needs Nudge (naming only their flagged mentees, CC to you), reassures each flagged mentee, and escalates tone by Nudge Count.', 'When mentees report they cannot reach their mentor.', 'Flag the mentee rows with "x"; preview and test first.', 'Sends live emails; increments Nudge Count, stamps Last Nudged At, sets Nudge Status SENT, and clears the Needs Nudge flag on each nudged row.', 'As needed during the cohort'],
+    ['LIVE ACTION', menu, 'Turn ON auto-nudge (send on x)', 'Installs an on-edit trigger so that typing "x" in Needs Nudge INSTANTLY nudges that mentor with no preview or confirmation.', 'Only when you are ready for flags to send live emails the moment you type them.', 'Preview and test the nudge first; understand that every "x" becomes a real email immediately.', 'Creates an installable onEdit trigger that sends live mentor + mentee emails on each "x" and clears the flag.', 'Turn on for hands-off nudging; off when done'],
+    ['SAFE', menu, 'Turn OFF auto-nudge', 'Removes the auto-nudge on-edit trigger; typing "x" no longer sends automatically.', 'To return to the manual flagged-send button.', 'No preparation required.', 'Deletes the auto-nudge trigger; no emails or data change.', 'As needed'],
     ['SAFE', menu, 'Preview mentor countdown email', 'Shows the day-appropriate mentor countdown email without sending it.', 'Before any live countdown send.', 'No preparation is required.', 'Opens a preview only; no email or tracking changes.', 'Before every countdown send'],
     ['SAFE', menu, 'Send mentor countdown — TEST to me', 'Sends the mentor countdown email to your own email only.', 'After preview and before the live send.', 'No preparation is required.', 'Sends one test email; mentor tracking is not updated.', 'Before every countdown send'],
     ['LIVE ACTION', menu, 'Send mentor countdown to ALL mentors', 'Sends the day-appropriate countdown email to every mentor not already marked SENT for that email.', 'To send the day\'s countdown email by hand.', 'Preview and test first, and confirm the day\'s content.', 'Sends live emails and updates the day\'s countdown tracking on Mentor Source Snapshot.', 'Once per countdown day'],
@@ -2626,6 +2632,194 @@ function sendYdpMentorNudgesFlagged() {
   }
   logYdpMatchingRun_('MENTOR_NUDGE_SEND', result.failures.length ? 'PARTIAL_SUCCESS' : 'SUCCESS', result.summary);
   ui.alert(result.summary);
+}
+
+/* ---- Auto-nudge: fire a nudge the moment "x" is typed in Needs Nudge ----
+ * An INSTALLABLE onEdit trigger (simple triggers cannot send email). Opt-in via
+ * the menu; off by default. When on, typing "x" in the Needs Nudge column on
+ * Matched Pairs immediately nudges that one mentee's mentor (no preview/test),
+ * sends the mentee reassurance, updates tracking, and clears the x. The clear is
+ * a script edit, which installable onEdit triggers do NOT re-fire on. */
+
+const YDP_NUDGE_ONEDIT_HANDLER = 'runYdpNudgeOnEdit';
+
+// Sends the nudge for ONE flagged Matched Pairs row (its mentor + that mentee).
+function sendYdpNudgeForRow_(sheet, rowNumber) {
+  const headerMap = getYdpMatchingHeaderMap_(sheet);
+  const t = YDP_MENTOR_NUDGE_TRACKING;
+  const needsCol = headerMap[t.needsNudgeHeader];
+  const countCol = headerMap[t.countHeader];
+  const lastCol = headerMap[t.lastAtHeader];
+  const statusCol = headerMap[t.statusHeader];
+  if (!needsCol || !countCol || !lastCol || !statusCol) {
+    return;
+  }
+
+  const row = sheet.getRange(rowNumber, 1, 1, sheet.getLastColumn()).getValues()[0];
+  if (!String(row[needsCol - 1] || '').trim()) {
+    return;
+  }
+
+  const mentorEmail = String(getYdpRowValueByHeader_(row, headerMap, 'Mentor Email') || '').trim();
+  const mentorName = String(getYdpRowValueByHeader_(row, headerMap, 'Mentor Name') || '').trim();
+  const mentorId = String(getYdpRowValueByHeader_(row, headerMap, 'Mentor ID') || '').trim();
+  const menteeName = String(getYdpRowValueByHeader_(row, headerMap, 'Mentee Name') || '').trim();
+  const menteeEmail = String(getYdpRowValueByHeader_(row, headerMap, 'Mentee Email') || '').trim();
+  const currentCount = Number(row[countCol - 1]) || 0;
+
+  if (!isValidYdpEmail_(mentorEmail)) {
+    sheet.getRange(rowNumber, statusCol).setValue('ERROR');
+    return;
+  }
+
+  const recipient = {
+    mentorEmail: mentorEmail,
+    mentorId: mentorId,
+    mentorName: mentorName,
+    firstName: getYdpFirstName_(mentorName),
+    mentees: [{
+      rowNumber: rowNumber,
+      menteeName: menteeName,
+      firstName: getYdpFirstName_(menteeName),
+      menteeEmail: menteeEmail,
+      newCount: currentCount + 1
+    }]
+  };
+
+  const phoneMap = getYdpMenteePhoneMap_();
+  let facilitator = '';
+  try {
+    facilitator = String(Session.getEffectiveUser().getEmail() || '').trim();
+  } catch (e) {
+    facilitator = '';
+  }
+
+  const email = buildYdpMentorNudgeEmail_(recipient, phoneMap);
+  const options = {
+    to: mentorEmail,
+    subject: email.subject,
+    body: email.body,
+    htmlBody: email.htmlBody,
+    name: YDP_MATCHING_CONFIG.senderName,
+    inlineImages: email.inlineImages
+  };
+  if (isValidYdpEmail_(facilitator)) {
+    options.cc = facilitator;
+  }
+  MailApp.sendEmail(options);
+
+  if (isValidYdpEmail_(menteeEmail)) {
+    try {
+      const reassure = buildYdpMenteeNudgeReassuranceEmail_(getYdpFirstName_(menteeName), mentorName);
+      MailApp.sendEmail({ to: menteeEmail, subject: reassure.subject, body: reassure.body, htmlBody: reassure.htmlBody, name: YDP_MATCHING_CONFIG.senderName });
+    } catch (reassureError) {
+      // Reassurance is best-effort; the mentor nudge already went out.
+    }
+  }
+
+  sheet.getRange(rowNumber, countCol).setValue(currentCount + 1);
+  sheet.getRange(rowNumber, lastCol).setValue(new Date());
+  sheet.getRange(rowNumber, statusCol).setValue('SENT');
+  sheet.getRange(rowNumber, needsCol).setValue('');
+  logYdpMatchingRun_('MENTOR_NUDGE_AUTO', 'SUCCESS', 'Auto-nudged ' + mentorName + ' about ' + menteeName + ' (tier ' + email.tier + ').');
+}
+
+// Installable onEdit handler. Fires the nudge for any row where "x" was just
+// entered in the Needs Nudge column on Matched Pairs.
+function runYdpNudgeOnEdit(e) {
+  try {
+    if (!e || !e.range) {
+      return;
+    }
+    const sheet = e.range.getSheet();
+    if (sheet.getName() !== YDP_MATCHING_CONFIG.sheets.matchedPairs) {
+      return;
+    }
+    const headers = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), 1)).getValues()[0];
+    const needsCol = headers.indexOf(YDP_MENTOR_NUDGE_TRACKING.needsNudgeHeader) + 1;
+    if (needsCol === 0) {
+      return;
+    }
+
+    const startRow = e.range.getRow();
+    const startCol = e.range.getColumn();
+    const numRows = e.range.getNumRows();
+    const numCols = e.range.getNumColumns();
+
+    // The edited range must overlap the Needs Nudge column.
+    if (needsCol < startCol || needsCol > startCol + numCols - 1) {
+      return;
+    }
+
+    for (let r = 0; r < numRows; r++) {
+      const rowNumber = startRow + r;
+      if (rowNumber < 2) {
+        continue;
+      }
+      const value = String(sheet.getRange(rowNumber, needsCol).getValue() || '').trim();
+      if (!value) {
+        continue;
+      }
+      sendYdpNudgeForRow_(sheet, rowNumber);
+    }
+  } catch (err) {
+    try {
+      logYdpMatchingRun_('MENTOR_NUDGE_AUTO', 'ERROR', String(err.message || err));
+    } catch (e2) {
+      // nothing else we can do inside a trigger
+    }
+  }
+}
+
+function removeYdpNudgeAutoTriggers_() {
+  let removed = 0;
+  ScriptApp.getProjectTriggers().forEach(function(trigger) {
+    if (trigger.getHandlerFunction() === YDP_NUDGE_ONEDIT_HANDLER) {
+      ScriptApp.deleteTrigger(trigger);
+      removed++;
+    }
+  });
+  return removed;
+}
+
+function installYdpNudgeAutoTrigger() {
+  const ui = SpreadsheetApp.getUi();
+  const confirmation = ui.alert(
+    'Turn ON auto-nudge',
+    'From now on, typing "x" in the Needs Nudge column will IMMEDIATELY email that mentee\'s mentor a real nudge (CC to you) and send the mentee a reassurance note — with no preview and no confirmation. The "x" then clears itself.\n\n' +
+    'Turn this on only when you are ready for flags to send live emails as you type them. You can turn it off any time.\n\nContinue?',
+    ui.ButtonSet.OK_CANCEL
+  );
+  if (confirmation !== ui.Button.OK) {
+    return;
+  }
+
+  try {
+    const removed = removeYdpNudgeAutoTriggers_();
+    // Make sure the tracking columns exist so the handler can write to them.
+    ensureYdpMentorNudgeColumns_(getYdpMatchedPairsSheetForInvites_());
+    ScriptApp.newTrigger(YDP_NUDGE_ONEDIT_HANDLER)
+      .forSpreadsheet(SpreadsheetApp.getActive())
+      .onEdit()
+      .create();
+    logYdpMatchingRun_('INSTALL_NUDGE_AUTO_TRIGGER', 'SUCCESS', 'Auto-nudge on. (replaced ' + removed + ' existing)');
+    ui.alert('Auto-nudge is ON.\n\nType "x" in the Needs Nudge column and the mentor is nudged instantly. To stop, use "Turn OFF auto-nudge".');
+  } catch (error) {
+    logYdpMatchingRun_('INSTALL_NUDGE_AUTO_TRIGGER', 'ERROR', error.message);
+    ui.alert('Could not turn on auto-nudge:\n\n' + String(error.message || error));
+  }
+}
+
+function removeYdpNudgeAutoTrigger() {
+  const ui = SpreadsheetApp.getUi();
+  try {
+    const removed = removeYdpNudgeAutoTriggers_();
+    logYdpMatchingRun_('REMOVE_NUDGE_AUTO_TRIGGER', 'SUCCESS', 'Auto-nudge off (removed ' + removed + ').');
+    ui.alert(removed ? 'Auto-nudge is OFF. Typing "x" no longer sends automatically — use "Send mentor nudges (flagged)" instead.' : 'Auto-nudge was not on.');
+  } catch (error) {
+    logYdpMatchingRun_('REMOVE_NUDGE_AUTO_TRIGGER', 'ERROR', error.message);
+    ui.alert('Could not turn off auto-nudge:\n\n' + String(error.message || error));
+  }
 }
 
 function generateYdpMenteeScores() {
