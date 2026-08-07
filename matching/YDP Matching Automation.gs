@@ -2174,6 +2174,13 @@ function ensureYdpMentorNudgeColumns_(sheet) {
     const name = String(h || '').trim();
     if (name) map[name] = i + 1;
   });
+
+  // Keep Nudge Count as a plain integer — Sheets otherwise renders the number as
+  // a date (e.g. 1 shows as 12/31/1899).
+  if (map[t.countHeader] && sheet.getLastRow() >= 2) {
+    sheet.getRange(2, map[t.countHeader], sheet.getLastRow() - 1, 1).setNumberFormat('0');
+  }
+
   return map;
 }
 
@@ -2411,7 +2418,7 @@ function buildYdpMenteeNudgeReassuranceEmail_(menteeFirstName, mentorName) {
   const body = [
     'Hi ' + name + ',',
     '',
-    'Thanks for letting us know. We have reminded ' + mentor + ' and asked them to reach out to you.',
+    'Thanks for letting us know. We have asked your mentor, ' + mentor + ', to reach out to you.',
     '',
     'Please give them a couple of days to respond. If you still do not hear back, just message us again and we will step in.',
     '',
