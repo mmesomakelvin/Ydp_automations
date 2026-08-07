@@ -60,6 +60,9 @@ function onOpen() {
     .addItem('Auto-match from pair scores', 'autoMatchYdpFromPairScores')
     .addItem('Turn ON scheduled auto-match (every 2 hrs)', 'installYdpAutoMatchTrigger')
     .addItem('Turn OFF scheduled auto-match', 'removeYdpAutoMatchTrigger')
+    .addItem('Sync reassignments now', 'syncYdpReassignmentsFromRecommendations')
+    .addItem('Turn ON auto-sync reassignments', 'installYdpReassignAutoTrigger')
+    .addItem('Turn OFF auto-sync reassignments', 'removeYdpReassignAutoTrigger')
     .addSeparator()
     .addItem('Preview selected selection email', 'previewSelectedYdpMenteeSelectionEmail')
     .addItem('Send test selection email', 'sendTestYdpMenteeSelectionEmail')
@@ -879,6 +882,10 @@ function getYdpMatchingDataDictionaryRows_() {
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Auto-match from pair scores', 'Selects the best available mentor for each fully scored eligible mentee, then refreshes the Mentor Load sheet.', 'Run after pair scores are complete enough for matching.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Turn ON scheduled auto-match (every 2 hrs)', 'Installs a trigger that re-runs auto-match every 2 hours and refreshes Mentor Load; never sends email. Skips and switches itself off once any match email is marked SENT.', 'Turn on to keep matches and counts current hands-free before match emails go out.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Turn OFF scheduled auto-match', 'Removes the every-2-hours auto-match trigger.', 'Turn off before sending match emails, or any time you want matching to stop reshuffling.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.matchedPairs, 'Reassign Notify / Reassigned At', 'Set to "x" by the reassignment sync when a mentee is moved to a new mentor (and when). Read by the reassignment notice; regenerate seed.sql after.', 'Marks pairs that changed mentor and still need notifying.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Sync reassignments now', 'Reads Match Recommendations and, for any mentee whose Recommended Mentor changed, updates their Matched Pairs row (Match ID, Mentor ID/Name/Email, Track) and flags it (Reassign Notify).', 'After editing Recommended Mentor IDs on Match Recommendations.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Turn ON auto-sync reassignments', 'Installs a trigger so editing a Recommended Mentor ID on Match Recommendations instantly updates the Matched Pairs row. Data only; no email.', 'For hands-off reassignment syncing.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Turn OFF auto-sync reassignments', 'Removes the auto-sync reassignment trigger.', 'To return to the manual "Sync reassignments now" button.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Preview selected selection email', 'Shows the selection email for one selected Can Pair mentee without sending it.', 'Use before any live selection email.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Send test selection email', 'Sends the selected Can Pair mentee template to an email address you enter without updating participant status.', 'Use to inspect the real inbox version safely.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Send selection email to selected mentee', 'Sends the live selection email to one selected Can Pair mentee and records SENT.', 'Use as the controlled first live send.'],
@@ -953,6 +960,9 @@ function getYdpButtonGuideRows_() {
     ['LIVE ACTION', menu, 'Auto-match from pair scores', 'Selects the highest-scoring available mentor for each fully scored eligible mentee, then refreshes the Mentor Load sheet.', 'Only after all available mentors are scored for each mentee and before live match emails are sent.', 'Export or back up existing Match Recommendations and Matched Pairs, confirm no statuses, dates, notes, or email history must be preserved, review Pair Scores, and verify capacity data.', 'Clears and rebuilds Match Recommendations and Matched Pairs, including operational and email-tracking fields; rebuilds Mentor Load; fills stated capacity first, then permits at most +2 overflow.', 'Once per approved matching round'],
     ['LIVE ACTION', menu, 'Turn ON scheduled auto-match (every 2 hrs)', 'Installs a trigger that re-runs auto-match every 2 hours so Matched Pairs and the Mentor Load counts stay current without pressing the button; never sends email.', 'Turn on while still building matches, before any match emails are sent.', 'Understand that each run clears and rebuilds Matched Pairs, so manual edits to that sheet will not survive; keep it off if you have hand-edited Matched Pairs.', 'Creates a 2-hour time trigger that rewrites Match Recommendations, Matched Pairs, and Mentor Load each run. Auto-safeguard: it skips the rebuild and switches itself off the moment any match email is marked SENT, so it cannot cause duplicate match emails.', 'Turn on during matching; off before match emails'],
     ['SAFE', menu, 'Turn OFF scheduled auto-match', 'Removes the every-2-hours auto-match trigger.', 'Before sending match emails, or any time you want scheduled matching to stop.', 'No preparation is required.', 'Deletes the scheduled auto-match trigger; no sheet data is changed.', 'As needed'],
+    ['CAUTION', menu, 'Sync reassignments now', 'Pulls changed Recommended Mentor IDs from Match Recommendations into Matched Pairs (Match ID, Mentor ID/Name/Email, Track) and flags the moved pairs for notification.', 'After you edit Recommended Mentor IDs on Match Recommendations.', 'Make your mentor changes on Match Recommendations first.', 'Overwrites Mentor columns + Match ID on the changed Matched Pairs rows and sets Reassign Notify; no email sent.', 'After each batch of reassignments'],
+    ['CAUTION', menu, 'Turn ON auto-sync reassignments', 'Installs an on-edit trigger so editing a Recommended Mentor ID instantly updates the mentee\'s Matched Pairs row.', 'For live reassignment syncing as you edit.', 'Understand it rewrites Matched Pairs Mentor columns automatically on each edit.', 'Creates an installable onEdit trigger that updates Matched Pairs; data only, no email.', 'Turn on while reassigning; off when done'],
+    ['SAFE', menu, 'Turn OFF auto-sync reassignments', 'Removes the auto-sync reassignment trigger.', 'To return to the manual sync button.', 'No preparation required.', 'Deletes the trigger; no data or email changes.', 'As needed'],
     ['SAFE', menu, 'Preview selected selection email', 'Shows the personalized selection email for one Can Pair mentee.', 'Before test or live selection sends.', 'Select a row in Mentee Scores with Can Pair status.', 'Opens a preview only; no email or tracking changes.', 'Before every selection campaign'],
     ['SAFE', menu, 'Send test selection email', 'Sends the selected mentee template to an internal test address.', 'After preview and before live selection sends.', 'Select a Can Pair mentee and use an internal email address.', 'Sends one test email; participant tracking is not updated.', 'Before every selection campaign'],
     ['LIVE ACTION', menu, 'Send selection email to selected mentee', 'Sends the live program-selection email to one selected eligible mentee.', 'For the controlled first live send or a one-off recipient.', 'Preview, test, and select the intended Can Pair row.', 'Sends one live email and updates selection-email tracking.', 'As needed'],
@@ -2826,6 +2836,242 @@ function removeYdpNudgeAutoTrigger() {
   } catch (error) {
     logYdpMatchingRun_('REMOVE_NUDGE_AUTO_TRIGGER', 'ERROR', error.message);
     ui.alert('Could not turn off auto-nudge:\n\n' + String(error.message || error));
+  }
+}
+
+/* ===================================================================
+ * Reassignment sync: Match Recommendations -> Matched Pairs
+ * When the Recommended Mentor ID on Match Recommendations changes for a mentee,
+ * push it into that mentee's Matched Pairs row: Match ID, Mentor ID, Mentor
+ * Name, Mentor Email (looked up from the mentor snapshot), and Track. Flags the
+ * row (Reassign Notify = "x") so the mentee + new mentor can be notified, and so
+ * we know to re-seed Supabase. Available as a button and an opt-in on-edit
+ * trigger. Data only — never sends email.
+ * =================================================================== */
+
+const YDP_REASSIGN_TRACKING = {
+  notifyHeader: 'Reassign Notify',
+  atHeader: 'Reassigned At'
+};
+const YDP_REASSIGN_ONEDIT_HANDLER = 'runYdpReassignSyncOnEdit';
+
+// mentorId(lower) -> { name, email }, from the Mentor Source Snapshot.
+function getYdpMentorDirectoryById_() {
+  const map = {};
+  const sheet = SpreadsheetApp.getActive().getSheetByName(YDP_MATCHING_CONFIG.sheets.mentorSnapshot);
+  if (!sheet || sheet.getLastRow() <= 1) {
+    return map;
+  }
+  getYdpMentorProfilesForPairScoring_(sheet).forEach(function(m) {
+    const id = String(m.id || '').trim().toLowerCase();
+    if (id) map[id] = { name: m.name, email: m.email };
+  });
+  return map;
+}
+
+// menteeId(lower) -> { mentorId, mentorName, careerPath } from Match Recommendations.
+function getYdpRecommendedMentorMap_(recSheet) {
+  const headerMap = getYdpMatchingHeaderMap_(recSheet);
+  const values = recSheet.getRange(2, 1, recSheet.getLastRow() - 1, recSheet.getLastColumn()).getValues();
+  const map = {};
+  values.forEach(function(row) {
+    const menteeId = String(getYdpRowValueByHeader_(row, headerMap, 'Mentee ID') || '').trim();
+    if (!menteeId) {
+      return;
+    }
+    map[menteeId.toLowerCase()] = {
+      mentorId: String(getYdpRowValueByHeader_(row, headerMap, 'Recommended Mentor ID') || '').trim(),
+      mentorName: String(getYdpRowValueByHeader_(row, headerMap, 'Recommended Mentor Name') || '').trim(),
+      careerPath: String(getYdpRowValueByHeader_(row, headerMap, 'Mentee Career Path') || '').trim()
+    };
+  });
+  return map;
+}
+
+// Adds the two reassignment-tracking columns to Matched Pairs if missing;
+// returns a header -> column map (also covers the existing columns).
+function ensureYdpReassignColumns_(sheet) {
+  const t = YDP_REASSIGN_TRACKING;
+  const wanted = [t.notifyHeader, t.atHeader];
+  const headers = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), 1)).getValues()[0].map(function(h) {
+    return String(h || '').trim();
+  });
+  const missing = wanted.filter(function(h) { return headers.indexOf(h) === -1; });
+
+  if (missing.length) {
+    sheet.getRange(1, sheet.getLastColumn() + 1, 1, missing.length).setValues([missing]);
+    sheet.setFrozenRows(1);
+  }
+
+  const finalHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const map = {};
+  finalHeaders.forEach(function(h, i) {
+    const name = String(h || '').trim();
+    if (name) map[name] = i + 1;
+  });
+  return map;
+}
+
+// Core sync: no UI. Returns { count, warnings, summary }.
+function syncYdpReassignmentsCore_() {
+  const ss = SpreadsheetApp.getActive();
+  const recSheet = ss.getSheetByName(YDP_MATCHING_CONFIG.sheets.matchRecommendations);
+  const pairsSheet = ss.getSheetByName(YDP_MATCHING_CONFIG.sheets.matchedPairs);
+  if (!recSheet || recSheet.getLastRow() <= 1) {
+    throw new Error('No Match Recommendations rows found.');
+  }
+  if (!pairsSheet || pairsSheet.getLastRow() <= 1) {
+    throw new Error('No Matched Pairs rows found.');
+  }
+
+  const recMap = getYdpRecommendedMentorMap_(recSheet);
+  const dir = getYdpMentorDirectoryById_();
+  const headerMap = ensureYdpReassignColumns_(pairsSheet);
+  const t = YDP_REASSIGN_TRACKING;
+
+  const matchIdCol = headerMap['Match ID'];
+  const menteeIdCol = headerMap['Mentee ID'];
+  const mentorIdCol = headerMap['Mentor ID'];
+  const mentorNameCol = headerMap['Mentor Name'];
+  const mentorEmailCol = headerMap['Mentor Email'];
+  const trackCol = headerMap['Track'];
+  const notifyCol = headerMap[t.notifyHeader];
+  const atCol = headerMap[t.atHeader];
+
+  const values = pairsSheet.getRange(2, 1, pairsSheet.getLastRow() - 1, pairsSheet.getLastColumn()).getValues();
+  let count = 0;
+  const warnings = [];
+  const now = new Date();
+
+  values.forEach(function(row, i) {
+    const rowNumber = i + 2;
+    const menteeId = String(row[menteeIdCol - 1] || '').trim();
+    const rec = recMap[menteeId.toLowerCase()];
+    if (!rec || !rec.mentorId) {
+      return;
+    }
+
+    const currentMentorId = String(row[mentorIdCol - 1] || '').trim();
+    if (currentMentorId.toLowerCase() === rec.mentorId.toLowerCase()) {
+      return; // no change for this mentee
+    }
+
+    const d = dir[rec.mentorId.toLowerCase()];
+    const newName = d ? d.name : rec.mentorName;
+    const newEmail = d ? d.email : '';
+    if (!d) {
+      warnings.push(menteeId + ' -> ' + rec.mentorId + ' (mentor not in snapshot; email left blank, name from recommendation)');
+    }
+
+    pairsSheet.getRange(rowNumber, matchIdCol).setValue(buildYdpMatchId_(menteeId, rec.mentorId));
+    pairsSheet.getRange(rowNumber, mentorIdCol).setValue(rec.mentorId);
+    pairsSheet.getRange(rowNumber, mentorNameCol).setValue(newName);
+    pairsSheet.getRange(rowNumber, mentorEmailCol).setValue(newEmail);
+    if (trackCol && rec.careerPath) {
+      pairsSheet.getRange(rowNumber, trackCol).setValue(rec.careerPath);
+    }
+    pairsSheet.getRange(rowNumber, notifyCol).setValue('x');
+    pairsSheet.getRange(rowNumber, atCol).setValue(now);
+    count++;
+  });
+
+  const summary = count
+    ? 'Synced ' + count + ' reassignment(s) from Match Recommendations into Matched Pairs (Match ID, Mentor ID/Name/Email, Track), and flagged them (Reassign Notify) for notification.' +
+      (warnings.length ? '\n\nWarnings:\n' + warnings.join('\n') : '') +
+      '\n\nNext: notify the moved mentees/mentors, then regenerate seed.sql to update the website.'
+    : 'No reassignments to sync — every mentee\'s mentor on Matched Pairs already matches Match Recommendations.';
+  return { count: count, warnings: warnings, summary: summary };
+}
+
+function syncYdpReassignmentsFromRecommendations() {
+  const ui = SpreadsheetApp.getUi();
+  let result;
+  try {
+    result = syncYdpReassignmentsCore_();
+  } catch (error) {
+    ui.alert('Could not sync reassignments:\n\n' + String(error.message || error));
+    return;
+  }
+  logYdpMatchingRun_('REASSIGN_SYNC', result.warnings.length ? 'PARTIAL_SUCCESS' : 'SUCCESS', result.summary);
+  ui.alert(result.summary);
+}
+
+// Installable on-edit handler: re-syncs when a Recommended Mentor ID is edited
+// on Match Recommendations. Data only; never emails.
+function runYdpReassignSyncOnEdit(e) {
+  try {
+    if (!e || !e.range) {
+      return;
+    }
+    const sheet = e.range.getSheet();
+    if (sheet.getName() !== YDP_MATCHING_CONFIG.sheets.matchRecommendations) {
+      return;
+    }
+    const headers = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), 1)).getValues()[0];
+    const recCol = headers.indexOf('Recommended Mentor ID') + 1;
+    if (recCol === 0) {
+      return;
+    }
+    const startCol = e.range.getColumn();
+    const numCols = e.range.getNumColumns();
+    if (recCol < startCol || recCol > startCol + numCols - 1) {
+      return;
+    }
+    syncYdpReassignmentsCore_();
+  } catch (err) {
+    try {
+      logYdpMatchingRun_('REASSIGN_SYNC_AUTO', 'ERROR', String(err.message || err));
+    } catch (e2) {
+      // nothing else we can do in a trigger
+    }
+  }
+}
+
+function removeYdpReassignAutoTriggers_() {
+  let removed = 0;
+  ScriptApp.getProjectTriggers().forEach(function(trigger) {
+    if (trigger.getHandlerFunction() === YDP_REASSIGN_ONEDIT_HANDLER) {
+      ScriptApp.deleteTrigger(trigger);
+      removed++;
+    }
+  });
+  return removed;
+}
+
+function installYdpReassignAutoTrigger() {
+  const ui = SpreadsheetApp.getUi();
+  const confirmation = ui.alert(
+    'Turn ON auto-sync reassignments',
+    'When on, editing the Recommended Mentor ID on Match Recommendations will automatically update that mentee\'s Matched Pairs row (Match ID, Mentor ID/Name/Email, Track) and flag it for notification.\n\n' +
+    'This changes sheet data only — it never sends email. You still notify and re-seed yourself.\n\nContinue?',
+    ui.ButtonSet.OK_CANCEL
+  );
+  if (confirmation !== ui.Button.OK) {
+    return;
+  }
+  try {
+    const removed = removeYdpReassignAutoTriggers_();
+    ScriptApp.newTrigger(YDP_REASSIGN_ONEDIT_HANDLER)
+      .forSpreadsheet(SpreadsheetApp.getActive())
+      .onEdit()
+      .create();
+    logYdpMatchingRun_('INSTALL_REASSIGN_AUTO_TRIGGER', 'SUCCESS', 'Auto-sync reassignments on (replaced ' + removed + ').');
+    ui.alert('Auto-sync reassignments is ON.\n\nEdit a Recommended Mentor ID on Match Recommendations and the Matched Pairs row updates automatically. Notify and re-seed when you are ready.');
+  } catch (error) {
+    logYdpMatchingRun_('INSTALL_REASSIGN_AUTO_TRIGGER', 'ERROR', error.message);
+    ui.alert('Could not turn on auto-sync:\n\n' + String(error.message || error));
+  }
+}
+
+function removeYdpReassignAutoTrigger() {
+  const ui = SpreadsheetApp.getUi();
+  try {
+    const removed = removeYdpReassignAutoTriggers_();
+    logYdpMatchingRun_('REMOVE_REASSIGN_AUTO_TRIGGER', 'SUCCESS', 'Auto-sync reassignments off (removed ' + removed + ').');
+    ui.alert(removed ? 'Auto-sync reassignments is OFF. Use "Sync reassignments now" instead.' : 'Auto-sync reassignments was not on.');
+  } catch (error) {
+    logYdpMatchingRun_('REMOVE_REASSIGN_AUTO_TRIGGER', 'ERROR', error.message);
+    ui.alert('Could not turn off auto-sync:\n\n' + String(error.message || error));
   }
 }
 
