@@ -101,6 +101,10 @@ function onOpen() {
     .addItem('Send feedback email to ALL mentees', 'sendYdpMenteeFeedbackToAll')
     .addItem('Reset feedback form link', 'resetYdpFeedbackFormLink')
     .addSeparator()
+    .addItem('Preview mentor spotlight request', 'previewYdpMentorSpotlight')
+    .addItem('Send spotlight request — TEST to me', 'sendYdpMentorSpotlightTest')
+    .addItem('Send spotlight request to ALL paired mentors', 'sendYdpMentorSpotlightToAll')
+    .addSeparator()
     .addItem('Preview mentor countdown email', 'previewYdpMentorCountdownEmail')
     .addItem('Send mentor countdown — TEST to me', 'sendYdpMentorCountdownTest')
     .addItem('Send mentor countdown to ALL mentors', 'sendYdpMentorCountdownToAllMentors')
@@ -928,6 +932,10 @@ function getYdpMatchingDataDictionaryRows_() {
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Send feedback email — TEST to me', 'Sends the feedback email to your own email only; no mentee tracking changes.', 'To inspect the inbox version safely.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Send feedback email to ALL mentees', 'Sends each mentee their own prefilled feedback link, skipping mentees already marked Feedback Sent; marks each row SENT.', 'After preview and a test send, once the form is created.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Reset feedback form link', 'Forgets the stored form link so a fresh form can be built. Does NOT delete the Google Form or its responses.', 'Only if you want to rebuild the feedback form from scratch.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.matchedPairs, 'Spotlight Requested / Spotlight Requested At', 'Whether the Mentor Spotlight request email was sent to this mentor (marked on every one of their rows), and when. Prevents double-asks.', 'SENT means the mentor was asked for their photo, LinkedIn, and bio.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Preview mentor spotlight request', 'Shows the Mentor Spotlight email (asking mentors to reply with a photo, LinkedIn, and optional bio) without sending.', 'Before any live spotlight send.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Send spotlight request — TEST to me', 'Sends the spotlight request to your own email only; no mentor tracking changes.', 'To inspect the inbox version safely.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Send spotlight request to ALL paired mentors', 'Emails every mentor who has at least one mentee, asking them to reply with a photo, LinkedIn, and optional bio; marks their rows SENT. Mentors with no mentees are skipped.', 'After preview and a test send.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Test Gemini connection', 'Checks that the Gemini API key works.', 'Run after changing the API key or model.'],
     ['Sheet', YDP_MATCHING_CONFIG.sheets.mentorSnapshot, 'Countdown Intro Email Status', 'Whether the intro mentor countdown email (89% note plus onboarding PDFs) was sent to this mentor.', 'SENT prevents duplicates; ERROR means the send failed.'],
     ['Sheet', YDP_MATCHING_CONFIG.sheets.mentorSnapshot, 'Countdown Intro Email Sent At', 'When the intro countdown email was sent to this mentor.', 'Audit trail.'],
@@ -1013,6 +1021,9 @@ function getYdpButtonGuideRows_() {
     ['SAFE', menu, 'Send feedback email — TEST to me', 'Sends one feedback email to your own inbox using the first mentee as a sample.', 'After preview and before the live send.', 'Create the feedback form first.', 'Sends one test email; no Matched Pairs tracking is updated.', 'Before a feedback campaign'],
     ['LIVE ACTION', menu, 'Send feedback email to ALL mentees', 'Sends each matched mentee one check-in email with their own prefilled form link (ID, email, name), skipping mentees already marked Feedback Sent.', 'After preview and a test send, once the form is created.', 'Create the form, then preview and test first.', 'Sends live emails and marks Feedback Sent SENT on each Matched Pairs row.', 'As needed during the cohort'],
     ['SAFE', menu, 'Reset feedback form link', 'Forgets the stored feedback form link so "Create mentee feedback form" can build a fresh one.', 'Only when you want to rebuild the form from scratch.', 'Understand it does NOT delete the existing Google Form or its collected responses.', 'Clears the stored form link in the script only; no form, response, or email changes.', 'Rarely'],
+    ['SAFE', menu, 'Preview mentor spotlight request', 'Shows the Mentor Spotlight email (asks mentors to reply with a professional photo, LinkedIn link, and an optional short bio) using the first paired mentor as a sample, without sending.', 'Before any live spotlight send.', 'Run auto-match so Matched Pairs is populated.', 'Opens a preview only; no email or tracking changes.', 'Before a spotlight campaign'],
+    ['SAFE', menu, 'Send spotlight request — TEST to me', 'Sends one spotlight request to your own email using the first paired mentor as a sample.', 'After preview and before the live send.', 'No preparation is required.', 'Sends one test email; no Matched Pairs tracking is updated.', 'Before a spotlight campaign'],
+    ['LIVE ACTION', menu, 'Send spotlight request to ALL paired mentors', 'Emails every mentor who has at least one mentee, asking them to reply with a photo, LinkedIn, and optional bio, skipping mentors already marked SENT. Mentors with no mentees are never included.', 'After preview and a test send.', 'Preview and test first.', 'Sends live emails and marks Spotlight Requested SENT on every one of each mentor\'s Matched Pairs rows.', 'Once per spotlight round'],
     ['SAFE', menu, 'Preview mentor countdown email', 'Shows the day-appropriate mentor countdown email without sending it.', 'Before any live countdown send.', 'No preparation is required.', 'Opens a preview only; no email or tracking changes.', 'Before every countdown send'],
     ['SAFE', menu, 'Send mentor countdown — TEST to me', 'Sends the mentor countdown email to your own email only.', 'After preview and before the live send.', 'No preparation is required.', 'Sends one test email; mentor tracking is not updated.', 'Before every countdown send'],
     ['LIVE ACTION', menu, 'Send mentor countdown to ALL mentors', 'Sends the day-appropriate countdown email to every mentor not already marked SENT for that email.', 'To send the day\'s countdown email by hand.', 'Preview and test first, and confirm the day\'s content.', 'Sends live emails and updates the day\'s countdown tracking on Mentor Source Snapshot.', 'Once per countdown day'],
@@ -2652,6 +2663,275 @@ function sendYdpMenteeFeedbackToAll() {
     return;
   }
   logYdpMatchingRun_('MENTEE_FEEDBACK_SEND', result.failures.length ? 'PARTIAL_SUCCESS' : 'SUCCESS', result.summary);
+  ui.alert(result.summary);
+}
+
+/* ===================================================================
+ * Mentor spotlight request
+ * Emails every mentor who has at least one mentee (i.e. appears on Matched
+ * Pairs) asking them to REPLY with a professional photo, their LinkedIn
+ * profile, and an optional short bio, for a Mentor Spotlight. Mentors with
+ * no mentees are never emailed (they have no Matched Pairs rows). Branded
+ * Preview / Test / Send, tracked on Matched Pairs (Spotlight Requested),
+ * marked on every one of a mentor's rows so nobody is asked twice.
+ * =================================================================== */
+
+const YDP_SPOTLIGHT_TRACKING = {
+  statusHeader: 'Spotlight Requested',
+  sentAtHeader: 'Spotlight Requested At'
+};
+
+// Adds the two spotlight-tracking columns to Matched Pairs if missing.
+function ensureYdpSpotlightColumns_(sheet) {
+  const t = YDP_SPOTLIGHT_TRACKING;
+  const wanted = [t.statusHeader, t.sentAtHeader];
+  const headers = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), 1)).getValues()[0].map(function(h) {
+    return String(h || '').trim();
+  });
+  const missing = wanted.filter(function(h) { return headers.indexOf(h) === -1; });
+
+  if (missing.length) {
+    sheet.getRange(1, sheet.getLastColumn() + 1, 1, missing.length).setValues([missing]);
+    sheet.setFrozenRows(1);
+  }
+
+  const finalHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const map = {};
+  finalHeaders.forEach(function(h, i) {
+    const name = String(h || '').trim();
+    if (name) map[name] = i + 1;
+  });
+  return map;
+}
+
+// Branded spotlight email: logo header, badge, body, a highlighted "what to
+// send us" box (numbered list), closing, footer. No CTA button (they reply).
+function buildYdpSpotlightHtml_(opts) {
+  const navy = YDP_MENTOR_COUNTDOWN.navy;
+  const gold = YDP_MENTOR_COUNTDOWN.gold;
+  const sender = escapeYdpHtml_(YDP_MATCHING_CONFIG.senderName);
+  const src = opts.logoSrc || 'cid:ydpLogo';
+  const paras = (opts.bodyParagraphs || []).map(function(p) {
+    return '<p style="margin:0 0 16px 0;">' + p + '</p>';
+  }).join('');
+  const items = (opts.requestItems || []).map(function(it) {
+    return '<li style="margin:0 0 10px 0;">' + it + '</li>';
+  }).join('');
+
+  return [
+    '<div style="display:none;max-height:0;overflow:hidden;opacity:0;">' + escapeYdpHtml_(opts.preheader || '') + '</div>',
+    '<div style="margin:0;padding:0;background:#f4f4f6;">',
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f6;padding:24px 0;">',
+    '<tr><td align="center">',
+    '<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:10px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;">',
+
+    '<tr><td style="background:#ffffff;border-top:5px solid ' + navy + ';padding:26px 32px 18px 32px;text-align:center;">',
+    '<img src="' + src + '" alt="Young Data Professionals" width="300" style="display:block;margin:0 auto;width:300px;max-width:72%;height:auto;">',
+    '<div style="font-size:13px;letter-spacing:3px;color:' + navy + ';margin-top:14px;">MENTORSHIP PROGRAM</div>',
+    '<div style="height:3px;width:64px;background:' + gold + ';margin:14px auto 0 auto;font-size:0;line-height:0;">&nbsp;</div>',
+    '</td></tr>',
+
+    '<tr><td style="padding:24px 32px 0 32px;text-align:center;">',
+    '<span style="display:inline-block;border:2px solid ' + gold + ';color:' + navy + ';font-size:13px;font-weight:bold;letter-spacing:1.5px;padding:8px 18px;border-radius:999px;">' + escapeYdpHtml_(opts.badge) + '</span>',
+    '<div style="font-size:15px;color:#555555;margin-top:10px;">' + opts.subhead + '</div>',
+    '</td></tr>',
+
+    '<tr><td style="padding:24px 32px 8px 32px;color:#222222;font-size:15px;line-height:1.6;">',
+    paras,
+    '</td></tr>',
+
+    '<tr><td style="padding:0 32px 8px 32px;">',
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6fb;border:1px solid #e2e6ef;border-radius:8px;">',
+    '<tr><td style="padding:18px 20px 6px 20px;color:#666666;font-size:12px;letter-spacing:1px;text-transform:uppercase;">Please reply with</td></tr>',
+    '<tr><td style="padding:0 20px 14px 34px;color:#222222;font-size:15px;line-height:1.6;">',
+    '<ol style="margin:0;padding:0 0 0 4px;">' + items + '</ol>',
+    '</td></tr>',
+    '</table>',
+    '</td></tr>',
+
+    '<tr><td style="padding:16px 32px 24px 32px;color:#222222;font-size:15px;line-height:1.6;">',
+    '<p style="margin:0 0 16px 0;">' + opts.closingLine + '</p>',
+    '<p style="margin:0;">Warm regards,<br><strong>' + sender + '</strong></p>',
+    '</td></tr>',
+
+    '<tr><td style="background:#f4f4f6;padding:18px 32px;text-align:center;color:#888888;font-size:12px;line-height:1.5;">',
+    'YDP Mentorship Program &bull; Cohort 2<br>' + escapeYdpHtml_(opts.footerNote),
+    '</td></tr>',
+
+    '</table>',
+    '</td></tr>',
+    '</table>',
+    '</div>'
+  ].join('');
+}
+
+function buildYdpMentorSpotlightEmail_(recipient, logoSrc) {
+  const name = String(recipient.firstName || '').trim() || 'there';
+
+  const body = [
+    'Hi ' + name + ',',
+    '',
+    'Thank you for stepping up as a mentor in the YDP Mentorship Program, Cohort 2. Your mentees are lucky to have you.',
+    '',
+    "We're running a Mentor Spotlight to celebrate our mentors and introduce them to the wider YDP community, and we would love to feature you.",
+    '',
+    'To put your spotlight together, please reply to this email with:',
+    '',
+    '1. A professional photo of yourself (a clear headshot works best).',
+    '2. Your LinkedIn profile link.',
+    '3. A short profile or bio (a few sentences: your role, experience, and what you are passionate about). This one is optional. If you do not have a bio ready, no problem, we will use your LinkedIn profile to craft it.',
+    '',
+    'If you can send these as soon as you can (ideally within the next few days), we will make sure you are featured.',
+    '',
+    'Thank you for being part of YDP. We cannot wait to spotlight you.',
+    '',
+    'Warm regards,',
+    YDP_MATCHING_CONFIG.senderName
+  ].join('\n');
+
+  const htmlBody = buildYdpSpotlightHtml_({
+    preheader: "You're being featured in the YDP Mentor Spotlight. Reply with your photo and LinkedIn.",
+    badge: 'MENTOR SPOTLIGHT',
+    subhead: "We'd love to feature <strong>you</strong>",
+    bodyParagraphs: [
+      'Hi ' + escapeYdpHtml_(name) + ',',
+      'Thank you for stepping up as a mentor in the <strong>YDP Mentorship Program, Cohort 2</strong>. Your mentees are lucky to have you.',
+      "We're running a <strong>Mentor Spotlight</strong> to celebrate our mentors and introduce them to the wider YDP community, and we would love to feature you."
+    ],
+    requestItems: [
+      '<strong>A professional photo</strong> of yourself (a clear headshot works best).',
+      '<strong>Your LinkedIn profile link.</strong>',
+      '<strong>A short profile or bio</strong> (a few sentences: your role, experience, and what you are passionate about). <em>Optional</em> - if you do not have one ready, we will use your LinkedIn profile to craft it.'
+    ],
+    closingLine: 'If you can reply as soon as you can (ideally within the next few days), we will make sure you are featured. Thank you for being part of YDP - we cannot wait to spotlight you.',
+    footerNote: 'You are receiving this because you are a mentor in Cohort 2.',
+    logoSrc: logoSrc
+  });
+
+  return {
+    subject: "You're being featured - YDP Mentor Spotlight (send us your photo + LinkedIn)",
+    body: body,
+    htmlBody: htmlBody,
+    inlineImages: { ydpLogo: getYdpLogoBlob_() }
+  };
+}
+
+// Sends the spotlight request to every paired mentor not already marked SENT,
+// marking ALL of that mentor's Matched Pairs rows so nobody is asked twice.
+function sendYdpMentorSpotlightCore_() {
+  const sheet = getYdpMatchedPairsSheetForInvites_();
+  const recipients = getYdpMentorInviteRecipients_();
+
+  if (recipients.length === 0) {
+    return { sentCount: 0, skippedCount: 0, total: 0, failures: [], summary: 'No paired mentors with valid email addresses were found. Nothing was sent.' };
+  }
+
+  const headerMap = ensureYdpSpotlightColumns_(sheet);
+  const statusCol = headerMap[YDP_SPOTLIGHT_TRACKING.statusHeader];
+  const sentAtCol = headerMap[YDP_SPOTLIGHT_TRACKING.sentAtHeader];
+
+  let sentCount = 0;
+  let skippedCount = 0;
+  const failures = [];
+
+  recipients.forEach(function(recipient) {
+    const firstRow = recipient.rowNumbers[0];
+    const currentStatus = String(sheet.getRange(firstRow, statusCol).getValue() || '').trim().toUpperCase();
+
+    if (currentStatus === 'SENT') {
+      skippedCount++;
+      return;
+    }
+
+    try {
+      const email = buildYdpMentorSpotlightEmail_(recipient);
+      MailApp.sendEmail({
+        to: recipient.email,
+        subject: email.subject,
+        body: email.body,
+        htmlBody: email.htmlBody,
+        name: YDP_MATCHING_CONFIG.senderName,
+        inlineImages: email.inlineImages
+      });
+      recipient.rowNumbers.forEach(function(rowNumber) {
+        sheet.getRange(rowNumber, statusCol).setValue('SENT');
+        sheet.getRange(rowNumber, sentAtCol).setValue(new Date());
+      });
+      sentCount++;
+    } catch (error) {
+      sheet.getRange(firstRow, statusCol).setValue('ERROR');
+      failures.push(recipient.email + ' (' + String(error.message || error) + ')');
+    }
+  });
+
+  const summary = 'Mentor spotlight: sent ' + sentCount + ', skipped already-sent ' + skippedCount +
+    ', of ' + recipients.length + ' paired mentors.' +
+    (failures.length ? '\n\nFailed:\n' + failures.join('\n') : '');
+  return { sentCount: sentCount, skippedCount: skippedCount, total: recipients.length, failures: failures, summary: summary };
+}
+
+function previewYdpMentorSpotlight() {
+  const ui = SpreadsheetApp.getUi();
+  try {
+    const recipients = getYdpMentorInviteRecipients_();
+    if (recipients.length === 0) {
+      ui.alert('No paired mentors found. Run auto-match first.');
+      return;
+    }
+    const sample = recipients[0];
+    const email = buildYdpMentorSpotlightEmail_(sample, 'data:image/png;base64,' + YDP_LOGO_BASE64);
+    ydpShowMatchInvitePreview_(email, sample.firstName, recipients.length + ' paired mentor(s) will receive this; each is greeted by their own name.', 'Mentor Spotlight Preview');
+  } catch (error) {
+    ui.alert('Could not build the spotlight preview:\n\n' + String(error.message || error));
+  }
+}
+
+function sendYdpMentorSpotlightTest() {
+  const ui = SpreadsheetApp.getUi();
+  const testRecipient = ydpResolveTestRecipient_('Send Test Spotlight Request');
+  if (!testRecipient) return;
+
+  try {
+    const recipients = getYdpMentorInviteRecipients_();
+    if (recipients.length === 0) {
+      ui.alert('No paired mentors found. Run auto-match first.');
+      return;
+    }
+    const email = buildYdpMentorSpotlightEmail_(recipients[0]);
+    MailApp.sendEmail({ to: testRecipient, subject: '[TEST] ' + email.subject, body: email.body, htmlBody: email.htmlBody, name: YDP_MATCHING_CONFIG.senderName, inlineImages: email.inlineImages });
+    ui.alert('Test spotlight request sent to ' + testRecipient + '.\n\nIt used "' + recipients[0].firstName + '" as a sample. The real send greets each mentor by name and marks their Matched Pairs rows SENT. No mentors were emailed by this test.');
+  } catch (error) {
+    ui.alert('Test spotlight request failed:\n\n' + String(error.message || error));
+  }
+}
+
+function sendYdpMentorSpotlightToAll() {
+  const ui = SpreadsheetApp.getUi();
+  let recipients;
+  try {
+    recipients = getYdpMentorInviteRecipients_();
+  } catch (error) {
+    ui.alert('Could not read matched pairs:\n\n' + String(error.message || error));
+    return;
+  }
+  if (recipients.length === 0) {
+    ui.alert('No paired mentors with valid email addresses were found. Nothing was sent.');
+    return;
+  }
+
+  const confirm = ui.alert('Send spotlight request to all paired mentors',
+    'This will email the Mentor Spotlight request to ' + recipients.length + ' paired mentor(s), skipping any already marked SENT. Mentors with no mentees are not included. Continue?',
+    ui.ButtonSet.YES_NO);
+  if (confirm !== ui.Button.YES) return;
+
+  let result;
+  try {
+    result = sendYdpMentorSpotlightCore_();
+  } catch (error) {
+    ui.alert('Sending failed, so nothing was sent:\n\n' + String(error.message || error));
+    return;
+  }
+  logYdpMatchingRun_('MENTOR_SPOTLIGHT_SEND', result.failures.length ? 'PARTIAL_SUCCESS' : 'SUCCESS', result.summary);
   ui.alert(result.summary);
 }
 
