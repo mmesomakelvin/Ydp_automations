@@ -95,6 +95,12 @@ function onOpen() {
     .addItem('Turn ON auto-nudge (send on x)', 'installYdpNudgeAutoTrigger')
     .addItem('Turn OFF auto-nudge', 'removeYdpNudgeAutoTrigger')
     .addSeparator()
+    .addItem('Create mentee feedback form', 'buildYdpMenteeFeedbackForm')
+    .addItem('Preview mentee feedback email', 'previewYdpMenteeFeedback')
+    .addItem('Send feedback email — TEST to me', 'sendYdpMenteeFeedbackTest')
+    .addItem('Send feedback email to ALL mentees', 'sendYdpMenteeFeedbackToAll')
+    .addItem('Reset feedback form link', 'resetYdpFeedbackFormLink')
+    .addSeparator()
     .addItem('Preview mentor countdown email', 'previewYdpMentorCountdownEmail')
     .addItem('Send mentor countdown — TEST to me', 'sendYdpMentorCountdownTest')
     .addItem('Send mentor countdown to ALL mentors', 'sendYdpMentorCountdownToAllMentors')
@@ -915,6 +921,13 @@ function getYdpMatchingDataDictionaryRows_() {
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Send mentor nudges (flagged)', 'Emails every mentor with a Needs Nudge flag (CC you), reassures each flagged mentee, escalates by Nudge Count, then updates tracking and clears the flags.', 'After a mentee reports being unable to reach their mentor.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Turn ON auto-nudge (send on x)', 'Installs a trigger so typing "x" in Needs Nudge instantly nudges that mentor (no preview/confirm). Off by default.', 'When you want flags to send live as you type them.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Turn OFF auto-nudge', 'Removes the auto-nudge trigger; typing "x" no longer sends automatically.', 'To go back to the manual "Send mentor nudges (flagged)" button.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.matchedPairs, 'Feedback Sent / Feedback Sent At', 'Whether the mentee check-in feedback email was sent to this mentee, and when. Prevents double-sends.', 'SENT means the mentee was asked for feedback.'],
+    ['Sheet', YDP_FEEDBACK_FORM.responsesSheetName, 'Mentee ID / Mentee Email address / Mentee Name / feedback answers', 'Live responses from the mentee feedback Google Form. Identity fields arrive pre-filled from each mentee\'s email link, so every response is auto-tagged.', 'Read to see how mentees are progressing and who has responded.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Create mentee feedback form', 'Builds the branded mentee check-in Google Form once (progress, mentor responsiveness, 1-5 rating, open comments) and links its responses to the "' + YDP_FEEDBACK_FORM.responsesSheetName + '" tab. Reports the link if one already exists.', 'Once, before sending any feedback emails.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Preview mentee feedback email', 'Shows the mentee feedback email (with a sample prefilled form link) without sending.', 'Before any live feedback send.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Send feedback email — TEST to me', 'Sends the feedback email to your own email only; no mentee tracking changes.', 'To inspect the inbox version safely.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Send feedback email to ALL mentees', 'Sends each mentee their own prefilled feedback link, skipping mentees already marked Feedback Sent; marks each row SENT.', 'After preview and a test send, once the form is created.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Reset feedback form link', 'Forgets the stored form link so a fresh form can be built. Does NOT delete the Google Form or its responses.', 'Only if you want to rebuild the feedback form from scratch.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Test Gemini connection', 'Checks that the Gemini API key works.', 'Run after changing the API key or model.'],
     ['Sheet', YDP_MATCHING_CONFIG.sheets.mentorSnapshot, 'Countdown Intro Email Status', 'Whether the intro mentor countdown email (89% note plus onboarding PDFs) was sent to this mentor.', 'SENT prevents duplicates; ERROR means the send failed.'],
     ['Sheet', YDP_MATCHING_CONFIG.sheets.mentorSnapshot, 'Countdown Intro Email Sent At', 'When the intro countdown email was sent to this mentor.', 'Audit trail.'],
@@ -995,6 +1008,11 @@ function getYdpButtonGuideRows_() {
     ['LIVE ACTION', menu, 'Send mentor nudges (flagged)', 'Emails every mentor flagged with "x" in Needs Nudge (naming only their flagged mentees, CC to you), reassures each flagged mentee, and escalates tone by Nudge Count.', 'When mentees report they cannot reach their mentor.', 'Flag the mentee rows with "x"; preview and test first.', 'Sends live emails; increments Nudge Count, stamps Last Nudged At, sets Nudge Status SENT, and clears the Needs Nudge flag on each nudged row.', 'As needed during the cohort'],
     ['LIVE ACTION', menu, 'Turn ON auto-nudge (send on x)', 'Installs an on-edit trigger so that typing "x" in Needs Nudge INSTANTLY nudges that mentor with no preview or confirmation.', 'Only when you are ready for flags to send live emails the moment you type them.', 'Preview and test the nudge first; understand that every "x" becomes a real email immediately.', 'Creates an installable onEdit trigger that sends live mentor + mentee emails on each "x" and clears the flag.', 'Turn on for hands-off nudging; off when done'],
     ['SAFE', menu, 'Turn OFF auto-nudge', 'Removes the auto-nudge on-edit trigger; typing "x" no longer sends automatically.', 'To return to the manual flagged-send button.', 'No preparation required.', 'Deletes the auto-nudge trigger; no emails or data change.', 'As needed'],
+    ['SAFE', menu, 'Create mentee feedback form', 'Builds the branded mentee check-in Google Form once (Mentee ID/Email/Name pre-filled, plus progress, mentor responsiveness, a 1-5 rating, and open comments) and links responses to the "' + YDP_FEEDBACK_FORM.responsesSheetName + '" tab. If a form was already created, it reports that link instead of making a duplicate.', 'Once, before sending feedback emails.', 'Approve the Google Forms access when prompted (first run adds the Forms permission).', 'Creates a new Google Form and a linked responses tab; stores the form link in the script. No emails sent.', 'Once per cohort'],
+    ['SAFE', menu, 'Preview mentee feedback email', 'Shows the mentee feedback email with a sample prefilled form link without sending.', 'Before any live feedback send.', 'Create the feedback form first.', 'Opens a preview only; no email or tracking changes.', 'Before a feedback campaign'],
+    ['SAFE', menu, 'Send feedback email — TEST to me', 'Sends one feedback email to your own inbox using the first mentee as a sample.', 'After preview and before the live send.', 'Create the feedback form first.', 'Sends one test email; no Matched Pairs tracking is updated.', 'Before a feedback campaign'],
+    ['LIVE ACTION', menu, 'Send feedback email to ALL mentees', 'Sends each matched mentee one check-in email with their own prefilled form link (ID, email, name), skipping mentees already marked Feedback Sent.', 'After preview and a test send, once the form is created.', 'Create the form, then preview and test first.', 'Sends live emails and marks Feedback Sent SENT on each Matched Pairs row.', 'As needed during the cohort'],
+    ['SAFE', menu, 'Reset feedback form link', 'Forgets the stored feedback form link so "Create mentee feedback form" can build a fresh one.', 'Only when you want to rebuild the form from scratch.', 'Understand it does NOT delete the existing Google Form or its collected responses.', 'Clears the stored form link in the script only; no form, response, or email changes.', 'Rarely'],
     ['SAFE', menu, 'Preview mentor countdown email', 'Shows the day-appropriate mentor countdown email without sending it.', 'Before any live countdown send.', 'No preparation is required.', 'Opens a preview only; no email or tracking changes.', 'Before every countdown send'],
     ['SAFE', menu, 'Send mentor countdown — TEST to me', 'Sends the mentor countdown email to your own email only.', 'After preview and before the live send.', 'No preparation is required.', 'Sends one test email; mentor tracking is not updated.', 'Before every countdown send'],
     ['LIVE ACTION', menu, 'Send mentor countdown to ALL mentors', 'Sends the day-appropriate countdown email to every mentor not already marked SENT for that email.', 'To send the day\'s countdown email by hand.', 'Preview and test first, and confirm the day\'s content.', 'Sends live emails and updates the day\'s countdown tracking on Mentor Source Snapshot.', 'Once per countdown day'],
@@ -2151,6 +2169,489 @@ function sendYdpMenteeMatchInvitesToAll() {
     return;
   }
   logYdpMatchingRun_('MENTEE_MATCH_INVITE_SEND', result.failures.length ? 'PARTIAL_SUCCESS' : 'SUCCESS', result.summary);
+  ui.alert(result.summary);
+}
+
+/* ===================================================================
+ * Mentee feedback form + email
+ * "Create mentee feedback form" builds ONE branded Google Form (progress,
+ * mentor responsiveness, a 1-5 rating, open comments) and links its
+ * responses into a "Feedback Responses" tab in this workbook. The form
+ * URL and prefill entry ids are stored in Script Properties. Each mentee's
+ * email then carries a link with their Mentee ID, Email, and Name pre-
+ * filled (none required), so every response is auto-tagged. Deploy with
+ * Preview / Test / Send, tracked on Matched Pairs (Feedback Sent).
+ * =================================================================== */
+
+const YDP_FEEDBACK_FORM = {
+  title: 'YDP Mentorship - Mentee Check-in',
+  description: 'A quick 2-minute check-in so the YDP team knows how your mentorship is going and where you might need support. Your ID, email, and name are pre-filled for you.',
+  responsesSheetName: 'Feedback Responses',
+  propFormId: 'YDP_FEEDBACK_FORM_ID',
+  propPublishedUrl: 'YDP_FEEDBACK_PUBLISHED_URL',
+  propEditUrl: 'YDP_FEEDBACK_EDIT_URL',
+  propPrefill: 'YDP_FEEDBACK_PREFILL'
+};
+
+const YDP_FEEDBACK_TRACKING = {
+  statusHeader: 'Feedback Sent',
+  sentAtHeader: 'Feedback Sent At'
+};
+
+// Menu: builds the Google Form once. If one already exists (its link is
+// stored), it reports that link instead of creating a duplicate.
+function buildYdpMenteeFeedbackForm() {
+  const ui = SpreadsheetApp.getUi();
+  const props = PropertiesService.getScriptProperties();
+  const existingId = props.getProperty(YDP_FEEDBACK_FORM.propFormId);
+
+  if (existingId) {
+    ui.alert('Feedback form already exists',
+      'A mentee feedback form was already created.\n\n' +
+      'Live link (send to mentees):\n' + (props.getProperty(YDP_FEEDBACK_FORM.propPublishedUrl) || '(unknown)') + '\n\n' +
+      'Edit link (open to view responses / tweak questions):\n' + (props.getProperty(YDP_FEEDBACK_FORM.propEditUrl) || '(unknown)') + '\n\n' +
+      'To build a brand-new form, first run "Reset feedback form link".',
+      ui.ButtonSet.OK);
+    return;
+  }
+
+  try {
+    const result = createYdpMenteeFeedbackForm_();
+    ui.alert('Feedback form created',
+      'Live link (send to mentees):\n' + result.publishedUrl + '\n\n' +
+      'Edit link (open to view responses / tweak questions):\n' + result.editUrl + '\n\n' +
+      'Responses collect into the "' + YDP_FEEDBACK_FORM.responsesSheetName + '" tab in this workbook.\n\n' +
+      'Next: Preview the mentee feedback email, send a test to yourself, then send to all.',
+      ui.ButtonSet.OK);
+  } catch (error) {
+    ui.alert('Could not create the feedback form:\n\n' + String(error.message || error) +
+      '\n\nIf this mentions authorization or Forms permission, re-run and approve the new access when prompted.');
+  }
+}
+
+// No-UI core: creates the Google Form, links responses, captures prefill
+// entry ids, and stores everything in Script Properties.
+function createYdpMenteeFeedbackForm_() {
+  const form = FormApp.create(YDP_FEEDBACK_FORM.title);
+  form.setTitle(YDP_FEEDBACK_FORM.title)
+      .setDescription(YDP_FEEDBACK_FORM.description)
+      .setCollectEmail(false)
+      .setLimitOneResponsePerUser(false)
+      .setAllowResponseEdits(true)
+      .setShowLinkToRespondAgain(false)
+      .setConfirmationMessage('Thank you. Your check-in has been recorded. The YDP team reads every response.');
+
+  // Identity fields: pre-filled from the email link, none required.
+  const idItem = form.addTextItem().setTitle('Mentee ID').setHelpText('Pre-filled for you, please leave it as is.').setRequired(false);
+  const emailItem = form.addTextItem().setTitle('Mentee Email address').setHelpText('Pre-filled for you, please leave it as is.').setRequired(false);
+  const nameItem = form.addTextItem().setTitle('Mentee Name').setHelpText('Pre-filled for you, please leave it as is.').setRequired(false);
+
+  // Feedback questions.
+  form.addMultipleChoiceItem()
+      .setTitle('How many sessions have you had with your mentor so far?')
+      .setChoiceValues(['None yet', '1 - 2', '3 - 4', '5 or more'])
+      .setRequired(true);
+
+  form.addMultipleChoiceItem()
+      .setTitle('How far along do you feel in the program?')
+      .setChoiceValues(['Just getting started', 'Making steady progress', 'Well on track', 'Ahead of where I expected'])
+      .setRequired(true);
+
+  form.addMultipleChoiceItem()
+      .setTitle('Is your mentor easy to reach and engaged?')
+      .setChoiceValues(['Yes, very responsive', 'Somewhat', 'Rarely responds', 'We have not connected yet'])
+      .setRequired(true);
+
+  form.addScaleItem()
+      .setTitle('Overall, how is your experience so far?')
+      .setBounds(1, 5)
+      .setLabels('Poor', 'Excellent')
+      .setRequired(true);
+
+  form.addParagraphTextItem()
+      .setTitle('Anything going well, or anything you need from the YDP team?')
+      .setHelpText('Optional. Tell us what is working and where you need support.')
+      .setRequired(false);
+
+  // Link responses into this workbook.
+  form.setDestination(FormApp.DestinationType.SPREADSHEET, SpreadsheetApp.getActive().getId());
+  try { renameYdpFeedbackResponsesTab_(); } catch (renameError) { /* best effort */ }
+
+  // Capture prefill entry ids from a sample prefilled URL.
+  const sample = form.createResponse()
+      .withItemResponse(idItem.createResponse('__YDP_ID__'))
+      .withItemResponse(emailItem.createResponse('__YDP_EMAIL__'))
+      .withItemResponse(nameItem.createResponse('__YDP_NAME__'));
+  const prefilledUrl = sample.toPrefilledUrl();
+  const prefill = {
+    id: ydpExtractEntryId_(prefilledUrl, '__YDP_ID__'),
+    email: ydpExtractEntryId_(prefilledUrl, '__YDP_EMAIL__'),
+    name: ydpExtractEntryId_(prefilledUrl, '__YDP_NAME__')
+  };
+
+  const publishedUrl = form.getPublishedUrl();
+  const editUrl = form.getEditUrl();
+  const props = PropertiesService.getScriptProperties();
+  props.setProperty(YDP_FEEDBACK_FORM.propFormId, form.getId());
+  props.setProperty(YDP_FEEDBACK_FORM.propPublishedUrl, publishedUrl);
+  props.setProperty(YDP_FEEDBACK_FORM.propEditUrl, editUrl);
+  props.setProperty(YDP_FEEDBACK_FORM.propPrefill, JSON.stringify(prefill));
+
+  return { publishedUrl: publishedUrl, editUrl: editUrl, prefill: prefill };
+}
+
+// Renames the freshly linked "Form Responses" tab to our friendly name.
+function renameYdpFeedbackResponsesTab_() {
+  const ss = SpreadsheetApp.getActive();
+  const sheets = ss.getSheets();
+  for (var i = 0; i < sheets.length; i++) {
+    const name = sheets[i].getName();
+    if (/^Form Responses/i.test(name) && sheets[i].getFormUrl()) {
+      if (!ss.getSheetByName(YDP_FEEDBACK_FORM.responsesSheetName)) {
+        sheets[i].setName(YDP_FEEDBACK_FORM.responsesSheetName);
+      }
+      return;
+    }
+  }
+}
+
+// Pulls the numeric entry id for a prefilled token out of a prefilled URL
+// (e.g. "entry.123456=__YDP_ID__" -> "123456").
+function ydpExtractEntryId_(prefilledUrl, token) {
+  const match = String(prefilledUrl || '').match(new RegExp('entry\\.(\\d+)=' + token));
+  return match ? match[1] : '';
+}
+
+// Reads the stored form config; throws a clear message if not built yet.
+function getYdpFeedbackFormConfig_() {
+  const props = PropertiesService.getScriptProperties();
+  const publishedUrl = props.getProperty(YDP_FEEDBACK_FORM.propPublishedUrl);
+  if (!publishedUrl) {
+    throw new Error('The mentee feedback form has not been created yet. Run "Create mentee feedback form" first.');
+  }
+  let prefill = {};
+  try { prefill = JSON.parse(props.getProperty(YDP_FEEDBACK_FORM.propPrefill) || '{}'); } catch (parseError) { prefill = {}; }
+  return { publishedUrl: publishedUrl, prefill: prefill };
+}
+
+// Builds a per-mentee prefilled form link (ID, email, name pre-filled).
+function buildYdpFeedbackPrefillUrl_(menteeId, email, name) {
+  const cfg = getYdpFeedbackFormConfig_();
+  const p = cfg.prefill || {};
+  const parts = ['usp=pp_url'];
+  if (p.id) parts.push('entry.' + p.id + '=' + encodeURIComponent(menteeId || ''));
+  if (p.email) parts.push('entry.' + p.email + '=' + encodeURIComponent(email || ''));
+  if (p.name) parts.push('entry.' + p.name + '=' + encodeURIComponent(name || ''));
+  const sep = cfg.publishedUrl.indexOf('?') === -1 ? '?' : '&';
+  return cfg.publishedUrl + sep + parts.join('&');
+}
+
+// Forgets the stored form link so a fresh form can be built. Does NOT delete
+// the Google Form or its responses.
+function resetYdpFeedbackFormLink() {
+  const ui = SpreadsheetApp.getUi();
+  const response = ui.alert('Reset feedback form link',
+    'This only forgets the stored link in this script. It does NOT delete the Google Form or any responses already collected.\n\n' +
+    'After this, "Create mentee feedback form" will build a fresh form. Continue?',
+    ui.ButtonSet.YES_NO);
+  if (response !== ui.Button.YES) return;
+  const props = PropertiesService.getScriptProperties();
+  props.deleteProperty(YDP_FEEDBACK_FORM.propFormId);
+  props.deleteProperty(YDP_FEEDBACK_FORM.propPublishedUrl);
+  props.deleteProperty(YDP_FEEDBACK_FORM.propEditUrl);
+  props.deleteProperty(YDP_FEEDBACK_FORM.propPrefill);
+  ui.alert('Done. The stored feedback form link was cleared. Run "Create mentee feedback form" to build a new one.');
+}
+
+// One recipient per matched mentee row (with full name for prefill).
+function getYdpMenteeFeedbackRecipients_() {
+  const sheet = getYdpMatchedPairsSheetForInvites_();
+  const headerMap = getYdpMatchingHeaderMap_(sheet);
+  const values = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+  const recipients = [];
+
+  values.forEach(function(row, index) {
+    const menteeEmail = String(getYdpRowValueByHeader_(row, headerMap, 'Mentee Email') || '').trim();
+    const menteeId = String(getYdpRowValueByHeader_(row, headerMap, 'Mentee ID') || '').trim();
+    const menteeName = String(getYdpRowValueByHeader_(row, headerMap, 'Mentee Name') || '').trim();
+    const mentorName = String(getYdpRowValueByHeader_(row, headerMap, 'Mentor Name') || '').trim();
+
+    if (!menteeId || !isValidYdpEmail_(menteeEmail)) {
+      return;
+    }
+
+    recipients.push({
+      rowNumber: index + 2,
+      email: menteeEmail,
+      menteeId: menteeId,
+      menteeName: menteeName,
+      firstName: getYdpFirstName_(menteeName),
+      mentorName: mentorName
+    });
+  });
+
+  return recipients;
+}
+
+// Adds the two feedback-tracking columns to Matched Pairs if missing.
+function ensureYdpFeedbackColumns_(sheet) {
+  const t = YDP_FEEDBACK_TRACKING;
+  const wanted = [t.statusHeader, t.sentAtHeader];
+  const headers = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), 1)).getValues()[0].map(function(h) {
+    return String(h || '').trim();
+  });
+  const missing = wanted.filter(function(h) { return headers.indexOf(h) === -1; });
+
+  if (missing.length) {
+    sheet.getRange(1, sheet.getLastColumn() + 1, 1, missing.length).setValues([missing]);
+    sheet.setFrozenRows(1);
+  }
+
+  const finalHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const map = {};
+  finalHeaders.forEach(function(h, i) {
+    const name = String(h || '').trim();
+    if (name) map[name] = i + 1;
+  });
+  return map;
+}
+
+// Branded feedback email shell: logo header, badge, body, a big CTA button
+// to the prefilled form, a plain-text fallback link, and footer.
+function buildYdpFeedbackHtml_(opts) {
+  const navy = YDP_MENTOR_COUNTDOWN.navy;
+  const gold = YDP_MENTOR_COUNTDOWN.gold;
+  const sender = escapeYdpHtml_(YDP_MATCHING_CONFIG.senderName);
+  const src = opts.logoSrc || 'cid:ydpLogo';
+  const paras = (opts.bodyParagraphs || []).map(function(p) {
+    return '<p style="margin:0 0 16px 0;">' + p + '</p>';
+  }).join('');
+
+  return [
+    '<div style="display:none;max-height:0;overflow:hidden;opacity:0;">' + escapeYdpHtml_(opts.preheader || '') + '</div>',
+    '<div style="margin:0;padding:0;background:#f4f4f6;">',
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f6;padding:24px 0;">',
+    '<tr><td align="center">',
+    '<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:10px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;">',
+
+    '<tr><td style="background:#ffffff;border-top:5px solid ' + navy + ';padding:26px 32px 18px 32px;text-align:center;">',
+    '<img src="' + src + '" alt="Young Data Professionals" width="300" style="display:block;margin:0 auto;width:300px;max-width:72%;height:auto;">',
+    '<div style="font-size:13px;letter-spacing:3px;color:' + navy + ';margin-top:14px;">MENTORSHIP PROGRAM</div>',
+    '<div style="height:3px;width:64px;background:' + gold + ';margin:14px auto 0 auto;font-size:0;line-height:0;">&nbsp;</div>',
+    '</td></tr>',
+
+    '<tr><td style="padding:24px 32px 0 32px;text-align:center;">',
+    '<span style="display:inline-block;border:2px solid ' + gold + ';color:' + navy + ';font-size:13px;font-weight:bold;letter-spacing:1.5px;padding:8px 18px;border-radius:999px;">' + escapeYdpHtml_(opts.badge) + '</span>',
+    '<div style="font-size:15px;color:#555555;margin-top:10px;">' + opts.subhead + '</div>',
+    '</td></tr>',
+
+    '<tr><td style="padding:24px 32px 8px 32px;color:#222222;font-size:15px;line-height:1.6;">',
+    paras,
+    '</td></tr>',
+
+    '<tr><td style="padding:8px 32px 6px 32px;" align="center">',
+    ydpCountdownButton_(opts.buttonLabel, opts.buttonUrl, navy),
+    '</td></tr>',
+
+    '<tr><td style="padding:0 32px 8px 32px;color:#888888;font-size:12px;line-height:1.5;text-align:center;">',
+    'Or paste this link into your browser:<br><a href="' + escapeYdpHtml_(opts.buttonUrl) + '" style="color:' + navy + ';word-break:break-all;">' + escapeYdpHtml_(opts.buttonUrl) + '</a>',
+    '</td></tr>',
+
+    '<tr><td style="padding:16px 32px 24px 32px;color:#222222;font-size:15px;line-height:1.6;">',
+    '<p style="margin:0 0 16px 0;">' + opts.closingLine + '</p>',
+    '<p style="margin:0;">Warm regards,<br><strong>' + sender + '</strong></p>',
+    '</td></tr>',
+
+    '<tr><td style="background:#f4f4f6;padding:18px 32px;text-align:center;color:#888888;font-size:12px;line-height:1.5;">',
+    'YDP Mentorship Program &bull; Cohort 2<br>' + escapeYdpHtml_(opts.footerNote),
+    '</td></tr>',
+
+    '</table>',
+    '</td></tr>',
+    '</table>',
+    '</div>'
+  ].join('');
+}
+
+function buildYdpMenteeFeedbackEmail_(recipient, logoSrc) {
+  const name = String(recipient.firstName || '').trim() || 'there';
+  const mentorName = String(recipient.mentorName || '').trim() || 'your mentor';
+  const formUrl = buildYdpFeedbackPrefillUrl_(recipient.menteeId, recipient.email, recipient.menteeName);
+
+  const body = [
+    'Hi ' + name + ',',
+    '',
+    'We would love to hear how your YDP Mentorship journey is going so far.',
+    '',
+    'Please take 2 minutes to share a quick check-in: how many sessions you have had with ' + mentorName + ', how far along you feel, whether your mentor is easy to reach, and anything you need from us.',
+    '',
+    'Share your feedback: ' + formUrl,
+    '',
+    'Your ID, email, and name are already filled in for you, so it is just a few quick questions.',
+    '',
+    'Thank you for helping us make the program better.',
+    '',
+    'Warm regards,',
+    YDP_MATCHING_CONFIG.senderName
+  ].join('\n');
+
+  const htmlBody = buildYdpFeedbackHtml_({
+    preheader: 'A quick 2-minute check-in on how your mentorship is going.',
+    badge: 'QUICK CHECK-IN',
+    subhead: 'How is your mentorship going so far?',
+    bodyParagraphs: [
+      'Hi ' + escapeYdpHtml_(name) + ',',
+      'We would love to hear how your <strong>YDP Mentorship</strong> journey is going so far.',
+      'Please take <strong>2 minutes</strong> to share a quick check-in: how many sessions you have had with ' + escapeYdpHtml_(mentorName) + ', how far along you feel, whether your mentor is easy to reach, and anything you need from us.',
+      'Your ID, email, and name are already filled in for you, so it is just a few quick questions.'
+    ],
+    buttonLabel: 'Share your feedback (2 min)',
+    buttonUrl: formUrl,
+    closingLine: 'Thank you for helping us make the program better.',
+    footerNote: 'You are receiving this because you are a mentee in Cohort 2.',
+    logoSrc: logoSrc
+  });
+
+  return {
+    subject: 'How is your YDP mentorship going? (2-minute check-in)',
+    body: body,
+    htmlBody: htmlBody,
+    inlineImages: { ydpLogo: getYdpLogoBlob_() }
+  };
+}
+
+// Sends the feedback email to every mentee row not already marked SENT.
+function sendYdpMenteeFeedbackCore_() {
+  const sheet = getYdpMatchedPairsSheetForInvites_();
+  const recipients = getYdpMenteeFeedbackRecipients_();
+
+  if (recipients.length === 0) {
+    return { sentCount: 0, skippedCount: 0, total: 0, failures: [], summary: 'No mentees with valid email addresses were found. Nothing was sent.' };
+  }
+
+  getYdpFeedbackFormConfig_(); // fail fast if the form does not exist yet
+
+  const headerMap = ensureYdpFeedbackColumns_(sheet);
+  const statusCol = headerMap[YDP_FEEDBACK_TRACKING.statusHeader];
+  const sentAtCol = headerMap[YDP_FEEDBACK_TRACKING.sentAtHeader];
+
+  let sentCount = 0;
+  let skippedCount = 0;
+  const failures = [];
+
+  recipients.forEach(function(recipient) {
+    const currentStatus = String(sheet.getRange(recipient.rowNumber, statusCol).getValue() || '').trim().toUpperCase();
+
+    if (currentStatus === 'SENT') {
+      skippedCount++;
+      return;
+    }
+
+    try {
+      const email = buildYdpMenteeFeedbackEmail_(recipient);
+      MailApp.sendEmail({
+        to: recipient.email,
+        subject: email.subject,
+        body: email.body,
+        htmlBody: email.htmlBody,
+        name: YDP_MATCHING_CONFIG.senderName,
+        inlineImages: email.inlineImages
+      });
+      sheet.getRange(recipient.rowNumber, statusCol).setValue('SENT');
+      sheet.getRange(recipient.rowNumber, sentAtCol).setValue(new Date());
+      sentCount++;
+    } catch (error) {
+      sheet.getRange(recipient.rowNumber, statusCol).setValue('ERROR');
+      failures.push(recipient.email + ' (' + String(error.message || error) + ')');
+    }
+  });
+
+  const summary = 'Mentee feedback: sent ' + sentCount + ', skipped already-sent ' + skippedCount +
+    ', of ' + recipients.length + ' mentees.' +
+    (failures.length ? '\n\nFailed:\n' + failures.join('\n') : '');
+  return { sentCount: sentCount, skippedCount: skippedCount, total: recipients.length, failures: failures, summary: summary };
+}
+
+function previewYdpMenteeFeedback() {
+  const ui = SpreadsheetApp.getUi();
+  try {
+    getYdpFeedbackFormConfig_();
+  } catch (cfgError) {
+    ui.alert(String(cfgError.message || cfgError));
+    return;
+  }
+  try {
+    const recipients = getYdpMenteeFeedbackRecipients_();
+    if (recipients.length === 0) {
+      ui.alert('No mentees found. Run auto-match first.');
+      return;
+    }
+    const sample = recipients[0];
+    const email = buildYdpMenteeFeedbackEmail_(sample, 'data:image/png;base64,' + YDP_LOGO_BASE64);
+    ydpShowMatchInvitePreview_(email, sample.firstName, recipients.length + ' mentee(s) will receive this, each with their own prefilled link.', 'Mentee Feedback Email Preview');
+  } catch (error) {
+    ui.alert('Could not build the feedback preview:\n\n' + String(error.message || error));
+  }
+}
+
+function sendYdpMenteeFeedbackTest() {
+  const ui = SpreadsheetApp.getUi();
+  try {
+    getYdpFeedbackFormConfig_();
+  } catch (cfgError) {
+    ui.alert(String(cfgError.message || cfgError));
+    return;
+  }
+  const testRecipient = ydpResolveTestRecipient_('Send Test Feedback Email');
+  if (!testRecipient) return;
+
+  try {
+    const recipients = getYdpMenteeFeedbackRecipients_();
+    if (recipients.length === 0) {
+      ui.alert('No mentees found. Run auto-match first.');
+      return;
+    }
+    const email = buildYdpMenteeFeedbackEmail_(recipients[0]);
+    MailApp.sendEmail({ to: testRecipient, subject: '[TEST] ' + email.subject, body: email.body, htmlBody: email.htmlBody, name: YDP_MATCHING_CONFIG.senderName, inlineImages: email.inlineImages });
+    ui.alert('Test feedback email sent to ' + testRecipient + '.\n\nIt used "' + recipients[0].firstName + '" as a sample with their prefilled link. The real send personalizes each mentee and marks their Matched Pairs row SENT. No mentees were emailed by this test.');
+  } catch (error) {
+    ui.alert('Test feedback email failed:\n\n' + String(error.message || error));
+  }
+}
+
+function sendYdpMenteeFeedbackToAll() {
+  const ui = SpreadsheetApp.getUi();
+  let recipients;
+  try {
+    recipients = getYdpMenteeFeedbackRecipients_();
+  } catch (error) {
+    ui.alert('Could not read matched pairs:\n\n' + String(error.message || error));
+    return;
+  }
+  if (recipients.length === 0) {
+    ui.alert('No mentees with valid email addresses were found. Nothing was sent.');
+    return;
+  }
+  try {
+    getYdpFeedbackFormConfig_();
+  } catch (cfgError) {
+    ui.alert(String(cfgError.message || cfgError));
+    return;
+  }
+
+  const confirm = ui.alert('Send feedback email to all mentees',
+    'This will email the check-in form to ' + recipients.length + ' mentee(s), skipping any already marked SENT. Continue?',
+    ui.ButtonSet.YES_NO);
+  if (confirm !== ui.Button.YES) return;
+
+  let result;
+  try {
+    result = sendYdpMenteeFeedbackCore_();
+  } catch (error) {
+    ui.alert('Sending failed, so nothing was sent:\n\n' + String(error.message || error));
+    return;
+  }
+  logYdpMatchingRun_('MENTEE_FEEDBACK_SEND', result.failures.length ? 'PARTIAL_SUCCESS' : 'SUCCESS', result.summary);
   ui.alert(result.summary);
 }
 
