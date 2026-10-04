@@ -97,8 +97,8 @@ function onOpen() {
     .addSeparator()
     .addItem('Create mentee feedback form', 'buildYdpMenteeFeedbackForm')
     .addItem('Preview mentee feedback email', 'previewYdpMenteeFeedback')
-    .addItem('Send feedback email — TEST to me', 'sendYdpMenteeFeedbackTest')
-    .addItem('Send feedback email to ALL mentees', 'sendYdpMenteeFeedbackToAll')
+    .addItem('Send mentee feedback email — TEST to me', 'sendYdpMenteeFeedbackTest')
+    .addItem('Send mentee feedback email to ALL mentees', 'sendYdpMenteeFeedbackToAll')
     .addItem('Reset feedback form link', 'resetYdpFeedbackFormLink')
     .addSeparator()
     .addItem('Create mentor feedback form', 'buildYdpMentorFeedbackForm')
@@ -937,8 +937,8 @@ function getYdpMatchingDataDictionaryRows_() {
     ['Sheet', YDP_FEEDBACK_FORM.responsesSheetName, 'Mentee ID / Mentee Email address / Mentee Name / feedback answers', 'Live responses from the October mentee check-in Google Form. Identity fields arrive pre-filled from each mentee\'s email link, so every response is auto-tagged.', 'Read to see how mentees are doing right now and who needs support before the program ends.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Create mentee feedback form', 'Builds the branded October mentee check-in Google Form once (recent sessions, mentor responsiveness, progress, 1-5 rating, support needed before the end, open comments) and links its responses to the "' + YDP_FEEDBACK_FORM.responsesSheetName + '" tab. Reports the link if one already exists.', 'Once, before sending any feedback emails.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Preview mentee feedback email', 'Shows the mentee feedback email (with a sample prefilled form link) without sending.', 'Before any live feedback send.'],
-    ['Button', YDP_MATCHING_CONFIG.menuName, 'Send feedback email — TEST to me', 'Sends the feedback email to your own email only; no mentee tracking changes.', 'To inspect the inbox version safely.'],
-    ['Button', YDP_MATCHING_CONFIG.menuName, 'Send feedback email to ALL mentees', 'Sends each mentee their own prefilled feedback link, skipping mentees already marked ' + YDP_FEEDBACK_TRACKING.statusHeader + '; marks each row SENT.', 'After preview and a test send, once the form is created.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Send mentee feedback email — TEST to me', 'Sends the feedback email to your own email only; no mentee tracking changes.', 'To inspect the inbox version safely.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Send mentee feedback email to ALL mentees', 'Sends each mentee their own prefilled feedback link, skipping mentees already marked ' + YDP_FEEDBACK_TRACKING.statusHeader + '; marks each row SENT.', 'After preview and a test send, once the form is created.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Reset feedback form link', 'Forgets the stored form link so a fresh form can be built. Does NOT delete the Google Form or its responses.', 'Only if you want to rebuild the feedback form from scratch.'],
     ['Sheet', YDP_MATCHING_CONFIG.sheets.matchedPairs, 'Mentor Feedback Sent / Mentor Feedback Sent At', 'Whether the mentor check-in feedback email was sent to this mentor (marked on every one of their rows), and when. Prevents double-sends.', 'SENT means the mentor was asked for feedback.'],
     ['Sheet', YDP_MENTOR_FEEDBACK_FORM.responsesSheetName, 'Mentor ID / Mentor Email address / Mentor Name / feedback answers', 'Live responses from the mentor feedback Google Form. Identity fields arrive pre-filled from each mentor\'s email link, so every response is auto-tagged.', 'Read to see how mentoring is going and which mentees need follow-up.'],
@@ -1033,8 +1033,8 @@ function getYdpButtonGuideRows_() {
     ['SAFE', menu, 'Turn OFF auto-nudge', 'Removes the auto-nudge on-edit trigger; typing "x" no longer sends automatically.', 'To return to the manual flagged-send button.', 'No preparation required.', 'Deletes the auto-nudge trigger; no emails or data change.', 'As needed'],
     ['SAFE', menu, 'Create mentee feedback form', 'Builds the branded October mentee check-in Google Form once (Mentee ID/Email/Name pre-filled, plus recent sessions, mentor responsiveness, progress, a 1-5 rating, support needed before the end, and open comments) and links responses to the "' + YDP_FEEDBACK_FORM.responsesSheetName + '" tab. If a form was already created, it reports that link instead of making a duplicate.', 'Once, before sending feedback emails.', 'Approve the Google Forms access when prompted (first run adds the Forms permission).', 'Creates a new Google Form and a linked responses tab; stores the form link in the script. No emails sent.', 'Once per cohort'],
     ['SAFE', menu, 'Preview mentee feedback email', 'Shows the mentee feedback email with a sample prefilled form link without sending.', 'Before any live feedback send.', 'Create the feedback form first.', 'Opens a preview only; no email or tracking changes.', 'Before a feedback campaign'],
-    ['SAFE', menu, 'Send feedback email — TEST to me', 'Sends one feedback email to your own inbox using the first mentee as a sample.', 'After preview and before the live send.', 'Create the feedback form first.', 'Sends one test email; no Matched Pairs tracking is updated.', 'Before a feedback campaign'],
-    ['LIVE ACTION', menu, 'Send feedback email to ALL mentees', 'Sends each matched mentee one check-in email with their own prefilled form link (ID, email, name), skipping mentees already marked ' + YDP_FEEDBACK_TRACKING.statusHeader + '.', 'After preview and a test send, once the form is created.', 'Create the form, then preview and test first.', 'Sends live emails and marks ' + YDP_FEEDBACK_TRACKING.statusHeader + ' SENT on each Matched Pairs row.', 'As needed during the cohort'],
+    ['SAFE', menu, 'Send mentee feedback email — TEST to me', 'Sends one feedback email to your own inbox using the first mentee as a sample.', 'After preview and before the live send.', 'Create the feedback form first.', 'Sends one test email; no Matched Pairs tracking is updated.', 'Before a feedback campaign'],
+    ['LIVE ACTION', menu, 'Send mentee feedback email to ALL mentees', 'Sends each matched mentee one check-in email with their own prefilled form link (ID, email, name), skipping mentees already marked ' + YDP_FEEDBACK_TRACKING.statusHeader + '.', 'After preview and a test send, once the form is created.', 'Create the form, then preview and test first.', 'Sends live emails and marks ' + YDP_FEEDBACK_TRACKING.statusHeader + ' SENT on each Matched Pairs row.', 'As needed during the cohort'],
     ['SAFE', menu, 'Reset feedback form link', 'Forgets the stored feedback form link so "Create mentee feedback form" can build a fresh one.', 'Only when you want to rebuild the form from scratch.', 'Understand it does NOT delete the existing Google Form or its collected responses.', 'Clears the stored form link in the script only; no form, response, or email changes.', 'Rarely'],
     ['SAFE', menu, 'Create mentor feedback form', 'Builds the branded mentor check-in Google Form once (Mentor ID/Email/Name pre-filled, plus sessions held, mentee engagement, follow-up needed, a 1-5 rating, and open comments) and links responses to the "' + YDP_MENTOR_FEEDBACK_FORM.responsesSheetName + '" tab. If a form was already created, it reports that link instead of making a duplicate.', 'Once, before sending mentor feedback emails.', 'Approve the Google Forms access if prompted.', 'Creates a new Google Form and a linked responses tab; stores the form link in the script. No emails sent.', 'Once per cohort'],
     ['SAFE', menu, 'Preview mentor feedback email', 'Shows the mentor feedback email with a sample prefilled form link without sending.', 'Before any live mentor feedback send.', 'Create the mentor feedback form first.', 'Opens a preview only; no email or tracking changes.', 'Before a mentor feedback campaign'],
@@ -2685,7 +2685,7 @@ function sendYdpMenteeFeedbackToAll() {
     return;
   }
 
-  const confirm = ui.alert('Send feedback email to all mentees',
+  const confirm = ui.alert('Send mentee feedback email to all mentees',
     'This will email the check-in form to ' + recipients.length + ' mentee(s), skipping any already marked SENT. Continue?',
     ui.ButtonSet.YES_NO);
   if (confirm !== ui.Button.YES) return;
@@ -3334,7 +3334,7 @@ function sendYdpMentorFeedbackToAll() {
     return;
   }
 
-  const confirm = ui.alert('Send feedback email to all paired mentors',
+  const confirm = ui.alert('Send mentor feedback email to all paired mentors',
     'This will email the mentor check-in form to ' + recipients.length + ' paired mentor(s), skipping any already marked SENT. Mentors with no mentees are not included. Continue?',
     ui.ButtonSet.YES_NO);
   if (confirm !== ui.Button.YES) return;
