@@ -289,8 +289,28 @@ The setup creates these tabs:
 | `Generate next mentee score` | Uses Gemini to score one unscored mentee against the YDP selection criteria and writes the result into `Mentee Scores`. | Use after the source snapshots have data. Run it again to continue scoring remaining mentees. | Gemini gives a review recommendation; it does not make the final decision for the team. If Gemini quota is reached, wait and run it again later. |
 | `Generate mentee scores batch` | Uses Gemini to score up to 3 unscored mentees in one run and writes them into `Mentee Scores`. | Use after the one-mentee test works. This is the normal safer button for moving faster. | If Gemini returns `503` because the model is busy, the batch stops after that first failed request instead of waiting on more rows. Nothing already scored is deleted. Run it again later to continue. |
 | `Generate next pair score` | Uses Gemini to score one eligible mentee against one available mentor and writes the comparison into `Pair Scores`. | Use after mentee scores and mentor snapshots exist. Run it again later to continue pair scoring. | This can hit Gemini quota. Existing pair scores are preserved. If a row says `Error`, read `Gemini Concern`; running the button again retries that same pair. |
-| `Generate pair scores batch` | Uses Gemini to score up to 5 unscored mentee/mentor pairs in one run and writes them into `Pair Scores`. | Use after the one-pair test works. This is the normal button for moving faster. | It still may stop because of Gemini quota or Apps Script time limits. Nothing already scored is deleted. Run it again later to continue. |
+| `Generate pair scores batch` | Uses Gemini to score as many unscored mentee/mentor pairs as fit in about 4 minutes and writes them into `Pair Scores`. | Use after the one-pair test works. This is the normal button for moving faster. | In practice the Gemini rate limit, not the batch size, decides how many pairs one run scores. Nothing already scored is deleted. Run it again later to continue. |
+| `Turn ON automatic pair scoring` | Runs a pair-scoring batch every 5 minutes until every eligible pair is scored. | After a manual batch works and you want scoring to finish unattended. | It keeps going through Gemini quota limits and temporary `503` errors, and switches itself off only when scoring is complete or a blocking error happens. |
+| `Turn OFF automatic pair scoring` | Removes the automatic pair-scoring trigger. | To stop unattended scoring. | Changes no data. |
 | `Auto-match from pair scores` | Uses saved pair scores to select the best available mentor for each fully scored mentee. | Use after enough pair scores have been generated. | It does not call Gemini. It replaces the current generated rows in `Match Recommendations` and `Matched Pairs`. |
+| `Turn ON scheduled auto-match (every 2 hrs)` | Re-runs `Auto-match from pair scores` every 2 hours and refreshes `Mentor Load`. | While pair scoring is still finishing, so matches keep up. | It rebuilds `Matched Pairs`, which wipes any hand edits. It switches itself off as soon as any match email is marked `SENT`. Keep it OFF while editing pairs by hand. |
+| `Turn OFF scheduled auto-match` | Removes the scheduled auto-match trigger. | Before hand-editing `Matched Pairs`, or once matches are final. | Changes no data. |
+| `Sync reassignments now` | Copies changed `Recommended Mentor ID`s from `Match Recommendations` into `Matched Pairs` (Match ID, Mentor ID/Name/Email, Track) and flags each moved row. | After you change mentors on `Match Recommendations`. | Overwrites the mentor columns on changed rows. Sends no email. See [Reassignments](#reassignments). |
+| `Turn ON auto-sync reassignments` | Syncs a reassignment the moment you edit a `Recommended Mentor ID`. | While doing a batch of reassignments. | Every edit rewrites `Matched Pairs` immediately. Data only, no email. |
+| `Turn OFF auto-sync reassignments` | Removes the auto-sync trigger. | When reassigning is done. | Changes no data. |
+| `Preview reassignment notice` | Shows the reassignment email for the first flagged row. | Before notifying anyone. | Sends nothing. |
+| `Send reassignment notice — TEST to me` | Sends a sample reassignment notice to your own inbox. | After preview. | No flags are cleared. |
+| `Send reassignment notices (flagged)` | Emails each moved mentee (new mentor plus Hub login) and each new mentor (a mentee has joined them), then clears the flag. | After syncing **and** re-seeding Supabase. | Re-seed Supabase first, or the Hub will still show the old mentor. |
+| `Create Can Pair mentees sheet` | Rebuilds the `Can Pair Mentees` tab: every eligible mentee with ID, name, email, final score, and Gemini summary, highest score first. | Whenever you want a fresh eligible roster. | Clears and rebuilds that tab only. |
+| `Create mentor load sheet` | Rebuilds the `Mentor Load` tab: each mentor's stated capacity versus mentees paired so far, and remaining slots. | To see matching progress per mentor. | Clears and rebuilds that tab only. |
+| `Preview mentee onboarding invite` / `Send onboarding invite — TEST to me` / `Send onboarding invite to Can Pair mentees` | The onboarding-session invite (date and Google Meet link) for every `Can Pair` mentee. | Once per cohort, before onboarding. | Tracked in `Onboarding Invite Email Status` on `Mentee Scores`; already-`SENT` mentees are skipped. Check the session details in the code first. |
+| `Preview mentor match invite` / `Send mentor invite — TEST to me` / `Send match invite to ALL mentors` | One email per mentor listing their mentees by first name and their Hub login (email + Mentor ID). | Once matches are final. | Tracked in `Mentor Invite Status` on every one of the mentor's rows. See [Mentorship Hub Website](#mentorship-hub-website). |
+| `Preview mentee match invite` / `Send mentee invite — TEST to me` / `Send match invite to ALL mentees` | One email per mentee naming their mentor and their Hub login (email + Mentee ID). | Once matches are final. | Tracked in `Mentee Invite Status`. |
+| `Preview mentor nudge` / `Send mentor nudge — TEST to me` / `Send mentor nudges (flagged)` | Nudges mentors whose mentees are flagged with `x` in `Needs Nudge`. | When a mentee reports they cannot reach their mentor. | Sends live emails, escalates tone each time, and clears the flag. See [Mentor Nudges](#mentor-nudges). |
+| `Turn ON auto-nudge (send on x)` / `Turn OFF auto-nudge` | When on, typing `x` in `Needs Nudge` sends the nudge immediately. | Only for hands-off nudging. | No preview or confirmation: every `x` becomes a real email. Off by default. |
+| `Preview mentor spotlight request` / `Send spotlight request — TEST to me` / `Send spotlight request to ALL paired mentors` | Asks every paired mentor to reply with a professional photo, LinkedIn link, and optional short bio for the Mentor Spotlight. | Once per spotlight round. | Tracked in `Spotlight Requested` on every one of the mentor's rows. Mentors with no mentees are never emailed. Replies come to the YDP inbox, not the sheet. |
+| `Preview mentor countdown email` / `Send mentor countdown — TEST to me` / `Send mentor countdown to ALL mentors` | The countdown emails to mentors before the mentee reveal, with the handbook and code of conduct attached. | The week before the reveal. | The wording depends on the day it is sent. Tracked on `Mentor Source Snapshot`. See [Mentor Countdown Emails](#mentor-countdown-emails). |
+| `Turn ON scheduled countdown (Fri & Sat, 1 PM)` / `Turn OFF scheduled countdown` | Sends the Friday and Saturday countdown emails automatically around 1 PM Lagos time. | Once you are happy with those emails. | Sends live emails; retires itself after the reveal day. |
 | `Preview selected selection email` | Shows the program-selection email for one selected `Can Pair` mentee without sending it. | Use first to review the wording and recipient. | Select a data row in `Mentee Scores`, not the header. |
 | `Send test selection email` | Sends the selected mentee's personalized template to an email address you enter. | Use after previewing and before any live participant send. | It does not update the mentee's selection-email status or sent date. |
 | `Send selection email to selected mentee` | Sends the real selection email to one selected `Can Pair` mentee. | Use as the first controlled live send. | It records `SENT` and will not send the same campaign twice. |
@@ -403,7 +423,7 @@ The current build sets up the matching workbook, source snapshots, Gemini connec
 
 The `Generate next pair score` button creates the `Pair Scores` audit trail one comparison at a time.
 
-The `Generate pair scores batch` button does the same work, but tries up to 5 comparisons in one run. In plain English:
+The `Generate pair scores batch` button does the same work, but keeps scoring comparisons for about 4 minutes per run (the batch size is only a ceiling). The Gemini rate limit is what really decides how many pairs one run scores; to go faster, add Gemini keys from different Google Cloud projects (see [Matching Project](#matching-project)). `Turn ON automatic pair scoring` repeats the batch every 5 minutes until everything is scored. In plain English:
 
 - `Generate next pair score` = test or retry one pair.
 - `Generate pair scores batch` = move faster once the test works.
@@ -540,3 +560,58 @@ If some sends fail (for example, the daily Gmail limit), run the same `Send ... 
 Each round uses its own form, responses tab, tracking columns, and stored form link, so earlier answers are never mixed in or overwritten. To start another round, change the names in `YDP_FEEDBACK_FORM` and `YDP_FEEDBACK_TRACKING` at the top of the mentee feedback section in `matching/YDP Matching Automation.gs` (title, `responsesSheetName`, the four `prop...` Script Property keys, and the two column headers), push, then run `Create mentee feedback form`.
 
 Close the previous round's form by hand so old email links stop collecting answers: select its responses tab, choose `Form > Edit form`, open the `Responses` tab, and turn off `Accepting responses`.
+
+## Mentorship Hub Website
+
+The Hub (`https://ydp-automations.vercel.app`, code in `YDP Website Metric Builder/`) is where participants see their match details. The match invite emails, reassignment notices, and mentor nudges all point people there.
+
+- Mentors log in with their email and Mentor ID; mentees with their email and Mentee ID. Each sees only their own match.
+- Staff log in with the site password and see the whole cohort.
+- The Hub reads from Supabase, **not** directly from the sheet. There is no automatic sync: after any change to `Matched Pairs`, the Supabase data must be refreshed by hand, or the Hub will show stale pairings. So far this has been done by regenerating `YDP Website Metric Builder/supabase/seed.sql` from the live sheet and running it in the Supabase SQL Editor. That file holds participant data, so it is gitignored, and the script that builds it is not in this repo yet. The CSV import route in `YDP Website Metric Builder/supabase/README.md` also works.
+- The site deploys to Vercel automatically on every push to `main`.
+
+## Reassignments
+
+To move a mentee to a different mentor after matching:
+
+1. Turn OFF scheduled auto-match, so a rebuild does not undo your change.
+2. On `Match Recommendations`, change that mentee's `Recommended Mentor ID`.
+3. Run `Sync reassignments now` (or keep `Turn ON auto-sync reassignments` on while you edit). The mentee's `Matched Pairs` row gets the new Match ID, Mentor ID, Name, Email, and Track, and is flagged with `x` in `Reassign Notify` plus a `Reassigned At` time.
+4. Re-seed Supabase so the Hub shows the new mentor.
+5. `Preview reassignment notice`, then `Send reassignment notice — TEST to me`.
+6. `Send reassignment notices (flagged)`. The moved mentee gets their new mentor and Hub login, the new mentor is told a mentee has joined them, and the `Reassign Notify` flag is cleared.
+
+Syncing never sends email; only step 6 does.
+
+## Mentor Nudges
+
+For a mentee who cannot reach their mentor:
+
+1. On `Matched Pairs`, type `x` in that mentee's `Needs Nudge` cell.
+2. `Preview mentor nudge`, then `Send mentor nudge — TEST to me`.
+3. `Send mentor nudges (flagged)`.
+
+Each flagged mentor gets **one** email naming only their flagged mentees, with contact details and the Hub link. The account running the script is CC'd, and each flagged mentee gets a short note saying YDP has contacted their mentor. The tone escalates with each pair's `Nudge Count`: the 1st nudge is warm, the 2nd firmer, and the 3rd or later mentions reassignment. After a successful send the script adds 1 to `Nudge Count`, stamps `Last Nudged At`, sets `Nudge Status`, and clears the `x`. Clear `Nudge Count` to reset a pair back to the warm tone.
+
+`Turn ON auto-nudge (send on x)` skips steps 2 and 3: typing `x` sends straight away with no preview. It is off by default.
+
+## Mentor Countdown Emails
+
+Before the mentee reveal, mentors got a short series of countdown emails ("we're almost there") with the Mentor Onboarding & Expectations Handbook and the Code of Conduct linked and attached as PDFs. The email picks its wording from the day it is sent (intro, reminder, or reveal day), and each kind is tracked separately on `Mentor Source Snapshot` (`Countdown Intro/Reminder/Reveal Email Status` and `Sent At`). The scheduled version sends on Friday and Saturday around 1 PM Lagos time and turns itself off after the reveal day.
+
+For Cohort 2 the reveal was Saturday, July 25, 2026, so this is finished. Update the dates before reusing it (see below).
+
+## Before the Next Cohort
+
+Several settings in `matching/YDP Matching Automation.gs` are specific to Cohort 2. Check and update them before reusing the workbook:
+
+| Setting | What to change |
+| --- | --- |
+| `YDP_MENTOR_COUNTDOWN` | `revealDate`, and the handbook / code of conduct file IDs and links if they change. |
+| `YDP_MENTEE_ONBOARDING` | Session title, date, time, and Google Meet link. |
+| `YDP_FEEDBACK_FORM` / `YDP_FEEDBACK_TRACKING` | New round names and `programEndLabel` (see [Starting a new mentee round](#starting-a-new-mentee-round)). |
+| `YDP_MENTOR_FEEDBACK_FORM` | Run `Reset mentor feedback form link` (or rename its tab and properties) so the new cohort gets a fresh form. |
+| Email text | "Cohort 2" appears in email bodies and footers throughout the file; search and replace it. |
+| `YDP_HUB_URL` | Only if the Hub moves. |
+
+Tracking columns on `Matched Pairs` (`Mentor Invite Status`, `Spotlight Requested`, and so on) are per row, so a fresh `Matched Pairs` for a new cohort starts with nothing marked `SENT`.
