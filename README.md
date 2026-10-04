@@ -298,6 +298,16 @@ The setup creates these tabs:
 | `Preview selected match emails` | Shows the mentee and mentor match emails for the selected row in `Matched Pairs`. | Use before sending any match emails. | Select a real matched pair row, not the header row. |
 | `Send match emails to selected pair` | Sends match emails for one selected final pair if they have not already been sent. | Use first for controlled testing. | It writes separate `SENT` statuses for mentee and mentor. It skips sides already marked `SENT`. |
 | `Send match emails to all unsent matched pairs` | Sends match emails for every final matched pair that has not already been notified. | Use only after selected-row testing works. | This sends real emails in bulk. Status columns protect against duplicate sends. |
+| `Create mentee feedback form` | Builds the current round's mentee check-in Google Form once and links its answers to its own responses tab. | Once per feedback round, before sending. | If the form already exists, it just shows its links. See [Feedback Check-ins](#feedback-check-ins). |
+| `Preview mentee feedback email` | Shows the mentee check-in email with a sample pre-filled form link. | Before any live mentee feedback send. | Sends nothing. Close the form without submitting if you click through. |
+| `Send mentee feedback email — TEST to me` | Sends one sample mentee check-in email to your own inbox. | After preview, before the live send. | Does not change any tracking columns. |
+| `Send mentee feedback email to ALL mentees` | Emails every matched mentee their own pre-filled check-in link. | After preview and test. | Sends real emails. Skips mentees already marked `SENT` for the current round. |
+| `Reset feedback form link` | Forgets the stored mentee form link so a new form can be built. | Rarely. | Does not delete the Google Form or its answers. |
+| `Create mentor feedback form` | Builds the mentor check-in Google Form once and links its answers to `Mentor Feedback Responses`. | Once, before sending. | If the form already exists, it just shows its links. |
+| `Preview mentor feedback email` | Shows the mentor check-in email with a sample pre-filled form link. | Before any live mentor feedback send. | Sends nothing. |
+| `Send mentor feedback — TEST to me` | Sends one sample mentor check-in email to your own inbox. | After preview, before the live send. | Does not change any tracking columns. |
+| `Send mentor feedback to ALL paired mentors` | Emails every mentor who has at least one mentee one pre-filled check-in link (one email per mentor). | After preview and test. | Sends real emails. Skips mentors already marked `SENT`. Unpaired mentors are never emailed. |
+| `Reset mentor feedback form link` | Forgets the stored mentor form link so a new form can be built. | Rarely. | Does not delete the Google Form or its answers. |
 | `Test Gemini connection` | Checks the configured Gemini keys and automatically moves to the next key if the active one is quota-limited. | Use after adding or changing any Gemini API key. | API key values must stay in Apps Script Script Properties, not in GitHub. |
 
 ## Mentee Selection Emails
@@ -499,3 +509,34 @@ Testing order:
 6. If the preview is correct, run `YDP Matching > Send match emails to selected pair`.
 7. Confirm the selected row gets `SENT` statuses and sent-at dates.
 8. Only after the selected-row test works, use `Send match emails to all unsent matched pairs`.
+
+## Feedback Check-ins
+
+Mentees and mentors are asked for feedback through branded Google Forms. Each person's email carries their own link with their ID, email, and name already filled in (none of these fields are required), so every answer is tagged to the right person without them typing anything.
+
+All of this runs from `Matched Pairs`: mentees are read one per row, and mentors are grouped so each mentor gets a single email however many mentees they have.
+
+### Current forms (Cohort 2)
+
+| Round | Sent | Answers land in | Tracking columns on `Matched Pairs` | Status |
+| --- | --- | --- | --- | --- |
+| Mentee check-in, August | 2026-08-17 | `Feedback Responses` | `Feedback Sent` / `Feedback Sent At` | Closed (form no longer accepts answers). Kept as history. |
+| Mentee check-in, October ("home stretch") | 2026-10-04 | `October Feedback Responses` | `October Feedback Sent` / `October Feedback Sent At` | Open until the program ends on October 31. |
+| Mentor check-in | 2026-10-04 | `Mentor Feedback Responses` | `Mentor Feedback Sent` / `Mentor Feedback Sent At` | Open. |
+
+The October mentee form asks about how things are going **now**: sessions in the past month, how reachable the mentor is (worded the same as in August so the two can be compared), progress, a 1-5 rating, and anything they need before the program ends. The mentor form asks about sessions held, how engaged their mentees are, any mentee who needs follow-up, a 1-5 rating, and open comments.
+
+### Sending order
+
+1. `Create mentee feedback form` (or `Create mentor feedback form`). Open the edit link it shows and check the questions.
+2. `Preview ...` and click the button in the preview to confirm the ID, email, and name are pre-filled. Close the form without submitting.
+3. `Send ... — TEST to me` and check the email in your inbox.
+4. `Send ... to ALL ...` and confirm. A summary shows how many were sent and any that failed.
+
+If some sends fail (for example, the daily Gmail limit), run the same `Send ... to ALL ...` button again later. Anyone already marked `SENT` is skipped, so only the missing people are emailed.
+
+### Starting a new mentee round
+
+Each round uses its own form, responses tab, tracking columns, and stored form link, so earlier answers are never mixed in or overwritten. To start another round, change the names in `YDP_FEEDBACK_FORM` and `YDP_FEEDBACK_TRACKING` at the top of the mentee feedback section in `matching/YDP Matching Automation.gs` (title, `responsesSheetName`, the four `prop...` Script Property keys, and the two column headers), push, then run `Create mentee feedback form`.
+
+Close the previous round's form by hand so old email links stop collecting answers: select its responses tab, choose `Form > Edit form`, open the `Responses` tab, and turn off `Accepting responses`.
