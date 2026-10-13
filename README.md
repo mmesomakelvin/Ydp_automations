@@ -323,6 +323,7 @@ The setup creates these tabs:
 | `Send mentee feedback email — TEST to me` | Sends one sample mentee check-in email to your own inbox. | After preview, before the live send. | Does not change any tracking columns. |
 | `Send mentee feedback email to ALL mentees` | Emails every matched mentee their own pre-filled check-in link. | After preview and test. | Sends real emails. Skips mentees already marked `SENT` for the current round. |
 | `Reset feedback form link` | Forgets the stored mentee form link so a new form can be built. | Rarely. | Does not delete the Google Form or its answers. |
+| `Pull mentor details into feedback responses` | Looks up each response's Mentee ID in `Matched Pairs` and fills `Mentor ID`, `Mentor Name`, `Mentor Email`, and `Track` on the feedback responses tab. | Whenever new mentee feedback arrives. Open the responses tab first; if another tab is open, the current round's tab is used. | Sends no email. Refreshes values already in those columns from `Matched Pairs`, so a reassigned mentee shows their current mentor. Adds any of the four columns that are missing. |
 | `Create mentor feedback form` | Builds the mentor check-in Google Form once and links its answers to `Mentor Feedback Responses`. | Once, before sending. | If the form already exists, it just shows its links. |
 | `Preview mentor feedback email` | Shows the mentor check-in email with a sample pre-filled form link. | Before any live mentor feedback send. | Sends nothing. |
 | `Send mentor feedback — TEST to me` | Sends one sample mentor check-in email to your own inbox. | After preview, before the live send. | Does not change any tracking columns. |
@@ -554,6 +555,10 @@ The October mentee form asks about how things are going **now**: sessions in the
 4. `Send ... to ALL ...` and confirm. A summary shows how many were sent and any that failed.
 
 If some sends fail (for example, the daily Gmail limit), run the same `Send ... to ALL ...` button again later. Anyone already marked `SENT` is skipped, so only the missing people are emailed.
+
+### Seeing which mentor each answer is about
+
+Mentee responses only carry the mentee's ID, email, and name. To add their mentor, open the responses tab (for example `October Feedback Responses`) and run `Pull mentor details into feedback responses`. It fills `Mentor ID`, `Mentor Name`, `Mentor Email`, and `Track` from `Matched Pairs` for every row and reports any Mentee ID it could not find. Run it again whenever new answers come in. Your own columns on that tab (such as `Experience`) are not touched.
 
 ### Starting a new mentee round
 

@@ -100,6 +100,7 @@ function onOpen() {
     .addItem('Send mentee feedback email — TEST to me', 'sendYdpMenteeFeedbackTest')
     .addItem('Send mentee feedback email to ALL mentees', 'sendYdpMenteeFeedbackToAll')
     .addItem('Reset feedback form link', 'resetYdpFeedbackFormLink')
+    .addItem('Pull mentor details into feedback responses', 'fillYdpFeedbackMentorDetails')
     .addSeparator()
     .addItem('Create mentor feedback form', 'buildYdpMentorFeedbackForm')
     .addItem('Preview mentor feedback email', 'previewYdpMentorFeedback')
@@ -940,6 +941,7 @@ function getYdpMatchingDataDictionaryRows_() {
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Send mentee feedback email — TEST to me', 'Sends the feedback email to your own email only; no mentee tracking changes.', 'To inspect the inbox version safely.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Send mentee feedback email to ALL mentees', 'Sends each mentee their own prefilled feedback link, skipping mentees already marked ' + YDP_FEEDBACK_TRACKING.statusHeader + '; marks each row SENT.', 'After preview and a test send, once the form is created.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Reset feedback form link', 'Forgets the stored form link so a fresh form can be built. Does NOT delete the Google Form or its responses.', 'Only if you want to rebuild the feedback form from scratch.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Pull mentor details into feedback responses', 'Looks up the Mentee ID of each feedback response in Matched Pairs and fills Mentor ID, Mentor Name, Mentor Email, and Track on that responses tab. Sends no email.', 'Whenever new feedback responses arrive. Open the responses tab first (defaults to the current round responses tab).'],
     ['Sheet', YDP_MATCHING_CONFIG.sheets.matchedPairs, 'Mentor Feedback Sent / Mentor Feedback Sent At', 'Whether the mentor check-in feedback email was sent to this mentor (marked on every one of their rows), and when. Prevents double-sends.', 'SENT means the mentor was asked for feedback.'],
     ['Sheet', YDP_MENTOR_FEEDBACK_FORM.responsesSheetName, 'Mentor ID / Mentor Email address / Mentor Name / feedback answers', 'Live responses from the mentor feedback Google Form. Identity fields arrive pre-filled from each mentor\'s email link, so every response is auto-tagged.', 'Read to see how mentoring is going and which mentees need follow-up.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Create mentor feedback form', 'Builds the branded mentor check-in Google Form once (sessions held, mentee engagement, follow-up needed, 1-5 rating, open comments) and links its responses to the "' + YDP_MENTOR_FEEDBACK_FORM.responsesSheetName + '" tab. Reports the link if one already exists.', 'Once, before sending any mentor feedback emails.'],
@@ -1036,6 +1038,7 @@ function getYdpButtonGuideRows_() {
     ['SAFE', menu, 'Send mentee feedback email — TEST to me', 'Sends one feedback email to your own inbox using the first mentee as a sample.', 'After preview and before the live send.', 'Create the feedback form first.', 'Sends one test email; no Matched Pairs tracking is updated.', 'Before a feedback campaign'],
     ['LIVE ACTION', menu, 'Send mentee feedback email to ALL mentees', 'Sends each matched mentee one check-in email with their own prefilled form link (ID, email, name), skipping mentees already marked ' + YDP_FEEDBACK_TRACKING.statusHeader + '.', 'After preview and a test send, once the form is created.', 'Create the form, then preview and test first.', 'Sends live emails and marks ' + YDP_FEEDBACK_TRACKING.statusHeader + ' SENT on each Matched Pairs row.', 'As needed during the cohort'],
     ['SAFE', menu, 'Reset feedback form link', 'Forgets the stored feedback form link so "Create mentee feedback form" can build a fresh one.', 'Only when you want to rebuild the form from scratch.', 'Understand it does NOT delete the existing Google Form or its collected responses.', 'Clears the stored form link in the script only; no form, response, or email changes.', 'Rarely'],
+    ['SAFE', menu, 'Pull mentor details into feedback responses', 'Fills Mentor ID, Mentor Name, Mentor Email, and Track on a mentee feedback responses tab by matching the Mentee ID of each response to Matched Pairs.', 'Whenever new feedback responses arrive and you want to see which mentor each answer is about.', 'Open the feedback responses tab to fill; otherwise the current round responses tab is used.', 'Writes only those four columns (adding any that are missing) and refreshes values already there from Matched Pairs. Sends no email.', 'As needed during a feedback round'],
     ['SAFE', menu, 'Create mentor feedback form', 'Builds the branded mentor check-in Google Form once (Mentor ID/Email/Name pre-filled, plus sessions held, mentee engagement, follow-up needed, a 1-5 rating, and open comments) and links responses to the "' + YDP_MENTOR_FEEDBACK_FORM.responsesSheetName + '" tab. If a form was already created, it reports that link instead of making a duplicate.', 'Once, before sending mentor feedback emails.', 'Approve the Google Forms access if prompted.', 'Creates a new Google Form and a linked responses tab; stores the form link in the script. No emails sent.', 'Once per cohort'],
     ['SAFE', menu, 'Preview mentor feedback email', 'Shows the mentor feedback email with a sample prefilled form link without sending.', 'Before any live mentor feedback send.', 'Create the mentor feedback form first.', 'Opens a preview only; no email or tracking changes.', 'Before a mentor feedback campaign'],
     ['SAFE', menu, 'Send mentor feedback — TEST to me', 'Sends one mentor feedback email to your own inbox using the first paired mentor as a sample.', 'After preview and before the live send.', 'Create the mentor feedback form first.', 'Sends one test email; no Matched Pairs tracking is updated.', 'Before a mentor feedback campaign'],
@@ -2699,6 +2702,148 @@ function sendYdpMenteeFeedbackToAll() {
   }
   logYdpMatchingRun_('MENTEE_FEEDBACK_SEND', result.failures.length ? 'PARTIAL_SUCCESS' : 'SUCCESS', result.summary);
   ui.alert(result.summary);
+}
+
+/* ===================================================================
+ * Mentor details on mentee feedback responses
+ * Fills Mentor ID / Name / Email / Track on a mentee feedback responses tab
+ * by looking up each response's Mentee ID in Matched Pairs, so every answer
+ * shows which mentor it is about. Runs on the active tab when it has a
+ * Mentee ID column (so it also works on the August tab); otherwise on the
+ * current round's tab. Missing columns are added at the end. Matched Pairs
+ * is the source of truth, so existing values are refreshed (a reassigned
+ * mentee shows their current mentor). Data only: sends no email.
+ * =================================================================== */
+
+const YDP_FEEDBACK_MENTOR_DETAIL_HEADERS = ['Mentor ID', 'Mentor Name', 'Mentor Email', 'Track'];
+
+// Mentee ID (upper-cased) -> { 'Mentor ID': ..., 'Mentor Name': ..., ... }.
+function buildYdpMentorDetailsByMentee_(matchedRows, headerMap) {
+  const lookup = {};
+  matchedRows.forEach(function(row) {
+    const menteeId = String(getYdpRowValueByHeader_(row, headerMap, 'Mentee ID') || '').trim().toUpperCase();
+    if (!menteeId) return;
+    const details = {};
+    YDP_FEEDBACK_MENTOR_DETAIL_HEADERS.forEach(function(header) {
+      details[header] = getYdpRowValueByHeader_(row, headerMap, header);
+    });
+    lookup[menteeId] = details;
+  });
+  return lookup;
+}
+
+// Pure: given the response rows and the Mentee ID column (0-based), returns
+// one array of values per mentor-detail header plus counts for the summary.
+// Rows with no Mentee ID, or one not in Matched Pairs, keep their old values.
+function fillYdpFeedbackMentorDetails_(responseRows, menteeIdIndex, existingColumns, lookup) {
+  const columns = YDP_FEEDBACK_MENTOR_DETAIL_HEADERS.map(function(header, h) {
+    return responseRows.map(function(row, r) { return existingColumns[h][r]; });
+  });
+  const result = { columns: columns, filled: 0, unchanged: 0, notFound: [], blank: 0 };
+
+  responseRows.forEach(function(row, r) {
+    const menteeId = String(row[menteeIdIndex] || '').trim();
+    if (!menteeId) {
+      result.blank++;
+      return;
+    }
+    const details = lookup[menteeId.toUpperCase()];
+    if (!details) {
+      result.notFound.push(menteeId);
+      return;
+    }
+    let changed = false;
+    YDP_FEEDBACK_MENTOR_DETAIL_HEADERS.forEach(function(header, h) {
+      if (String(columns[h][r] || '').trim() !== details[header]) {
+        columns[h][r] = details[header];
+        changed = true;
+      }
+    });
+    if (changed) result.filled++;
+    else result.unchanged++;
+  });
+
+  return result;
+}
+
+// Menu: pulls mentor details into a mentee feedback responses tab.
+function fillYdpFeedbackMentorDetails() {
+  const ui = SpreadsheetApp.getUi();
+  const spreadsheet = SpreadsheetApp.getActive();
+  const active = spreadsheet.getActiveSheet();
+  const matchedName = YDP_MATCHING_CONFIG.sheets.matchedPairs;
+  let sheet = null;
+
+  if (active && active.getName() !== matchedName && getYdpMatchingHeaderMap_(active)['Mentee ID']) {
+    sheet = active;
+  } else {
+    sheet = spreadsheet.getSheetByName(YDP_FEEDBACK_FORM.responsesSheetName);
+  }
+  if (!sheet) {
+    ui.alert('Could not find the "' + YDP_FEEDBACK_FORM.responsesSheetName + '" tab. Open the feedback responses tab you want to fill, then try again.');
+    return;
+  }
+
+  let headerMap = getYdpMatchingHeaderMap_(sheet);
+  if (!headerMap['Mentee ID']) {
+    ui.alert('The "' + sheet.getName() + '" tab has no "Mentee ID" column, so its rows cannot be matched to mentors.');
+    return;
+  }
+  if (sheet.getLastRow() <= 1) {
+    ui.alert('The "' + sheet.getName() + '" tab has no responses yet. Nothing to fill.');
+    return;
+  }
+
+  let matchedSheet;
+  try {
+    matchedSheet = getYdpMatchedPairsSheetForInvites_();
+  } catch (error) {
+    ui.alert(String(error.message || error));
+    return;
+  }
+
+  const confirm = ui.alert('Pull mentor details into feedback',
+    'This fills Mentor ID, Mentor Name, Mentor Email, and Track on the "' + sheet.getName() + '" tab from Matched Pairs, ' +
+    'refreshing any values already there. No email is sent. Continue?',
+    ui.ButtonSet.YES_NO);
+  if (confirm !== ui.Button.YES) return;
+
+  const matchedHeaderMap = getYdpMatchingHeaderMap_(matchedSheet);
+  const matchedRows = matchedSheet.getRange(2, 1, matchedSheet.getLastRow() - 1, matchedSheet.getLastColumn()).getValues();
+  let lookup;
+  try {
+    lookup = buildYdpMentorDetailsByMentee_(matchedRows, matchedHeaderMap);
+  } catch (error) {
+    ui.alert(String(error.message || error));
+    return;
+  }
+
+  const missing = YDP_FEEDBACK_MENTOR_DETAIL_HEADERS.filter(function(h) { return !headerMap[h]; });
+  if (missing.length) {
+    sheet.getRange(1, sheet.getLastColumn() + 1, 1, missing.length).setValues([missing]);
+    headerMap = getYdpMatchingHeaderMap_(sheet);
+  }
+
+  const rowCount = sheet.getLastRow() - 1;
+  const responseRows = sheet.getRange(2, 1, rowCount, sheet.getLastColumn()).getValues();
+  const existingColumns = YDP_FEEDBACK_MENTOR_DETAIL_HEADERS.map(function(h) {
+    return responseRows.map(function(row) { return row[headerMap[h] - 1]; });
+  });
+  const result = fillYdpFeedbackMentorDetails_(responseRows, headerMap['Mentee ID'] - 1, existingColumns, lookup);
+
+  YDP_FEEDBACK_MENTOR_DETAIL_HEADERS.forEach(function(h, i) {
+    sheet.getRange(2, headerMap[h], rowCount, 1).setValues(result.columns[i].map(function(v) { return [v]; }));
+  });
+
+  let summary = 'Mentor details on "' + sheet.getName() + '":\n\n' +
+    result.filled + ' row(s) filled or updated\n' +
+    result.unchanged + ' row(s) already correct';
+  if (result.blank) summary += '\n' + result.blank + ' row(s) skipped (no Mentee ID)';
+  if (result.notFound.length) {
+    summary += '\n' + result.notFound.length + ' row(s) not found in Matched Pairs: ' + result.notFound.join(', ');
+  }
+  logYdpMatchingRun_('FEEDBACK_MENTOR_DETAILS', result.notFound.length ? 'PARTIAL_SUCCESS' : 'SUCCESS', summary.replace(/\n+/g, ' | '));
+  ui.alert(summary);
 }
 
 /* ===================================================================
