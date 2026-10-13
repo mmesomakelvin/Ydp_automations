@@ -324,6 +324,9 @@ The setup creates these tabs:
 | `Send mentee feedback email to ALL mentees` | Emails every matched mentee their own pre-filled check-in link. | After preview and test. | Sends real emails. Skips mentees already marked `SENT` for the current round. |
 | `Reset feedback form link` | Forgets the stored mentee form link so a new form can be built. | Rarely. | Does not delete the Google Form or its answers. |
 | `Pull mentor details into feedback responses` | Looks up each response's Mentee ID in `Matched Pairs` and fills `Mentor ID`, `Mentor Name`, `Mentor Email`, and `Track` on the feedback responses tab. | Whenever new mentee feedback arrives. Open the responses tab first; if another tab is open, the current round's tab is used. | Sends no email. Refreshes values already in those columns from `Matched Pairs`, so a reassigned mentee shows their current mentor. Adds any of the four columns that are missing. |
+| `Preview follow-up email (selected row)` | Gemini writes the personal follow-up email for the selected row on `October Feedback Responses` and shows it, with the tracker colour, next action, and mentor follow-up note. | Before the live follow-up send, on a few rows. | Sends nothing. Saves the draft on the row (`DRAFTED`); the live send uses that exact text. See [Gemini Follow-up Emails](#gemini-follow-up-emails). |
+| `Send follow-up email — TEST to me (selected row)` | Sends the selected row's drafted follow-up to your own inbox. | After preview. | The mentee is not emailed. |
+| `Send follow-up emails to ALL unsent responses` | Gemini writes and sends a follow-up to every October response not yet sent. | After preview and test, and again whenever new responses arrive. | Sends real emails with no review step. Skips rows already `SENT`, rows marked sent in `Mail Status Column`, rows with no `Experience` label, and rows without a valid email. |
 | `Create mentor feedback form` | Builds the mentor check-in Google Form once and links its answers to `Mentor Feedback Responses`. | Once, before sending. | If the form already exists, it just shows its links. |
 | `Preview mentor feedback email` | Shows the mentor check-in email with a sample pre-filled form link. | Before any live mentor feedback send. | Sends nothing. |
 | `Send mentor feedback — TEST to me` | Sends one sample mentor check-in email to your own inbox. | After preview, before the live send. | Does not change any tracking columns. |
@@ -559,6 +562,27 @@ If some sends fail (for example, the daily Gmail limit), run the same `Send ... 
 ### Seeing which mentor each answer is about
 
 Mentee responses only carry the mentee's ID, email, and name. To add their mentor, open the responses tab (for example `October Feedback Responses`) and run `Pull mentor details into feedback responses`. It fills `Mentor ID`, `Mentor Name`, `Mentor Email`, and `Track` from `Matched Pairs` for every row and reports any Mentee ID it could not find. Run it again whenever new answers come in. Your own columns on that tab (such as `Experience`) are not touched.
+
+### Gemini Follow-up Emails
+
+Each mentee who answers the October check-in gets a personal reply written by Gemini and sent by the script. Gemini reads their answers (sessions, how reachable the mentor is, progress, rating, what they need, comments), the mentor's name from `Matched Pairs`, and your `Experience` label. The label picks the template, which is based on the team's own emails:
+
+| `Experience` | Template | Tracker |
+| --- | --- | --- |
+| `Good Experience` | Warm and brief; says back what went well, and acknowledges anything they still need. | Green |
+| `Somewhat good` | Acknowledges some progress but limited engagement; invites them to reply with where they want guidance. | Amber |
+| `Bad Experience` | Acknowledges the poor experience directly, apologises once, and asks them to reply with where they are stuck. Never blames the mentor. Always flags the mentor for follow-up. | Red |
+
+The script, not Gemini, writes "Dear {first name}," and the "Warm regards, YDP Mentorship Team" sign-off. The emails use the end date in `YDP_FEEDBACK_FOLLOWUP.programEndLabel` (currently **October 27**). If Gemini's reply has the wrong number of paragraphs, a placeholder, its own greeting, or any other date, that row is marked `ERROR` and nothing is sent.
+
+Columns added to the responses tab: `Follow-up Status` (`DRAFTED` / `SENDING` / `SENT` / `ERROR`), `Follow-up Sent At`, `Follow-up Email Text` (exactly what was or will be sent), `Follow-up Tracker`, `Follow-up Next Action`, `Mentor Follow-up Needed`, and `Follow-up Last Error`.
+
+Sending order:
+
+1. Set `Experience` on each row. Rows without it are skipped.
+2. Put "Mail Sent" in `Mail Status Column` for anyone you emailed by hand, so they are not emailed again.
+3. Select a row, run `Preview follow-up email (selected row)`, then `Send follow-up email — TEST to me (selected row)`. You can edit the `Follow-up Email Text` cell of a `DRAFTED` row before sending.
+4. Run `Send follow-up emails to ALL unsent responses`. One run stops after about 4 minutes, at the daily email limit, or if Gemini is out of quota on every key. Run it again to continue; rows already `SENT` are skipped.
 
 ### Starting a new mentee round
 

@@ -101,6 +101,9 @@ function onOpen() {
     .addItem('Send mentee feedback email to ALL mentees', 'sendYdpMenteeFeedbackToAll')
     .addItem('Reset feedback form link', 'resetYdpFeedbackFormLink')
     .addItem('Pull mentor details into feedback responses', 'fillYdpFeedbackMentorDetails')
+    .addItem('Preview follow-up email (selected row)', 'previewYdpFeedbackFollowup')
+    .addItem('Send follow-up email — TEST to me (selected row)', 'sendYdpFeedbackFollowupTest')
+    .addItem('Send follow-up emails to ALL unsent responses', 'sendYdpFeedbackFollowupToAll')
     .addSeparator()
     .addItem('Create mentor feedback form', 'buildYdpMentorFeedbackForm')
     .addItem('Preview mentor feedback email', 'previewYdpMentorFeedback')
@@ -942,6 +945,9 @@ function getYdpMatchingDataDictionaryRows_() {
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Send mentee feedback email to ALL mentees', 'Sends each mentee their own prefilled feedback link, skipping mentees already marked ' + YDP_FEEDBACK_TRACKING.statusHeader + '; marks each row SENT.', 'After preview and a test send, once the form is created.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Reset feedback form link', 'Forgets the stored form link so a fresh form can be built. Does NOT delete the Google Form or its responses.', 'Only if you want to rebuild the feedback form from scratch.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Pull mentor details into feedback responses', 'Looks up the Mentee ID of each feedback response in Matched Pairs and fills Mentor ID, Mentor Name, Mentor Email, and Track on that responses tab. Sends no email.', 'Whenever new feedback responses arrive. Open the responses tab first (defaults to the current round responses tab).'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Preview follow-up email (selected row)', 'Gemini writes the follow-up email for the selected October response (using the Experience label to pick the Good, Somewhat good, or Bad template) and shows it. Saves it as DRAFTED; sends nothing.', 'Before the live follow-up send, to check the wording for a few rows.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Send follow-up email — TEST to me (selected row)', 'Sends the drafted follow-up for the selected row to your own inbox. The mentee is not emailed.', 'After preview, before the live send.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Send follow-up emails to ALL unsent responses', 'Gemini writes and sends a personal follow-up to every October response not yet sent, skipping rows emailed by hand (Mail Status Column), rows with no Experience label, and rows without a valid email. Saves each email on the row.', 'After preview and test. Run again to continue if it stops early.'],
     ['Sheet', YDP_MATCHING_CONFIG.sheets.matchedPairs, 'Mentor Feedback Sent / Mentor Feedback Sent At', 'Whether the mentor check-in feedback email was sent to this mentor (marked on every one of their rows), and when. Prevents double-sends.', 'SENT means the mentor was asked for feedback.'],
     ['Sheet', YDP_MENTOR_FEEDBACK_FORM.responsesSheetName, 'Mentor ID / Mentor Email address / Mentor Name / feedback answers', 'Live responses from the mentor feedback Google Form. Identity fields arrive pre-filled from each mentor\'s email link, so every response is auto-tagged.', 'Read to see how mentoring is going and which mentees need follow-up.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Create mentor feedback form', 'Builds the branded mentor check-in Google Form once (sessions held, mentee engagement, follow-up needed, 1-5 rating, open comments) and links its responses to the "' + YDP_MENTOR_FEEDBACK_FORM.responsesSheetName + '" tab. Reports the link if one already exists.', 'Once, before sending any mentor feedback emails.'],
@@ -1039,6 +1045,9 @@ function getYdpButtonGuideRows_() {
     ['LIVE ACTION', menu, 'Send mentee feedback email to ALL mentees', 'Sends each matched mentee one check-in email with their own prefilled form link (ID, email, name), skipping mentees already marked ' + YDP_FEEDBACK_TRACKING.statusHeader + '.', 'After preview and a test send, once the form is created.', 'Create the form, then preview and test first.', 'Sends live emails and marks ' + YDP_FEEDBACK_TRACKING.statusHeader + ' SENT on each Matched Pairs row.', 'As needed during the cohort'],
     ['SAFE', menu, 'Reset feedback form link', 'Forgets the stored feedback form link so "Create mentee feedback form" can build a fresh one.', 'Only when you want to rebuild the form from scratch.', 'Understand it does NOT delete the existing Google Form or its collected responses.', 'Clears the stored form link in the script only; no form, response, or email changes.', 'Rarely'],
     ['SAFE', menu, 'Pull mentor details into feedback responses', 'Fills Mentor ID, Mentor Name, Mentor Email, and Track on a mentee feedback responses tab by matching the Mentee ID of each response to Matched Pairs.', 'Whenever new feedback responses arrive and you want to see which mentor each answer is about.', 'Open the feedback responses tab to fill; otherwise the current round responses tab is used.', 'Writes only those four columns (adding any that are missing) and refreshes values already there from Matched Pairs. Sends no email.', 'As needed during a feedback round'],
+    ['SAFE', menu, 'Preview follow-up email (selected row)', 'Asks Gemini to write the follow-up email for the selected October response and shows it, with the tracker colour, next action, and mentor follow-up note.', 'Before the live follow-up send.', 'Open October Feedback Responses, set the Experience label, and select the row.', 'Saves the draft text and tracker notes on that row (status DRAFTED). Sends nothing.', 'Before each follow-up send'],
+    ['SAFE', menu, 'Send follow-up email — TEST to me (selected row)', 'Sends the drafted follow-up for the selected row to your own inbox.', 'After preview and before the live send.', 'Select the response row first.', 'Sends one test email to you and saves the draft (DRAFTED). The mentee is not emailed.', 'Before each follow-up send'],
+    ['LIVE ACTION', menu, 'Send follow-up emails to ALL unsent responses', 'Gemini writes and sends a personal follow-up email to every October response not yet sent, based on their answers and the Experience label.', 'After preview and a test send.', 'Set the Experience label on each row; mark rows you emailed by hand in Mail Status Column.', 'Sends live emails, saves each email text on the row, and marks Follow-up Status SENT. Skips SENT, hand-emailed, unlabelled, and invalid-email rows.', 'Once per feedback round, rerun for new responses'],
     ['SAFE', menu, 'Create mentor feedback form', 'Builds the branded mentor check-in Google Form once (Mentor ID/Email/Name pre-filled, plus sessions held, mentee engagement, follow-up needed, a 1-5 rating, and open comments) and links responses to the "' + YDP_MENTOR_FEEDBACK_FORM.responsesSheetName + '" tab. If a form was already created, it reports that link instead of making a duplicate.', 'Once, before sending mentor feedback emails.', 'Approve the Google Forms access if prompted.', 'Creates a new Google Form and a linked responses tab; stores the form link in the script. No emails sent.', 'Once per cohort'],
     ['SAFE', menu, 'Preview mentor feedback email', 'Shows the mentor feedback email with a sample prefilled form link without sending.', 'Before any live mentor feedback send.', 'Create the mentor feedback form first.', 'Opens a preview only; no email or tracking changes.', 'Before a mentor feedback campaign'],
     ['SAFE', menu, 'Send mentor feedback — TEST to me', 'Sends one mentor feedback email to your own inbox using the first paired mentor as a sample.', 'After preview and before the live send.', 'Create the mentor feedback form first.', 'Sends one test email; no Matched Pairs tracking is updated.', 'Before a mentor feedback campaign'],
@@ -2843,6 +2852,498 @@ function fillYdpFeedbackMentorDetails() {
     summary += '\n' + result.notFound.length + ' row(s) not found in Matched Pairs: ' + result.notFound.join(', ');
   }
   logYdpMatchingRun_('FEEDBACK_MENTOR_DETAILS', result.notFound.length ? 'PARTIAL_SUCCESS' : 'SUCCESS', summary.replace(/\n+/g, ' | '));
+  ui.alert(summary);
+}
+
+/* ===================================================================
+ * Gemini follow-up emails for mentee feedback responses
+ * For each row on the October responses tab, Gemini reads the mentee's
+ * answers plus the team's Experience label (Good / Somewhat good / Bad) and
+ * writes a personal reply in the style of the team's own emails, and the
+ * script sends it. The greeting ("Dear <first name>,") and sign-off are added
+ * by the script, not Gemini. Every sent email is saved on the row, with a
+ * tracker colour, a next action, and a mentor follow-up note.
+ *
+ * Skipped: rows already SENT, rows the team emailed by hand ("Mail Status
+ * Column" says sent), rows with no Experience label, and rows with no valid
+ * email. Preview / Test save the draft (status DRAFTED) and the live send uses
+ * that saved text, so what you previewed is what goes out; editing the
+ * "Follow-up Email Text" cell before sending changes what is sent.
+ * =================================================================== */
+
+const YDP_FEEDBACK_FOLLOWUP = {
+  responsesSheetName: YDP_FEEDBACK_FORM.responsesSheetName,
+  programEndLabel: 'October 27',
+  subject: 'Thank you for your YDP Mentorship feedback',
+  statusHeader: 'Follow-up Status',
+  sentAtHeader: 'Follow-up Sent At',
+  textHeader: 'Follow-up Email Text',
+  trackerHeader: 'Follow-up Tracker',
+  actionHeader: 'Follow-up Next Action',
+  mentorFlagHeader: 'Mentor Follow-up Needed',
+  errorHeader: 'Follow-up Last Error',
+  maxRunMilliseconds: 240000
+};
+
+function getYdpFollowupTrackingHeaders_() {
+  const t = YDP_FEEDBACK_FOLLOWUP;
+  return [t.statusHeader, t.sentAtHeader, t.textHeader, t.trackerHeader, t.actionHeader, t.mentorFlagHeader, t.errorHeader];
+}
+
+// How each response column is found. Question titles are matched by a
+// phrase, because some contain the end date and may change between rounds.
+const YDP_FOLLOWUP_COLUMN_RULES = {
+  menteeId: { exact: 'Mentee ID' },
+  email: { contains: 'mentee email' },
+  name: { exact: 'Mentee Name' },
+  sessions: { contains: 'how many sessions' },
+  reach: { contains: 'easy to reach' },
+  progress: { contains: 'how much progress' },
+  rating: { contains: 'rate your mentorship' },
+  needs: { contains: 'anything you need' },
+  comments: { contains: 'anything going well' },
+  experience: { exact: 'Experience' },
+  manualMailStatus: { contains: 'mail status' }
+};
+
+function findYdpFollowupColumn_(headers, rule) {
+  const lower = headers.map(function(h) { return String(h || '').trim().toLowerCase(); });
+  if (rule.exact) return lower.indexOf(rule.exact.toLowerCase());
+  for (let i = 0; i < lower.length; i++) {
+    if (lower[i].indexOf(rule.contains) !== -1) return i;
+  }
+  return -1;
+}
+
+// 'good' | 'somewhat' | 'bad' | '' from the team's Experience label.
+function getYdpFollowupCategory_(experience) {
+  const value = String(experience || '').trim().toLowerCase();
+  if (!value) return '';
+  if (value.indexOf('bad') !== -1) return 'bad';
+  if (value.indexOf('somewhat') !== -1) return 'somewhat';
+  if (value.indexOf('good') !== -1) return 'good';
+  return '';
+}
+
+function getYdpFollowupTracker_(category) {
+  return { good: 'Green', somewhat: 'Amber', bad: 'Red' }[category] || '';
+}
+
+// Pure: one response row -> the fields Gemini and the sender need.
+function readYdpFollowupResponse_(headers, row, rowNumber, mentorLookup, trackingMap) {
+  const r = { rowNumber: rowNumber };
+  Object.keys(YDP_FOLLOWUP_COLUMN_RULES).forEach(function(key) {
+    const index = findYdpFollowupColumn_(headers, YDP_FOLLOWUP_COLUMN_RULES[key]);
+    r[key] = index === -1 ? '' : String(row[index] === null || row[index] === undefined ? '' : row[index]).trim();
+  });
+  r.firstName = getYdpFirstName_(r.name);
+  r.category = getYdpFollowupCategory_(r.experience);
+
+  const mentor = (mentorLookup || {})[r.menteeId.toUpperCase()] || {};
+  r.mentorName = mentor['Mentor Name'] || '';
+  r.mentorFirstName = r.mentorName ? getYdpFirstName_(r.mentorName) : '';
+  r.track = mentor['Track'] || '';
+
+  const t = YDP_FEEDBACK_FOLLOWUP;
+  const cell = function(header) {
+    const col = trackingMap && trackingMap[header];
+    return col ? String(row[col - 1] === null || row[col - 1] === undefined ? '' : row[col - 1]).trim() : '';
+  };
+  r.status = cell(t.statusHeader).toUpperCase();
+  r.text = cell(t.textHeader);
+  return r;
+}
+
+// '' when the row should get a follow-up email, otherwise why it is skipped.
+function getYdpFollowupSkipReason_(r) {
+  if (r.status === 'SENT') return 'already sent';
+  if (r.status === 'SENDING') return 'stuck in SENDING (check whether it was delivered, then clear the status)';
+  if (!r.menteeId && !r.email && !r.name) return 'empty row';
+  if (r.manualMailStatus.toLowerCase().indexOf('sent') !== -1) return 'already emailed by hand';
+  if (!isValidYdpEmail_(r.email)) return 'no valid email';
+  if (!r.name) return 'no mentee name';
+  if (!r.category) return 'Experience not set';
+  return '';
+}
+
+// The team's own emails, used as the template for each Experience label.
+// Facts here are examples only; the prompt tells Gemini not to reuse them.
+function getYdpFollowupGuide_(category, endLabel) {
+  const opener = 'Thank you for taking the time to share your feedback with us regarding your experience in the YDP Mentorship Programme.';
+  const guides = {
+    bad: {
+      label: 'Bad Experience',
+      instructions: 'Acknowledge the poor experience directly and specifically (not a generic close-out). Restate what they told you about sessions, how hard the mentor is to reach, and the goals they cannot progress on. Apologise once. Ask them to reply with where they are stuck so the team can find practical support before the programme closes. Thank them for being open. Do not criticise or name-blame the mentor.',
+      example: [
+        opener,
+        'We noted your concern that you have only had limited engagement with your mentor and have not received the level of mentorship you expected. We also understand that one of your key goals is to build two end-to-end Analytics Engineering projects, but you have found it difficult to move forward without adequate guidance.',
+        'We are sorry that your experience has not been as valuable as we intended it to be.',
+        'As we approach the end of the programme on ' + endLabel + ', we would like to better understand where you are currently stuck and see what practical support we can provide within the remaining period.',
+        'Please reply to this email with a brief explanation of the areas where you currently need the most guidance on your projects. This will help us determine the most appropriate way to support you before the programme closes.',
+        'Thank you again for being open with your feedback. It is important to us, and it will also help us improve how we manage mentorship relationships in future cohorts.'
+      ]
+    },
+    somewhat: {
+      label: 'Somewhat good',
+      instructions: 'Acknowledge the progress they have made with their mentor, and that engagement has been limited so far. Say the team wants them to get as much value as possible before the programme ends, and invite them to reply with any specific area where they still want guidance. If they named a need, refer to it instead of the generic list. Thank them.',
+      example: [
+        opener,
+        'We noted that you have had some progress with your mentor, Ada, but that your engagement has been limited so far. As we approach the end of the programme on ' + endLabel + ', we would like to ensure that you are able to get as much value as possible from the remaining period.',
+        'If there is any specific area where you would still like guidance or support before the programme ends, please reply to this email and let us know. This could be related to your career direction, projects, technical development, portfolio, job search, or any other area where additional guidance would be useful.',
+        'Thank you again for your participation and for sharing your experience with us. Your feedback is valuable as we work to improve the programme.'
+      ]
+    },
+    good: {
+      label: 'Good Experience',
+      instructions: 'Keep it warm, appreciative, and brief. Say back what went well (engagement, responsiveness, progress, anything they praised). If they named something they still need, acknowledge it and invite them to share it or reply for support before the programme closes. If they named nothing, leave that out and encourage them to make the most of the remaining period with their mentor. Thank them for their commitment.',
+      example: [
+        opener,
+        'We were very pleased to hear that your mentorship experience with Ada has been positive, that you have had consistent engagement, and most importantly, that you feel you have achieved what you hoped to gain from the programme.',
+        'We also noted that you would still appreciate some support with completing the setup of your portfolio. As we approach the end of the programme on ' + endLabel + ', we would like to ensure that you are able to make progress on this before the programme closes.',
+        'Please feel free to share the portfolio with us once it is ready, along with any specific areas where you would like support or feedback.',
+        'Thank you again for your commitment to the programme and for sharing your experience with us. We are glad that the mentorship has been valuable to you, and we look forward to seeing the work you continue to build from here.'
+      ]
+    }
+  };
+  return guides[category];
+}
+
+function buildYdpFollowupPrompt_(r) {
+  const endLabel = YDP_FEEDBACK_FOLLOWUP.programEndLabel;
+  const guide = getYdpFollowupGuide_(r.category, endLabel);
+  const answers = {
+    menteeFirstName: r.firstName,
+    mentorFirstName: r.mentorFirstName,
+    track: r.track,
+    sessionsInPastMonth: r.sessions,
+    isMentorEasyToReach: r.reach,
+    progressTowardGoals: r.progress,
+    ratingOutOf5: r.rating,
+    whatTheyNeedBeforeTheEnd: r.needs,
+    anythingElseTheyShared: r.comments
+  };
+
+  return [
+    'Write a personal follow-up email from the YDP Mentorship Team to a mentee who answered our end-of-programme check-in.',
+    'Use only the facts in the mentee answers below. Do not invent sessions, events, offers, people, links, or dates, and do not promise anything specific (no calls, sessions, or introductions).',
+    'The programme ends on ' + endLabel + '. That is the only date you may mention.',
+    'Write in warm, professional British English (programme, prioritise), matching the tone and structure of the example. Refer to the mentor by first name, or "your mentor" if no name is given.',
+    'Do not write a greeting ("Dear ...") or a sign-off ("Warm regards ..."); they are added for you. Do not use square brackets, curly braces, or placeholders.',
+    'Write 3 to 6 short paragraphs. The first paragraph must be exactly: "Thank you for taking the time to share your feedback with us regarding your experience in the YDP Mentorship Programme."',
+    '',
+    'The team has labelled this mentee: ' + guide.label + '.',
+    guide.instructions,
+    '',
+    'Example email for this label (copy its tone and structure, not its facts):',
+    guide.example.join('\n\n'),
+    '',
+    'Also return, for the team tracker (not part of the email):',
+    'nextAction: one short line, e.g. "Follow up on portfolio support" or "No immediate intervention needed".',
+    'mentorFollowUp: if the answers point to a mentor-engagement problem, one short line on why the team should also follow up with the mentor; otherwise an empty string.',
+    '',
+    'Return JSON only. No markdown. No extra text.',
+    '{"paragraphs":["",""],"nextAction":"","mentorFollowUp":""}',
+    '',
+    'Mentee answers:',
+    JSON.stringify(answers)
+  ].join('\n');
+}
+
+// Pure: checks Gemini's reply and builds the full plain-text email. Throws
+// (so nothing is sent) when the reply is unusable.
+function buildYdpFollowupDraft_(gemini, r) {
+  const paragraphs = (gemini && Array.isArray(gemini.paragraphs) ? gemini.paragraphs : [])
+    .map(function(p) { return String(p || '').trim(); })
+    .filter(function(p) { return p; });
+
+  if (paragraphs.length < 3 || paragraphs.length > 7) {
+    throw new Error('Gemini returned ' + paragraphs.length + ' paragraph(s); expected 3 to 6.');
+  }
+  const endLabel = YDP_FEEDBACK_FOLLOWUP.programEndLabel;
+  const months = /\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2})\b/g;
+  paragraphs.forEach(function(p) {
+    if (p.length > 1200) throw new Error('Gemini returned a paragraph that is too long.');
+    if (/[\[\]{}<>]/.test(p)) throw new Error('Gemini returned brackets or a placeholder: ' + p.slice(0, 120));
+    if (/^(dear|hi|hello)\b/i.test(p) || /warm regards|kind regards|best regards/i.test(p)) {
+      throw new Error('Gemini included its own greeting or sign-off.');
+    }
+    let match;
+    months.lastIndex = 0;
+    while ((match = months.exec(p)) !== null) {
+      if (match[0] !== endLabel) throw new Error('Gemini mentioned a date other than ' + endLabel + ': ' + match[0]);
+    }
+  });
+
+  const text = ['Dear ' + r.firstName + ','].concat(paragraphs).concat(['Warm regards,\n' + YDP_MATCHING_CONFIG.senderName]).join('\n\n');
+  let mentorFollowUp = String((gemini && gemini.mentorFollowUp) || '').trim();
+  if (!mentorFollowUp && r.category === 'bad') mentorFollowUp = 'Yes: mentee reported a bad experience.';
+
+  return {
+    text: text,
+    tracker: getYdpFollowupTracker_(r.category),
+    nextAction: String((gemini && gemini.nextAction) || '').trim().slice(0, 300),
+    mentorFollowUp: mentorFollowUp.slice(0, 300) || 'No'
+  };
+}
+
+// Pure: the email to send, built from the saved plain text.
+function buildYdpFollowupEmail_(text, logoSrc) {
+  const navy = YDP_MENTOR_COUNTDOWN.navy;
+  const gold = YDP_MENTOR_COUNTDOWN.gold;
+  const src = logoSrc || 'cid:ydpLogo';
+  const paras = String(text).split(/\n\s*\n/).map(function(p) {
+    return '<p style="margin:0 0 16px 0;">' + escapeYdpHtml_(p.trim()).replace(/\n/g, '<br>') + '</p>';
+  }).join('');
+
+  const htmlBody = [
+    '<div style="margin:0;padding:0;background:#f4f4f6;">',
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f6;padding:24px 0;">',
+    '<tr><td align="center">',
+    '<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:10px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;">',
+    '<tr><td style="background:#ffffff;border-top:5px solid ' + navy + ';padding:26px 32px 18px 32px;text-align:center;">',
+    '<img src="' + src + '" alt="Young Data Professionals" width="300" style="display:block;margin:0 auto;width:300px;max-width:72%;height:auto;">',
+    '<div style="font-size:13px;letter-spacing:3px;color:' + navy + ';margin-top:14px;">MENTORSHIP PROGRAM</div>',
+    '<div style="height:3px;width:64px;background:' + gold + ';margin:14px auto 0 auto;font-size:0;line-height:0;">&nbsp;</div>',
+    '</td></tr>',
+    '<tr><td style="padding:24px 32px 16px 32px;color:#222222;font-size:15px;line-height:1.6;">',
+    paras,
+    '</td></tr>',
+    '<tr><td style="background:#f4f4f6;padding:18px 32px;text-align:center;color:#888888;font-size:12px;line-height:1.5;">',
+    'YDP Mentorship Program &bull; Cohort 2<br>You are receiving this because you shared feedback as a mentee in Cohort 2.',
+    '</td></tr>',
+    '</table>',
+    '</td></tr>',
+    '</table>',
+    '</div>'
+  ].join('');
+
+  return { subject: YDP_FEEDBACK_FOLLOWUP.subject, body: String(text), htmlBody: htmlBody };
+}
+
+function ensureYdpFollowupColumns_(sheet) {
+  let headerMap = getYdpMatchingHeaderMap_(sheet);
+  const missing = getYdpFollowupTrackingHeaders_().filter(function(h) { return !headerMap[h]; });
+  if (missing.length) {
+    sheet.getRange(1, sheet.getLastColumn() + 1, 1, missing.length).setValues([missing]);
+    headerMap = getYdpMatchingHeaderMap_(sheet);
+  }
+  return headerMap;
+}
+
+function getYdpFollowupMentorLookup_() {
+  try {
+    const matchedSheet = getYdpMatchedPairsSheetForInvites_();
+    const rows = matchedSheet.getRange(2, 1, matchedSheet.getLastRow() - 1, matchedSheet.getLastColumn()).getValues();
+    return buildYdpMentorDetailsByMentee_(rows, getYdpMatchingHeaderMap_(matchedSheet));
+  } catch (error) {
+    return {}; // emails then say "your mentor"
+  }
+}
+
+function getYdpFollowupSheet_() {
+  const sheet = SpreadsheetApp.getActive().getSheetByName(YDP_FEEDBACK_FOLLOWUP.responsesSheetName);
+  if (!sheet) throw new Error('Could not find the "' + YDP_FEEDBACK_FOLLOWUP.responsesSheetName + '" tab.');
+  if (sheet.getLastRow() <= 1) throw new Error('The "' + sheet.getName() + '" tab has no responses yet.');
+  return sheet;
+}
+
+function readYdpFollowupResponses_(sheet, headerMap, mentorLookup) {
+  const lastColumn = sheet.getLastColumn();
+  const headers = sheet.getRange(1, 1, 1, lastColumn).getValues()[0];
+  if (findYdpFollowupColumn_(headers, YDP_FOLLOWUP_COLUMN_RULES.experience) === -1) {
+    throw new Error('The "' + sheet.getName() + '" tab has no "Experience" column, so the right template cannot be chosen.');
+  }
+  const values = sheet.getRange(2, 1, sheet.getLastRow() - 1, lastColumn).getValues();
+  return values.map(function(row, i) {
+    return readYdpFollowupResponse_(headers, row, i + 2, mentorLookup, headerMap);
+  });
+}
+
+// Returns the saved draft text, or asks Gemini for one and saves it (DRAFTED).
+function getOrCreateYdpFollowupDraft_(sheet, headerMap, r) {
+  const t = YDP_FEEDBACK_FOLLOWUP;
+  if (r.text && (r.status === 'DRAFTED' || r.status === 'SENT')) return r.text;
+
+  const draft = buildYdpFollowupDraft_(callYdpGeminiJson_(buildYdpFollowupPrompt_(r)), r);
+  sheet.getRange(r.rowNumber, headerMap[t.textHeader]).setValue(draft.text);
+  sheet.getRange(r.rowNumber, headerMap[t.trackerHeader]).setValue(draft.tracker);
+  sheet.getRange(r.rowNumber, headerMap[t.actionHeader]).setValue(draft.nextAction);
+  sheet.getRange(r.rowNumber, headerMap[t.mentorFlagHeader]).setValue(draft.mentorFollowUp);
+  sheet.getRange(r.rowNumber, headerMap[t.statusHeader]).setValue('DRAFTED');
+  sheet.getRange(r.rowNumber, headerMap[t.errorHeader]).setValue('');
+  r.status = 'DRAFTED';
+  r.text = draft.text;
+  return draft.text;
+}
+
+// Reads the selected row on the responses tab for Preview / Test.
+function getYdpSelectedFollowupResponse_() {
+  const sheet = getYdpFollowupSheet_();
+  const active = SpreadsheetApp.getActiveSheet();
+  if (active.getName() !== sheet.getName()) {
+    throw new Error('Open the "' + sheet.getName() + '" tab and select a response row first.');
+  }
+  const rowNumber = active.getActiveRange().getRow();
+  if (rowNumber < 2 || rowNumber > sheet.getLastRow()) {
+    throw new Error('Select a response row (not the header) first.');
+  }
+  const headerMap = ensureYdpFollowupColumns_(sheet);
+  const responses = readYdpFollowupResponses_(sheet, headerMap, getYdpFollowupMentorLookup_());
+  return { sheet: sheet, headerMap: headerMap, response: responses[rowNumber - 2] };
+}
+
+function previewYdpFeedbackFollowup() {
+  const ui = SpreadsheetApp.getUi();
+  let selected;
+  try {
+    selected = getYdpSelectedFollowupResponse_();
+  } catch (error) {
+    ui.alert(String(error.message || error));
+    return;
+  }
+  const r = selected.response;
+  const skip = getYdpFollowupSkipReason_(r);
+  if (skip && !(r.status === 'SENT' && r.text)) {
+    ui.alert('Row ' + r.rowNumber + ' will be skipped by the send: ' + skip + '.');
+    return;
+  }
+  let text;
+  try {
+    text = getOrCreateYdpFollowupDraft_(selected.sheet, selected.headerMap, r);
+  } catch (error) {
+    ui.alert('Gemini could not write this email, so nothing was saved:\n\n' + shortenYdpErrorMessage_(String(error.message || error), 900));
+    return;
+  }
+  const email = buildYdpFollowupEmail_(text, 'data:image/png;base64,' + YDP_LOGO_BASE64);
+  const row = selected.sheet.getRange(r.rowNumber, 1, 1, selected.sheet.getLastColumn()).getValues()[0];
+  const t = YDP_FEEDBACK_FOLLOWUP;
+  const note = (r.status === 'SENT' ? 'Already SENT. This is the email they received. ' : 'Saved as DRAFTED; the live send uses this exact text. ') +
+    'Tracker: ' + row[selected.headerMap[t.trackerHeader] - 1] +
+    ' | Next action: ' + row[selected.headerMap[t.actionHeader] - 1] +
+    ' | Mentor follow-up: ' + row[selected.headerMap[t.mentorFlagHeader] - 1];
+  ydpShowMatchInvitePreview_(email, r.firstName + ' (' + r.experience + ')', note, 'Follow-up Email Preview');
+}
+
+function sendYdpFeedbackFollowupTest() {
+  const ui = SpreadsheetApp.getUi();
+  let selected;
+  try {
+    selected = getYdpSelectedFollowupResponse_();
+  } catch (error) {
+    ui.alert(String(error.message || error));
+    return;
+  }
+  const r = selected.response;
+  const testRecipient = ydpResolveTestRecipient_('Send Test Follow-up Email');
+  if (!testRecipient) return;
+  try {
+    const text = getOrCreateYdpFollowupDraft_(selected.sheet, selected.headerMap, r);
+    const email = buildYdpFollowupEmail_(text);
+    MailApp.sendEmail({ to: testRecipient, subject: '[TEST] ' + email.subject, body: email.body, htmlBody: email.htmlBody, name: YDP_MATCHING_CONFIG.senderName, inlineImages: { ydpLogo: getYdpLogoBlob_() } });
+    ui.alert('Test follow-up for ' + r.firstName + ' sent to ' + testRecipient + '.\n\nThe mentee was not emailed. Their row is saved as DRAFTED, and the live send will use this exact text.');
+  } catch (error) {
+    ui.alert('Test follow-up failed:\n\n' + shortenYdpErrorMessage_(String(error.message || error), 900));
+  }
+}
+
+function sendYdpFeedbackFollowupToAll() {
+  const ui = SpreadsheetApp.getUi();
+  const t = YDP_FEEDBACK_FOLLOWUP;
+  let sheet, headerMap, responses;
+  try {
+    sheet = getYdpFollowupSheet_();
+    headerMap = ensureYdpFollowupColumns_(sheet);
+    responses = readYdpFollowupResponses_(sheet, headerMap, getYdpFollowupMentorLookup_());
+  } catch (error) {
+    ui.alert(String(error.message || error));
+    return;
+  }
+
+  const eligible = [];
+  const skipped = {};
+  responses.forEach(function(r) {
+    const reason = getYdpFollowupSkipReason_(r);
+    if (!reason) eligible.push(r);
+    else if (reason !== 'empty row') skipped[reason] = (skipped[reason] || 0) + 1;
+  });
+  const skippedText = Object.keys(skipped).map(function(k) { return skipped[k] + ' ' + k; }).join(', ') || 'none';
+
+  if (!eligible.length) {
+    ui.alert('No responses need a follow-up email.\n\nSkipped: ' + skippedText + '.');
+    return;
+  }
+  const byCategory = { good: 0, somewhat: 0, bad: 0 };
+  eligible.forEach(function(r) { byCategory[r.category]++; });
+
+  const confirm = ui.alert('Send Gemini follow-up emails',
+    'Gemini will write and send ' + eligible.length + ' follow-up email(s): ' +
+    byCategory.good + ' Good, ' + byCategory.somewhat + ' Somewhat good, ' + byCategory.bad + ' Bad Experience.\n\n' +
+    'Skipped: ' + skippedText + '.\n\nThese go straight to mentees. Continue?',
+    ui.ButtonSet.YES_NO);
+  if (confirm !== ui.Button.YES) return;
+
+  const quota = MailApp.getRemainingDailyQuota();
+  if (quota < 1) {
+    ui.alert('The daily email quota is used up. Nothing was sent. Try again tomorrow.');
+    return;
+  }
+
+  const lock = LockService.getDocumentLock();
+  if (!lock.tryLock(5000)) {
+    ui.alert('Another follow-up send is already running. Nothing was sent.');
+    return;
+  }
+
+  const started = Date.now();
+  let sentCount = 0;
+  let stoppedReason = '';
+  const failures = [];
+  try {
+    for (let i = 0; i < eligible.length; i++) {
+      const r = eligible[i];
+      if (sentCount >= quota) { stoppedReason = 'daily email quota reached'; break; }
+      if (Date.now() - started > t.maxRunMilliseconds) { stoppedReason = 'time limit for one run reached'; break; }
+
+      let text;
+      try {
+        text = getOrCreateYdpFollowupDraft_(sheet, headerMap, r);
+      } catch (error) {
+        const message = shortenYdpErrorMessage_(String(error.message || error), 500);
+        sheet.getRange(r.rowNumber, headerMap[t.errorHeader]).setValue(message);
+        if (isYdpGeminiQuotaError_(error) || isYdpGeminiServiceUnavailableError_(error)) {
+          stoppedReason = 'Gemini is busy or out of quota on every key';
+          break;
+        }
+        sheet.getRange(r.rowNumber, headerMap[t.statusHeader]).setValue('ERROR');
+        failures.push(r.firstName + ' (row ' + r.rowNumber + '): ' + message);
+        continue;
+      }
+
+      try {
+        sheet.getRange(r.rowNumber, headerMap[t.statusHeader]).setValue('SENDING');
+        SpreadsheetApp.flush();
+        const email = buildYdpFollowupEmail_(text);
+        MailApp.sendEmail({ to: r.email, subject: email.subject, body: email.body, htmlBody: email.htmlBody, name: YDP_MATCHING_CONFIG.senderName, inlineImages: { ydpLogo: getYdpLogoBlob_() } });
+        sheet.getRange(r.rowNumber, headerMap[t.statusHeader]).setValue('SENT');
+        sheet.getRange(r.rowNumber, headerMap[t.sentAtHeader]).setValue(new Date());
+        sheet.getRange(r.rowNumber, headerMap[t.errorHeader]).setValue('');
+        sentCount++;
+      } catch (error) {
+        const message = shortenYdpErrorMessage_(String(error.message || error), 500);
+        sheet.getRange(r.rowNumber, headerMap[t.statusHeader]).setValue('DRAFTED'); // draft kept; retried next run
+        sheet.getRange(r.rowNumber, headerMap[t.errorHeader]).setValue(message);
+        failures.push(r.firstName + ' (row ' + r.rowNumber + '): ' + message);
+      }
+    }
+  } finally {
+    lock.releaseLock();
+  }
+
+  const remaining = eligible.length - sentCount - failures.length;
+  let summary = 'Follow-up emails: sent ' + sentCount + ' of ' + eligible.length + '.\nSkipped: ' + skippedText + '.';
+  if (stoppedReason) summary += '\n\nStopped early (' + stoppedReason + '). ' + remaining + ' still to send: run the button again later to continue.';
+  if (failures.length) summary += '\n\nFailed (see Follow-up Last Error; run again to retry):\n' + failures.join('\n');
+  logYdpMatchingRun_('FEEDBACK_FOLLOWUP_SEND', failures.length || stoppedReason ? 'PARTIAL_SUCCESS' : 'SUCCESS', summary.replace(/\n+/g, ' | '));
   ui.alert(summary);
 }
 
