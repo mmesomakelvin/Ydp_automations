@@ -150,7 +150,27 @@ assert.deepStrictEqual(sleeps, [5000, 10000, 20000]);
 calls = 0;
 assert.throws(() => context.retryYdpGeminiWhenBusy_(() => { calls++; throw new Error('Gemini returned invalid JSON.'); }, [5000], () => {}), /invalid JSON/);
 assert.strictEqual(calls, 1, 'other errors are not retried');
-assert.deepStrictEqual(Array.from(cfg.busyRetryWaitsMs), [5000, 10000, 20000]);
+assert.deepStrictEqual(Array.from(cfg.busyRetryWaitsMs), [5000, 10000]);
+assert.deepStrictEqual(Array.from(cfg.fallbackModels), ['gemini-3.8-flash', 'gemini-3.5-flash-lite']);
+
+// Falls back to the next model when one stays busy or does not exist.
+const notFound = () => new Error('Gemini API HTTP 404 NOT_FOUND: models/x is not found.');
+const tried = [];
+const fallback = context.callYdpGeminiAcrossModels_(['gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-3.5-flash-lite'], (model) => {
+  tried.push(model);
+  if (model === 'gemini-3.5-flash') throw busy();
+  if (model === 'gemini-3.8-flash') throw notFound();
+  return { paragraphs: [] };
+}, [5000, 10000], () => {});
+assert.strictEqual(fallback.model, 'gemini-3.5-flash-lite');
+assert.deepStrictEqual(tried, ['gemini-3.5-flash', 'gemini-3.5-flash', 'gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-3.5-flash-lite']);
+
+assert.throws(() => context.callYdpGeminiAcrossModels_(['a', 'b'], () => { throw busy(); }, [1], () => {}),
+  (error) => /busy right now \(tried a \(busy\), b \(busy\)\)/.test(error.message) && context.isYdpGeminiServiceUnavailableError_(error),
+  'all busy: the send loop must still see a 503 so it stops the run');
+let otherCalls = 0;
+assert.throws(() => context.callYdpGeminiAcrossModels_(['a', 'b'], () => { otherCalls++; throw new Error('Gemini returned invalid JSON.'); }, [1], () => {}), /invalid JSON/);
+assert.strictEqual(otherCalls, 1, 'other errors do not try more models');
 
 // Menu, dictionary, and button guide list all three buttons.
 [

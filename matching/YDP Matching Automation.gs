@@ -2882,9 +2882,13 @@ const YDP_FEEDBACK_FOLLOWUP = {
   actionHeader: 'Follow-up Next Action',
   mentorFlagHeader: 'Mentor Follow-up Needed',
   errorHeader: 'Follow-up Last Error',
-  // Waits before each retry when Gemini says "high demand" (503): 4 tries in
-  // about 35 seconds per email.
-  busyRetryWaitsMs: [5000, 10000, 20000],
+  // When a model says "high demand" (503), retry it after these waits, then
+  // move to the next model. Switching API keys does not help with a 503: it is
+  // the model that is full, and every key calls the same model.
+  busyRetryWaitsMs: [5000, 10000],
+  // Tried in order after the Source Config model (GEMINI_MODEL). gemini-3.5-flash
+  // was deprecated on 2026-10-08; Google suggests these two instead.
+  fallbackModels: ['gemini-3.8-flash', 'gemini-3.5-flash-lite'],
   maxRunMilliseconds: 240000
 };
 
@@ -3183,18 +3187,60 @@ function retryYdpGeminiWhenBusy_(requestFunction, waitsMs, sleepFunction) {
   }
 }
 
+function isYdpGeminiModelNotFoundError_(error) {
+  const message = String(error && error.message ? error.message : error || '').toLowerCase();
+  return message.indexOf('http 404') !== -1 || message.indexOf('not_found') !== -1;
+}
+
+// Tries each model in turn (retrying busy ones per retryYdpGeminiWhenBusy_).
+// Moves to the next model when one stays busy or does not exist; any other
+// error is thrown at once. Returns { result, model }.
+function callYdpGeminiAcrossModels_(models, requestForModel, waitsMs, sleepFunction) {
+  const tried = [];
+  let lastError = null;
+  for (let i = 0; i < models.length; i++) {
+    const model = models[i];
+    try {
+      const result = retryYdpGeminiWhenBusy_(function() { return requestForModel(model); }, waitsMs, sleepFunction);
+      return { result: result, model: model };
+    } catch (error) {
+      if (!isYdpGeminiServiceUnavailableError_(error) && !isYdpGeminiModelNotFoundError_(error)) throw error;
+      tried.push(model + (isYdpGeminiModelNotFoundError_(error) ? ' (not available)' : ' (busy)'));
+      lastError = error;
+    }
+  }
+  const busy = lastError && isYdpGeminiServiceUnavailableError_(lastError);
+  throw new Error((busy ? 'Gemini is busy right now' : 'No Gemini model could be used') +
+    ' (tried ' + tried.join(', ') + '). Wait a few minutes and try again. ' +
+    String(lastError && lastError.message ? lastError.message : lastError));
+}
+
+function getYdpFollowupModels_() {
+  let configured = '';
+  try {
+    configured = getYdpMatchingRuntimeConfig_().geminiModel;
+  } catch (error) {
+    configured = YDP_MATCHING_CONFIG.defaultGeminiModel;
+  }
+  return [configured].concat(YDP_FEEDBACK_FOLLOWUP.fallbackModels).filter(function(m, i, all) {
+    return m && all.indexOf(m) === i;
+  });
+}
+
 // Returns the saved draft text, or asks Gemini for one and saves it (DRAFTED).
 function getOrCreateYdpFollowupDraft_(sheet, headerMap, r) {
   const t = YDP_FEEDBACK_FOLLOWUP;
   if (r.text && (r.status === 'DRAFTED' || r.status === 'SENT')) return r.text;
 
   const prompt = buildYdpFollowupPrompt_(r);
-  const gemini = retryYdpGeminiWhenBusy_(
-    function() { return callYdpGeminiJson_(prompt); },
+  const answer = callYdpGeminiAcrossModels_(
+    getYdpFollowupModels_(),
+    function(model) { return callYdpGeminiJson_(prompt, model); },
     t.busyRetryWaitsMs,
     function(ms) { Utilities.sleep(ms); }
   );
-  const draft = buildYdpFollowupDraft_(gemini, r);
+  r.modelUsed = answer.model;
+  const draft = buildYdpFollowupDraft_(answer.result, r);
   sheet.getRange(r.rowNumber, headerMap[t.textHeader]).setValue(draft.text);
   sheet.getRange(r.rowNumber, headerMap[t.trackerHeader]).setValue(draft.tracker);
   sheet.getRange(r.rowNumber, headerMap[t.actionHeader]).setValue(draft.nextAction);
@@ -3248,6 +3294,7 @@ function previewYdpFeedbackFollowup() {
   const row = selected.sheet.getRange(r.rowNumber, 1, 1, selected.sheet.getLastColumn()).getValues()[0];
   const t = YDP_FEEDBACK_FOLLOWUP;
   const note = (r.status === 'SENT' ? 'Already SENT. This is the email they received. ' : 'Saved as DRAFTED; the live send uses this exact text. ') +
+    (r.modelUsed ? 'Written by ' + r.modelUsed + '. ' : '') +
     'Tracker: ' + row[selected.headerMap[t.trackerHeader] - 1] +
     ' | Next action: ' + row[selected.headerMap[t.actionHeader] - 1] +
     ' | Mentor follow-up: ' + row[selected.headerMap[t.mentorFlagHeader] - 1];
@@ -6601,8 +6648,9 @@ function scoreYdpMentorMenteePairWithGemini_(mentee, mentor) {
   return callYdpGeminiJson_(prompt);
 }
 
-function callYdpGeminiJson_(prompt) {
-  const responseText = callYdpGemini_(prompt);
+// modelOverride is optional; without it the Source Config model is used.
+function callYdpGeminiJson_(prompt, modelOverride) {
+  const responseText = callYdpGemini_(prompt, modelOverride);
   const jsonText = extractYdpJsonObject_(responseText);
 
   try {
@@ -7774,7 +7822,7 @@ function callYdpGeminiWithKeySlots_(slots, activeIndex, requestFunction, remembe
   );
 }
 
-function callYdpGemini_(prompt) {
+function callYdpGemini_(prompt, modelOverride) {
   const scriptProperties = PropertiesService.getScriptProperties();
   const slots = getYdpGeminiApiKeySlots_(scriptProperties);
   const activeIndex = scriptProperties.getProperty(
@@ -7785,7 +7833,7 @@ function callYdpGemini_(prompt) {
     slots,
     activeIndex,
     function(slot) {
-      return fetchYdpGeminiTextWithKey_(prompt, config.geminiModel, slot.key);
+      return fetchYdpGeminiTextWithKey_(prompt, modelOverride || config.geminiModel, slot.key);
     },
     function(slotIndex) {
       scriptProperties.setProperty(
