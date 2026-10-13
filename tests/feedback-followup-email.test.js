@@ -127,50 +127,58 @@ assert.ok(email.htmlBody.includes('<p style="margin:0 0 16px 0;">Dear Fatai,</p>
 assert.ok(email.htmlBody.includes('Warm regards,<br>YDP Mentorship Team'));
 assert.ok(context.buildYdpFollowupEmail_('Dear A,\n\n<script>x</script>').htmlBody.includes('&lt;script&gt;'));
 
-// Retries when Gemini is busy (503), then gives up with a clear message.
+// Model fallback with retries and a time limit (fake clock: each request takes 2s).
 const busy = () => new Error('Gemini API HTTP 503 UNAVAILABLE: This model is currently experiencing high demand.');
-const sleeps = [];
-let calls = 0;
-const recovered = context.retryYdpGeminiWhenBusy_(() => {
-  calls++;
-  if (calls < 3) throw busy();
-  return { ok: true };
-}, [5000, 10000, 20000], (ms) => sleeps.push(ms));
-assert.deepStrictEqual(recovered, { ok: true });
-assert.strictEqual(calls, 3);
-assert.deepStrictEqual(sleeps, [5000, 10000]);
-
-calls = 0;
-sleeps.length = 0;
-assert.throws(() => context.retryYdpGeminiWhenBusy_(() => { calls++; throw busy(); }, [5000, 10000, 20000], (ms) => sleeps.push(ms)),
-  (error) => /busy right now \(tried 4 times\)/.test(error.message) && context.isYdpGeminiServiceUnavailableError_(error));
-assert.strictEqual(calls, 4);
-assert.deepStrictEqual(sleeps, [5000, 10000, 20000]);
-
-calls = 0;
-assert.throws(() => context.retryYdpGeminiWhenBusy_(() => { calls++; throw new Error('Gemini returned invalid JSON.'); }, [5000], () => {}), /invalid JSON/);
-assert.strictEqual(calls, 1, 'other errors are not retried');
+const notFound = () => new Error('Gemini API HTTP 404 NOT_FOUND: models/x is not found.');
+function fakeClock() {
+  const clock = { t: 0 };
+  clock.now = () => clock.t;
+  clock.sleeps = [];
+  clock.sleep = (ms) => { clock.sleeps.push(ms); clock.t += ms; };
+  return clock;
+}
 assert.deepStrictEqual(Array.from(cfg.busyRetryWaitsMs), [5000, 10000]);
 assert.deepStrictEqual(Array.from(cfg.fallbackModels), ['gemini-3.8-flash', 'gemini-3.5-flash-lite']);
+assert.ok(cfg.previewTimeBudgetMs < 360000 && cfg.sendRunHardStopMs < 360000, 'limits stay under the 6-minute cutoff');
 
-// Falls back to the next model when one stays busy or does not exist.
-const notFound = () => new Error('Gemini API HTTP 404 NOT_FOUND: models/x is not found.');
+// Busy model retried twice, missing model skipped, third model answers.
+let clock = fakeClock();
 const tried = [];
 const fallback = context.callYdpGeminiAcrossModels_(['gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-3.5-flash-lite'], (model) => {
   tried.push(model);
+  clock.t += 2000;
   if (model === 'gemini-3.5-flash') throw busy();
   if (model === 'gemini-3.8-flash') throw notFound();
   return { paragraphs: [] };
-}, [5000, 10000], () => {});
+}, { waitsMs: [5000, 10000], deadline: 150000, now: clock.now, sleep: clock.sleep });
 assert.strictEqual(fallback.model, 'gemini-3.5-flash-lite');
 assert.deepStrictEqual(tried, ['gemini-3.5-flash', 'gemini-3.5-flash', 'gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-3.5-flash-lite']);
+assert.deepStrictEqual(clock.sleeps, [5000, 10000]);
+assert.strictEqual(fallback.attempts, 'gemini-3.5-flash busy 2s, busy 2s, busy 2s; gemini-3.8-flash not available 2s; gemini-3.5-flash-lite ok 2s');
 
-assert.throws(() => context.callYdpGeminiAcrossModels_(['a', 'b'], () => { throw busy(); }, [1], () => {}),
-  (error) => /busy right now \(tried a \(busy\), b \(busy\)\)/.test(error.message) && context.isYdpGeminiServiceUnavailableError_(error),
-  'all busy: the send loop must still see a 503 so it stops the run');
+// All busy: the error is still a "busy" error, so Send ALL stops the run.
+clock = fakeClock();
+assert.throws(() => context.callYdpGeminiAcrossModels_(['a', 'b'], () => { clock.t += 1000; throw busy(); },
+  { waitsMs: [1000], deadline: 100000, now: clock.now, sleep: clock.sleep }),
+  (error) => /^Gemini is busy right now \(a busy 1s, busy 1s; b busy 1s, busy 1s\)/.test(error.message) &&
+    context.isYdpGeminiServiceUnavailableError_(error));
+
+// Deadline: no new request starts after it, and waits never run past it.
+clock = fakeClock();
+let slowCalls = 0;
+assert.throws(() => context.callYdpGeminiAcrossModels_(['a', 'b', 'c'], () => { slowCalls++; clock.t += 60000; throw busy(); },
+  { waitsMs: [5000, 10000], deadline: 150000, now: clock.now, sleep: clock.sleep }),
+  (error) => /Stopped to stay inside the Apps Script time limit/.test(error.message) && context.isYdpGeminiServiceUnavailableError_(error));
+assert.ok(clock.t <= 150000 + 60000, 'at most one request runs past the deadline');
+assert.strictEqual(slowCalls, 3);
+
+// Other errors are thrown straight away without trying more models.
+clock = fakeClock();
 let otherCalls = 0;
-assert.throws(() => context.callYdpGeminiAcrossModels_(['a', 'b'], () => { otherCalls++; throw new Error('Gemini returned invalid JSON.'); }, [1], () => {}), /invalid JSON/);
+assert.throws(() => context.callYdpGeminiAcrossModels_(['a', 'b'], () => { otherCalls++; throw new Error('Gemini returned invalid JSON.'); },
+  { waitsMs: [1000], deadline: 100000, now: clock.now, sleep: clock.sleep }), /invalid JSON/);
 assert.strictEqual(otherCalls, 1, 'other errors do not try more models');
+assert.strictEqual(typeof context.retryYdpGeminiWhenBusy_, 'undefined');
 
 // Menu, dictionary, and button guide list all three buttons.
 [

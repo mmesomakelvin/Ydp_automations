@@ -2886,6 +2886,12 @@ const YDP_FEEDBACK_FOLLOWUP = {
   // move to the next model. Switching API keys does not help with a 503: it is
   // the model that is full, and every key calls the same model.
   busyRetryWaitsMs: [5000, 10000],
+  // Time limits so a slow Gemini never hits the Apps Script 6-minute cutoff:
+  // Preview / Test give up after this; Send ALL gives up on one row after
+  // sendRowTimeBudgetMs and starts no Gemini request after sendRunHardStopMs.
+  previewTimeBudgetMs: 150000,
+  sendRowTimeBudgetMs: 90000,
+  sendRunHardStopMs: 300000,
   // Tried in order after the Source Config model (GEMINI_MODEL). gemini-3.5-flash
   // was deprecated on 2026-10-08; Google suggests these two instead.
   fallbackModels: ['gemini-3.8-flash', 'gemini-3.5-flash-lite'],
@@ -3166,53 +3172,62 @@ function readYdpFollowupResponses_(sheet, headerMap, mentorLookup) {
   });
 }
 
-// Runs requestFunction, retrying after each wait (ms) while Gemini answers
-// 503 "high demand". Other errors, and the last 503, are thrown. Scoring does
-// not use this: it stops on 503 to save its run window, but one email is
-// worth a short wait.
-function retryYdpGeminiWhenBusy_(requestFunction, waitsMs, sleepFunction) {
-  for (let attempt = 0; ; attempt++) {
-    try {
-      return requestFunction();
-    } catch (error) {
-      if (!isYdpGeminiServiceUnavailableError_(error) || attempt >= waitsMs.length) {
-        if (isYdpGeminiServiceUnavailableError_(error)) {
-          throw new Error('Gemini is busy right now (tried ' + (attempt + 1) + ' times). Wait a few minutes and try again. ' +
-            String(error && error.message ? error.message : error));
-        }
-        throw error;
-      }
-      sleepFunction(waitsMs[attempt]);
-    }
-  }
-}
-
 function isYdpGeminiModelNotFoundError_(error) {
   const message = String(error && error.message ? error.message : error || '').toLowerCase();
   return message.indexOf('http 404') !== -1 || message.indexOf('not_found') !== -1;
 }
 
-// Tries each model in turn (retrying busy ones per retryYdpGeminiWhenBusy_).
-// Moves to the next model when one stays busy or does not exist; any other
-// error is thrown at once. Returns { result, model }.
-function callYdpGeminiAcrossModels_(models, requestForModel, waitsMs, sleepFunction) {
-  const tried = [];
+// Asks each model in turn. A model answering 503 "high demand" is retried
+// after each of options.waitsMs, then the next model is tried; a model that
+// does not exist is skipped. Any other error is thrown at once. Nothing new
+// starts after options.deadline (ms timestamp), so the script is not cut off
+// at the Apps Script 6-minute limit. Scoring does not use this: it stops on
+// 503 to save its run window, but one email is worth a short wait.
+// Returns { result, model, attempts } where attempts reads like
+// "gemini-3.5-flash busy 1s, busy 2s; gemini-3.8-flash ok 24s".
+function callYdpGeminiAcrossModels_(models, requestForModel, options) {
+  const now = options.now || function() { return Date.now(); };
+  const sleep = options.sleep || function(ms) { Utilities.sleep(ms); };
+  const waits = options.waitsMs || [];
+  const log = [];
   let lastError = null;
+  let outOfTime = false;
+  const describe = function() {
+    return log.map(function(entry) { return entry.model + ' ' + entry.steps.join(', '); }).join('; ');
+  };
+
+  modelLoop:
   for (let i = 0; i < models.length; i++) {
-    const model = models[i];
-    try {
-      const result = retryYdpGeminiWhenBusy_(function() { return requestForModel(model); }, waitsMs, sleepFunction);
-      return { result: result, model: model };
-    } catch (error) {
-      if (!isYdpGeminiServiceUnavailableError_(error) && !isYdpGeminiModelNotFoundError_(error)) throw error;
-      tried.push(model + (isYdpGeminiModelNotFoundError_(error) ? ' (not available)' : ' (busy)'));
-      lastError = error;
+    const entry = { model: models[i], steps: [] };
+    log.push(entry);
+    for (let attempt = 0; attempt <= waits.length; attempt++) {
+      if (now() >= options.deadline) { outOfTime = true; break modelLoop; }
+      const startedAt = now();
+      try {
+        const result = requestForModel(models[i]);
+        entry.steps.push('ok ' + Math.round((now() - startedAt) / 1000) + 's');
+        return { result: result, model: models[i], attempts: describe() };
+      } catch (error) {
+        const busy = isYdpGeminiServiceUnavailableError_(error);
+        const missing = isYdpGeminiModelNotFoundError_(error);
+        entry.steps.push((busy ? 'busy ' : missing ? 'not available ' : 'error ') + Math.round((now() - startedAt) / 1000) + 's');
+        if (!busy && !missing) throw error;
+        lastError = error;
+        if (missing) break;
+        if (attempt < waits.length) {
+          const wait = Math.min(waits[attempt], options.deadline - now());
+          if (wait <= 0) { outOfTime = true; break modelLoop; }
+          sleep(wait);
+        }
+      }
     }
   }
-  const busy = lastError && isYdpGeminiServiceUnavailableError_(lastError);
-  throw new Error((busy ? 'Gemini is busy right now' : 'No Gemini model could be used') +
-    ' (tried ' + tried.join(', ') + '). Wait a few minutes and try again. ' +
-    String(lastError && lastError.message ? lastError.message : lastError));
+
+  const allMissing = lastError && !isYdpGeminiServiceUnavailableError_(lastError) && !outOfTime;
+  throw new Error((allMissing ? 'No Gemini model could be used' : 'Gemini is busy right now') +
+    ' (' + describe() + ').' + (outOfTime ? ' Stopped to stay inside the Apps Script time limit.' : '') +
+    ' Wait a few minutes and try again.' +
+    (lastError ? ' Last error: ' + shortenYdpErrorMessage_(String(lastError.message || lastError), 300) : ''));
 }
 
 function getYdpFollowupModels_() {
@@ -3228,18 +3243,26 @@ function getYdpFollowupModels_() {
 }
 
 // Returns the saved draft text, or asks Gemini for one and saves it (DRAFTED).
-function getOrCreateYdpFollowupDraft_(sheet, headerMap, r) {
+// deadline: ms timestamp after which no new Gemini request starts.
+function getOrCreateYdpFollowupDraft_(sheet, headerMap, r, deadline) {
   const t = YDP_FEEDBACK_FOLLOWUP;
   if (r.text && (r.status === 'DRAFTED' || r.status === 'SENT')) return r.text;
 
   const prompt = buildYdpFollowupPrompt_(r);
-  const answer = callYdpGeminiAcrossModels_(
-    getYdpFollowupModels_(),
-    function(model) { return callYdpGeminiJson_(prompt, model); },
-    t.busyRetryWaitsMs,
-    function(ms) { Utilities.sleep(ms); }
-  );
+  let answer;
+  try {
+    answer = callYdpGeminiAcrossModels_(
+      getYdpFollowupModels_(),
+      function(model) { return callYdpGeminiJson_(prompt, model); },
+      { waitsMs: t.busyRetryWaitsMs, deadline: deadline }
+    );
+  } catch (error) {
+    logYdpMatchingRun_('FEEDBACK_FOLLOWUP_DRAFT', 'ERROR', 'Row ' + r.rowNumber + ': ' + shortenYdpErrorMessage_(String(error.message || error), 800));
+    throw error;
+  }
+  logYdpMatchingRun_('FEEDBACK_FOLLOWUP_DRAFT', 'SUCCESS', 'Row ' + r.rowNumber + ' written by ' + answer.model + ' (' + answer.attempts + ')');
   r.modelUsed = answer.model;
+  r.geminiAttempts = answer.attempts;
   const draft = buildYdpFollowupDraft_(answer.result, r);
   sheet.getRange(r.rowNumber, headerMap[t.textHeader]).setValue(draft.text);
   sheet.getRange(r.rowNumber, headerMap[t.trackerHeader]).setValue(draft.tracker);
@@ -3285,7 +3308,7 @@ function previewYdpFeedbackFollowup() {
   }
   let text;
   try {
-    text = getOrCreateYdpFollowupDraft_(selected.sheet, selected.headerMap, r);
+    text = getOrCreateYdpFollowupDraft_(selected.sheet, selected.headerMap, r, Date.now() + YDP_FEEDBACK_FOLLOWUP.previewTimeBudgetMs);
   } catch (error) {
     ui.alert('Gemini could not write this email, so nothing was saved:\n\n' + shortenYdpErrorMessage_(String(error.message || error), 900));
     return;
@@ -3294,7 +3317,7 @@ function previewYdpFeedbackFollowup() {
   const row = selected.sheet.getRange(r.rowNumber, 1, 1, selected.sheet.getLastColumn()).getValues()[0];
   const t = YDP_FEEDBACK_FOLLOWUP;
   const note = (r.status === 'SENT' ? 'Already SENT. This is the email they received. ' : 'Saved as DRAFTED; the live send uses this exact text. ') +
-    (r.modelUsed ? 'Written by ' + r.modelUsed + '. ' : '') +
+    (r.modelUsed ? 'Written by ' + r.modelUsed + ' (' + r.geminiAttempts + '). ' : '') +
     'Tracker: ' + row[selected.headerMap[t.trackerHeader] - 1] +
     ' | Next action: ' + row[selected.headerMap[t.actionHeader] - 1] +
     ' | Mentor follow-up: ' + row[selected.headerMap[t.mentorFlagHeader] - 1];
@@ -3314,7 +3337,7 @@ function sendYdpFeedbackFollowupTest() {
   const testRecipient = ydpResolveTestRecipient_('Send Test Follow-up Email');
   if (!testRecipient) return;
   try {
-    const text = getOrCreateYdpFollowupDraft_(selected.sheet, selected.headerMap, r);
+    const text = getOrCreateYdpFollowupDraft_(selected.sheet, selected.headerMap, r, Date.now() + YDP_FEEDBACK_FOLLOWUP.previewTimeBudgetMs);
     const email = buildYdpFollowupEmail_(text);
     MailApp.sendEmail({ to: testRecipient, subject: '[TEST] ' + email.subject, body: email.body, htmlBody: email.htmlBody, name: YDP_MATCHING_CONFIG.senderName, inlineImages: { ydpLogo: getYdpLogoBlob_() } });
     ui.alert('Test follow-up for ' + r.firstName + ' sent to ' + testRecipient + '.\n\nThe mentee was not emailed. Their row is saved as DRAFTED, and the live send will use this exact text.');
@@ -3383,7 +3406,7 @@ function sendYdpFeedbackFollowupToAll() {
 
       let text;
       try {
-        text = getOrCreateYdpFollowupDraft_(sheet, headerMap, r);
+        text = getOrCreateYdpFollowupDraft_(sheet, headerMap, r, Math.min(Date.now() + t.sendRowTimeBudgetMs, started + t.sendRunHardStopMs));
       } catch (error) {
         const message = shortenYdpErrorMessage_(String(error.message || error), 500);
         sheet.getRange(r.rowNumber, headerMap[t.errorHeader]).setValue(message);
@@ -7682,6 +7705,7 @@ function isYdpGeminiServiceUnavailableError_(error) {
   const message = String(error && error.message ? error.message : error || '').toLowerCase();
   return message.indexOf('http 503') !== -1 ||
     message.indexOf('503 unavailable') !== -1 ||
+    message.indexOf('gemini is busy right now') !== -1 ||
     message.indexOf('model is currently experiencing high demand') !== -1;
 }
 
