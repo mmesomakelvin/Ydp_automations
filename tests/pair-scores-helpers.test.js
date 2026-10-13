@@ -75,7 +75,7 @@ assert.ok(describedError.startsWith('Gemini API HTTP 503 UNAVAILABLE'));
 assert.ok(describedError.length <= 900);
 
 assert.strictEqual(typeof context.getYdpDefaultPairScoringBatchSize_, 'function');
-assert.strictEqual(context.getYdpDefaultPairScoringBatchSize_(), 5);
+assert.strictEqual(context.getYdpDefaultPairScoringBatchSize_(), 80);
 assert.strictEqual(typeof context.getYdpDefaultMenteeScoringBatchSize_, 'function');
 assert.strictEqual(context.getYdpDefaultMenteeScoringBatchSize_(), 3);
 assert.strictEqual(typeof context.getYdpMenteeScoringRunLimitMilliseconds_, 'function');
