@@ -582,7 +582,7 @@ Sending order:
 1. Set `Experience` on each row. Rows without it are skipped.
 2. Put "Mail Sent" in `Mail Status Column` for anyone you emailed by hand, so they are not emailed again.
 3. Select a row, run `Preview follow-up email (selected row)`, then `Send follow-up email — TEST to me (selected row)`. You can edit the `Follow-up Email Text` cell of a `DRAFTED` row before sending.
-4. Run `Send follow-up emails to ALL unsent responses`. One run stops after about 4 minutes, at the daily email limit, or if Gemini is out of quota on every key. Run it again to continue; rows already `SENT` are skipped.
+4. Run `Send follow-up emails to ALL unsent responses`. One run stops after about 4 minutes, at the daily email limit, or if Gemini is out of quota on every key. If Gemini answers `503` ("high demand"), each email is retried up to 4 times over about 35 seconds before the run stops. Run it again to continue; rows already `SENT` are skipped.
 
 ### Starting a new mentee round
 

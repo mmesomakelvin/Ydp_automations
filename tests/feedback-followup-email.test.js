@@ -127,6 +127,31 @@ assert.ok(email.htmlBody.includes('<p style="margin:0 0 16px 0;">Dear Fatai,</p>
 assert.ok(email.htmlBody.includes('Warm regards,<br>YDP Mentorship Team'));
 assert.ok(context.buildYdpFollowupEmail_('Dear A,\n\n<script>x</script>').htmlBody.includes('&lt;script&gt;'));
 
+// Retries when Gemini is busy (503), then gives up with a clear message.
+const busy = () => new Error('Gemini API HTTP 503 UNAVAILABLE: This model is currently experiencing high demand.');
+const sleeps = [];
+let calls = 0;
+const recovered = context.retryYdpGeminiWhenBusy_(() => {
+  calls++;
+  if (calls < 3) throw busy();
+  return { ok: true };
+}, [5000, 10000, 20000], (ms) => sleeps.push(ms));
+assert.deepStrictEqual(recovered, { ok: true });
+assert.strictEqual(calls, 3);
+assert.deepStrictEqual(sleeps, [5000, 10000]);
+
+calls = 0;
+sleeps.length = 0;
+assert.throws(() => context.retryYdpGeminiWhenBusy_(() => { calls++; throw busy(); }, [5000, 10000, 20000], (ms) => sleeps.push(ms)),
+  (error) => /busy right now \(tried 4 times\)/.test(error.message) && context.isYdpGeminiServiceUnavailableError_(error));
+assert.strictEqual(calls, 4);
+assert.deepStrictEqual(sleeps, [5000, 10000, 20000]);
+
+calls = 0;
+assert.throws(() => context.retryYdpGeminiWhenBusy_(() => { calls++; throw new Error('Gemini returned invalid JSON.'); }, [5000], () => {}), /invalid JSON/);
+assert.strictEqual(calls, 1, 'other errors are not retried');
+assert.deepStrictEqual(Array.from(cfg.busyRetryWaitsMs), [5000, 10000, 20000]);
+
 // Menu, dictionary, and button guide list all three buttons.
 [
   ['Preview follow-up email (selected row)', 'previewYdpFeedbackFollowup'],

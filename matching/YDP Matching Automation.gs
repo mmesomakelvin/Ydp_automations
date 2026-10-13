@@ -2882,6 +2882,9 @@ const YDP_FEEDBACK_FOLLOWUP = {
   actionHeader: 'Follow-up Next Action',
   mentorFlagHeader: 'Mentor Follow-up Needed',
   errorHeader: 'Follow-up Last Error',
+  // Waits before each retry when Gemini says "high demand" (503): 4 tries in
+  // about 35 seconds per email.
+  busyRetryWaitsMs: [5000, 10000, 20000],
   maxRunMilliseconds: 240000
 };
 
@@ -3159,12 +3162,39 @@ function readYdpFollowupResponses_(sheet, headerMap, mentorLookup) {
   });
 }
 
+// Runs requestFunction, retrying after each wait (ms) while Gemini answers
+// 503 "high demand". Other errors, and the last 503, are thrown. Scoring does
+// not use this: it stops on 503 to save its run window, but one email is
+// worth a short wait.
+function retryYdpGeminiWhenBusy_(requestFunction, waitsMs, sleepFunction) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return requestFunction();
+    } catch (error) {
+      if (!isYdpGeminiServiceUnavailableError_(error) || attempt >= waitsMs.length) {
+        if (isYdpGeminiServiceUnavailableError_(error)) {
+          throw new Error('Gemini is busy right now (tried ' + (attempt + 1) + ' times). Wait a few minutes and try again. ' +
+            String(error && error.message ? error.message : error));
+        }
+        throw error;
+      }
+      sleepFunction(waitsMs[attempt]);
+    }
+  }
+}
+
 // Returns the saved draft text, or asks Gemini for one and saves it (DRAFTED).
 function getOrCreateYdpFollowupDraft_(sheet, headerMap, r) {
   const t = YDP_FEEDBACK_FOLLOWUP;
   if (r.text && (r.status === 'DRAFTED' || r.status === 'SENT')) return r.text;
 
-  const draft = buildYdpFollowupDraft_(callYdpGeminiJson_(buildYdpFollowupPrompt_(r)), r);
+  const prompt = buildYdpFollowupPrompt_(r);
+  const gemini = retryYdpGeminiWhenBusy_(
+    function() { return callYdpGeminiJson_(prompt); },
+    t.busyRetryWaitsMs,
+    function(ms) { Utilities.sleep(ms); }
+  );
+  const draft = buildYdpFollowupDraft_(gemini, r);
   sheet.getRange(r.rowNumber, headerMap[t.textHeader]).setValue(draft.text);
   sheet.getRange(r.rowNumber, headerMap[t.trackerHeader]).setValue(draft.tracker);
   sheet.getRange(r.rowNumber, headerMap[t.actionHeader]).setValue(draft.nextAction);
