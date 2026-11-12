@@ -111,6 +111,15 @@ function onOpen() {
     .addItem('Send mentor feedback to ALL paired mentors', 'sendYdpMentorFeedbackToAll')
     .addItem('Reset mentor feedback form link', 'resetYdpMentorFeedbackFormLink')
     .addSeparator()
+    .addItem('Create final feedback forms (mentee + mentor)', 'buildYdpFinalFeedbackForms')
+    .addItem('Preview mentee closing email', 'previewYdpMenteeClosing')
+    .addItem('Send mentee closing email — TEST to me', 'sendYdpMenteeClosingTest')
+    .addItem('Send closing email to ALL mentees', 'sendYdpMenteeClosingToAll')
+    .addItem('Preview mentor closing email', 'previewYdpMentorClosing')
+    .addItem('Send mentor closing email — TEST to me', 'sendYdpMentorClosingTest')
+    .addItem('Send closing email to ALL paired mentors', 'sendYdpMentorClosingToAll')
+    .addItem('Reset final feedback form links', 'resetYdpFinalFeedbackFormLinks')
+    .addSeparator()
     .addItem('Preview mentor spotlight request', 'previewYdpMentorSpotlight')
     .addItem('Send spotlight request — TEST to me', 'sendYdpMentorSpotlightTest')
     .addItem('Send spotlight request to ALL paired mentors', 'sendYdpMentorSpotlightToAll')
@@ -955,6 +964,15 @@ function getYdpMatchingDataDictionaryRows_() {
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Send mentor feedback — TEST to me', 'Sends the mentor feedback email to your own email only; no mentor tracking changes.', 'To inspect the inbox version safely.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Send mentor feedback to ALL paired mentors', 'Sends each paired mentor one email with their own prefilled feedback link, skipping mentors already marked Mentor Feedback Sent; marks all their rows SENT.', 'After preview and a test send, once the form is created.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Reset mentor feedback form link', 'Forgets the stored mentor form link so a fresh form can be built. Does NOT delete the Google Form or its responses.', 'Only if you want to rebuild the mentor feedback form from scratch.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.matchedPairs, YDP_CLOSING.mentee.statusHeader + ' / ' + YDP_CLOSING.mentee.sentAtHeader, 'Whether the official program-closing email (with the final feedback form) was sent to this mentee, and when. SENDING / SENT / ERROR. Prevents double-sends.', 'SENT means the mentee was told the program has ended.'],
+    ['Sheet', YDP_MATCHING_CONFIG.sheets.matchedPairs, YDP_CLOSING.mentor.statusHeader + ' / ' + YDP_CLOSING.mentor.sentAtHeader, 'Whether the official program-closing email (with the final feedback form) was sent to this mentor (marked on every one of their rows), and when. SENDING / SENT / ERROR.', 'SENT means the mentor was told the program has ended.'],
+    ['Sheet', YDP_CLOSING.mentee.responsesSheetName, 'Mentee ID / Mentee Email address / Mentee Name / final feedback answers', 'Responses from the final (end-of-program) mentee feedback form. Identity fields arrive pre-filled from each mentee\'s closing email link.', 'End-of-program results for Cohort 2 mentees.'],
+    ['Sheet', YDP_CLOSING.mentor.responsesSheetName, 'Mentor ID / Mentor Email address / Mentor Name / final feedback answers', 'Responses from the final (end-of-program) mentor feedback form. Identity fields arrive pre-filled from each mentor\'s closing email link.', 'End-of-program results for Cohort 2 mentors.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Create final feedback forms (mentee + mentor)', 'Builds the final mentee and final mentor Google Forms (each once) and links their answers to the "' + YDP_CLOSING.mentee.responsesSheetName + '" and "' + YDP_CLOSING.mentor.responsesSheetName + '" tabs. Reports existing links instead of making duplicates.', 'Once, before sending the closing emails.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Preview mentee closing email / Preview mentor closing email', 'Shows the official closing email (program ended, thanks, final feedback link, certificate of participation coming, alumni group) without sending.', 'Before any live closing send.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Send mentee / mentor closing email — TEST to me', 'Sends one sample closing email to your own inbox; no tracking changes.', 'To inspect the inbox version safely.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Send closing email to ALL mentees / ALL paired mentors', 'Sends the official closing email with each person\'s own prefilled final feedback link (one per mentee; one per mentor however many mentees), skipping anyone already SENT.', 'After preview and a test send, once the forms exist.'],
+    ['Button', YDP_MATCHING_CONFIG.menuName, 'Reset final feedback form links', 'Forgets both stored final form links so fresh forms can be built. Does NOT delete the Google Forms or their responses.', 'Only if you want to rebuild the final forms from scratch.'],
     ['Sheet', YDP_MATCHING_CONFIG.sheets.matchedPairs, 'Spotlight Requested / Spotlight Requested At', 'Whether the Mentor Spotlight request email was sent to this mentor (marked on every one of their rows), and when. Prevents double-asks.', 'SENT means the mentor was asked for their photo, LinkedIn, and bio.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Preview mentor spotlight request', 'Shows the Mentor Spotlight email (asking mentors to reply with a photo, LinkedIn, and optional bio) without sending.', 'Before any live spotlight send.'],
     ['Button', YDP_MATCHING_CONFIG.menuName, 'Send spotlight request — TEST to me', 'Sends the spotlight request to your own email only; no mentor tracking changes.', 'To inspect the inbox version safely.'],
@@ -1053,6 +1071,14 @@ function getYdpButtonGuideRows_() {
     ['SAFE', menu, 'Send mentor feedback — TEST to me', 'Sends one mentor feedback email to your own inbox using the first paired mentor as a sample.', 'After preview and before the live send.', 'Create the mentor feedback form first.', 'Sends one test email; no Matched Pairs tracking is updated.', 'Before a mentor feedback campaign'],
     ['LIVE ACTION', menu, 'Send mentor feedback to ALL paired mentors', 'Sends each paired mentor one check-in email with their own prefilled form link (ID, email, name), skipping mentors already marked Mentor Feedback Sent. Mentors with no mentees are never included.', 'After preview and a test send, once the form is created.', 'Create the form, then preview and test first.', 'Sends live emails and marks Mentor Feedback Sent SENT on every one of each mentor\'s Matched Pairs rows.', 'As needed during the cohort'],
     ['SAFE', menu, 'Reset mentor feedback form link', 'Forgets the stored mentor feedback form link so "Create mentor feedback form" can build a fresh one.', 'Only when you want to rebuild the mentor form from scratch.', 'Understand it does NOT delete the existing Google Form or its collected responses.', 'Clears the stored mentor form link in the script only; no form, response, or email changes.', 'Rarely'],
+    ['SAFE', menu, 'Create final feedback forms (mentee + mentor)', 'Builds the final end-of-program mentee and mentor Google Forms (ID/Email/Name pre-filled) and links answers to the "' + YDP_CLOSING.mentee.responsesSheetName + '" and "' + YDP_CLOSING.mentor.responsesSheetName + '" tabs. Builds only what is missing.', 'Once, before the closing emails.', 'No preparation required.', 'Creates up to two Google Forms and two response tabs; sends no email.', 'Once per cohort'],
+    ['SAFE', menu, 'Preview mentee closing email', 'Shows the official mentee closing email (program ended, congratulations, final feedback link, certificate of participation coming, alumni group) with a sample prefilled link.', 'Before the live mentee closing send.', 'Create the final feedback forms first.', 'Opens a preview only; no email or tracking changes.', 'Once per cohort'],
+    ['SAFE', menu, 'Send mentee closing email — TEST to me', 'Sends one mentee closing email to your own inbox using the first mentee as a sample.', 'After preview and before the live send.', 'Create the final feedback forms first.', 'Sends one test email; no Matched Pairs tracking is updated.', 'Once per cohort'],
+    ['LIVE ACTION', menu, 'Send closing email to ALL mentees', 'Sends every matched mentee the official closing email with their own prefilled final feedback link, skipping mentees already marked ' + YDP_CLOSING.mentee.statusHeader + ' = SENT.', 'After preview and a test send.', 'Create the forms, then preview and test first.', 'Sends live emails and marks ' + YDP_CLOSING.mentee.statusHeader + ' SENDING then SENT (or ERROR). Stops safely near the time or email limit; re-run to continue.', 'Once per cohort'],
+    ['SAFE', menu, 'Preview mentor closing email', 'Shows the official mentor closing email (program ended, thanks for their time, final feedback link, certificate of participation coming, alumni group) with a sample prefilled link.', 'Before the live mentor closing send.', 'Create the final feedback forms first.', 'Opens a preview only; no email or tracking changes.', 'Once per cohort'],
+    ['SAFE', menu, 'Send mentor closing email — TEST to me', 'Sends one mentor closing email to your own inbox using the first paired mentor as a sample.', 'After preview and before the live send.', 'Create the final feedback forms first.', 'Sends one test email; no Matched Pairs tracking is updated.', 'Once per cohort'],
+    ['LIVE ACTION', menu, 'Send closing email to ALL paired mentors', 'Sends each paired mentor one official closing email naming their mentees, with their own prefilled final feedback link, skipping mentors already marked ' + YDP_CLOSING.mentor.statusHeader + ' = SENT. Unpaired mentors are never included.', 'After preview and a test send.', 'Create the forms, then preview and test first.', 'Sends live emails and marks ' + YDP_CLOSING.mentor.statusHeader + ' on all of that mentor\'s rows. Stops safely near the time or email limit; re-run to continue.', 'Once per cohort'],
+    ['SAFE', menu, 'Reset final feedback form links', 'Forgets both stored final feedback form links so "Create final feedback forms" can build fresh ones.', 'Only when you want to rebuild the final forms from scratch.', 'Understand it does NOT delete the existing Google Forms or their collected responses.', 'Clears the stored links in the script only; no form, response, or email changes.', 'Rarely'],
     ['SAFE', menu, 'Preview mentor spotlight request', 'Shows the Mentor Spotlight email (asks mentors to reply with a professional photo, LinkedIn link, and an optional short bio) using the first paired mentor as a sample, without sending.', 'Before any live spotlight send.', 'Run auto-match so Matched Pairs is populated.', 'Opens a preview only; no email or tracking changes.', 'Before a spotlight campaign'],
     ['SAFE', menu, 'Send spotlight request — TEST to me', 'Sends one spotlight request to your own email using the first paired mentor as a sample.', 'After preview and before the live send.', 'No preparation is required.', 'Sends one test email; no Matched Pairs tracking is updated.', 'Before a spotlight campaign'],
     ['LIVE ACTION', menu, 'Send spotlight request to ALL paired mentors', 'Emails every mentor who has at least one mentee, asking them to reply with a photo, LinkedIn, and optional bio, skipping mentors already marked SENT. Mentors with no mentees are never included.', 'After preview and a test send.', 'Preview and test first.', 'Sends live emails and marks Spotlight Requested SENT on every one of each mentor\'s Matched Pairs rows.', 'Once per spotlight round'],
@@ -4095,6 +4121,621 @@ function sendYdpMentorFeedbackToAll() {
   logYdpMatchingRun_('MENTOR_FEEDBACK_SEND', result.failures.length ? 'PARTIAL_SUCCESS' : 'SUCCESS', result.summary);
   ui.alert(result.summary);
 }
+
+/* ===================================================================
+ * Program closing emails (Cohort 2 ended Sunday, 1 November 2026)
+ * The official "full stop" on the program. Mentees and mentors each get
+ * ONE email (sent separately) that says the program has ended, thanks
+ * them, and links to a FINAL feedback form with their ID, email, and name
+ * pre-filled. The email also says a certificate of participation will be
+ * sent soon and that the community continues as an alumni group.
+ *
+ * "Create final feedback forms" builds both Google Forms once and links
+ * their answers to two NEW tabs in this workbook. Earlier rounds' tabs and
+ * Script Properties are never touched. Tracking uses new Matched Pairs
+ * columns per audience (SENDING -> SENT / ERROR), so re-running skips
+ * anyone already SENT. A row left on SENDING means a run was interrupted:
+ * check that person's inbox before clearing it.
+ * =================================================================== */
+
+const YDP_CLOSING = {
+  programEndLabel: 'Sunday, 1 November 2026',
+  maxRunMilliseconds: 4.5 * 60 * 1000,
+  mentee: {
+    audience: 'mentee',
+    formTitle: 'YDP Mentorship - Final Mentee Feedback (Cohort 2)',
+    formDescription: 'The YDP Mentorship Program (Cohort 2) ended on Sunday, 1 November 2026. Thank you for being part of it. This final form takes about 3 minutes and tells us how the program went for you and how to make the next cohort even better. Your ID, email, and name are pre-filled for you.',
+    responsesSheetName: 'Final Mentee Feedback Responses',
+    idLabel: 'Mentee ID',
+    emailLabel: 'Mentee Email address',
+    nameLabel: 'Mentee Name',
+    propFormId: 'YDP_CLOSING_MENTEE_FORM_ID',
+    propPublishedUrl: 'YDP_CLOSING_MENTEE_PUBLISHED_URL',
+    propEditUrl: 'YDP_CLOSING_MENTEE_EDIT_URL',
+    propPrefill: 'YDP_CLOSING_MENTEE_PREFILL',
+    statusHeader: 'Mentee Closing Email Sent',
+    sentAtHeader: 'Mentee Closing Email Sent At',
+    logAction: 'MENTEE_CLOSING_SEND'
+  },
+  mentor: {
+    audience: 'mentor',
+    formTitle: 'YDP Mentorship - Final Mentor Feedback (Cohort 2)',
+    formDescription: 'The YDP Mentorship Program (Cohort 2) ended on Sunday, 1 November 2026. Thank you for giving your time as a mentor. This final form takes about 3 minutes and tells us how mentoring went and how to make the next cohort even better. Your ID, email, and name are pre-filled for you.',
+    responsesSheetName: 'Final Mentor Feedback Responses',
+    idLabel: 'Mentor ID',
+    emailLabel: 'Mentor Email address',
+    nameLabel: 'Mentor Name',
+    propFormId: 'YDP_CLOSING_MENTOR_FORM_ID',
+    propPublishedUrl: 'YDP_CLOSING_MENTOR_PUBLISHED_URL',
+    propEditUrl: 'YDP_CLOSING_MENTOR_EDIT_URL',
+    propPrefill: 'YDP_CLOSING_MENTOR_PREFILL',
+    statusHeader: 'Mentor Closing Email Sent',
+    sentAtHeader: 'Mentor Closing Email Sent At',
+    logAction: 'MENTOR_CLOSING_SEND'
+  }
+};
+
+function getYdpClosingAudience_(audience) {
+  const cfg = YDP_CLOSING[audience];
+  if (!cfg) throw new Error('Unknown closing audience: ' + audience);
+  return cfg;
+}
+
+// --- Forms -----------------------------------------------------------
+
+function addYdpClosingMenteeQuestions_(form) {
+  form.addMultipleChoiceItem()
+      .setTitle('Over the whole program, about how many sessions did you have with your mentor?')
+      .setChoiceValues(['None', '1 - 2', '3 - 5', '6 or more'])
+      .setRequired(true);
+
+  form.addScaleItem()
+      .setTitle('Overall, how would you rate your mentorship experience?')
+      .setBounds(1, 5)
+      .setLabels('Poor', 'Excellent')
+      .setRequired(true);
+
+  form.addMultipleChoiceItem()
+      .setTitle('How much of what you hoped to get from the program did you achieve?')
+      .setChoiceValues(['Very little', 'Some of it', 'Most of it', 'All of it, or more'])
+      .setRequired(true);
+
+  form.addParagraphTextItem()
+      .setTitle('What was the most valuable thing you gained from the program?')
+      .setHelpText('Optional. A skill, a decision, a connection, anything that mattered to you.')
+      .setRequired(false);
+
+  form.addScaleItem()
+      .setTitle('How likely are you to recommend the YDP Mentorship Program to a friend?')
+      .setBounds(0, 10)
+      .setLabels('Not at all likely', 'Extremely likely')
+      .setRequired(true);
+
+  form.addParagraphTextItem()
+      .setTitle('What should we improve for the next cohort?')
+      .setHelpText('Optional.')
+      .setRequired(false);
+
+  form.addCheckboxItem()
+      .setTitle('Would you like to stay involved with YDP?')
+      .setChoiceValues(['Yes, as a volunteer', 'Yes, as a mentor in a future cohort', 'Maybe later', 'Not right now'])
+      .setRequired(false);
+
+  form.addParagraphTextItem()
+      .setTitle('Anything else you would like to share with the YDP team?')
+      .setHelpText('Optional.')
+      .setRequired(false);
+}
+
+function addYdpClosingMentorQuestions_(form) {
+  form.addMultipleChoiceItem()
+      .setTitle('Over the whole program, about how many sessions did you hold with your mentee(s) in total?')
+      .setChoiceValues(['None', '1 - 2', '3 - 5', '6 - 10', 'More than 10'])
+      .setRequired(true);
+
+  form.addMultipleChoiceItem()
+      .setTitle('Overall, how engaged were your mentee(s)?')
+      .setChoiceValues(['Very engaged', 'Somewhat engaged', 'Rarely engaged', 'We never connected'])
+      .setRequired(true);
+
+  form.addScaleItem()
+      .setTitle('Overall, how would you rate your mentoring experience?')
+      .setBounds(1, 5)
+      .setLabels('Poor', 'Excellent')
+      .setRequired(true);
+
+  form.addScaleItem()
+      .setTitle('How well did the YDP team support you as a mentor?')
+      .setBounds(1, 5)
+      .setLabels('Not well', 'Very well')
+      .setRequired(true);
+
+  form.addMultipleChoiceItem()
+      .setTitle('Would you mentor with YDP again in a future cohort?')
+      .setChoiceValues(['Yes', 'Maybe', 'No'])
+      .setRequired(true);
+
+  form.addParagraphTextItem()
+      .setTitle('Did any mentee stand out for their progress or commitment?')
+      .setHelpText('Optional. Tell us who and why.')
+      .setRequired(false);
+
+  form.addParagraphTextItem()
+      .setTitle('What should we improve for the next cohort?')
+      .setHelpText('Optional.')
+      .setRequired(false);
+
+  form.addParagraphTextItem()
+      .setTitle('Anything else you would like to share with the YDP team?')
+      .setHelpText('Optional.')
+      .setRequired(false);
+}
+
+// No-UI core: creates one final feedback form, links its answers to a new
+// tab in this workbook, captures prefill entry ids, stores everything.
+function createYdpClosingForm_(audience) {
+  const cfg = getYdpClosingAudience_(audience);
+  const form = FormApp.create(cfg.formTitle);
+  form.setTitle(cfg.formTitle)
+      .setDescription(cfg.formDescription)
+      .setCollectEmail(false)
+      .setLimitOneResponsePerUser(false)
+      .setAllowResponseEdits(true)
+      .setShowLinkToRespondAgain(false)
+      .setConfirmationMessage('Thank you. Your final feedback has been recorded. The YDP team reads every response, and your certificate of participation will be sent to you soon.');
+
+  const idItem = form.addTextItem().setTitle(cfg.idLabel).setHelpText('Pre-filled for you, please leave it as is.').setRequired(false);
+  const emailItem = form.addTextItem().setTitle(cfg.emailLabel).setHelpText('Pre-filled for you, please leave it as is.').setRequired(false);
+  const nameItem = form.addTextItem().setTitle(cfg.nameLabel).setHelpText('Pre-filled for you, please leave it as is.').setRequired(false);
+
+  if (audience === 'mentor') {
+    addYdpClosingMentorQuestions_(form);
+  } else {
+    addYdpClosingMenteeQuestions_(form);
+  }
+
+  form.setDestination(FormApp.DestinationType.SPREADSHEET, SpreadsheetApp.getActive().getId());
+  try { renameYdpFormResponsesTab_(form.getId(), cfg.responsesSheetName); } catch (renameError) { /* best effort */ }
+
+  const sample = form.createResponse()
+      .withItemResponse(idItem.createResponse('__YDP_ID__'))
+      .withItemResponse(emailItem.createResponse('__YDP_EMAIL__'))
+      .withItemResponse(nameItem.createResponse('__YDP_NAME__'));
+  const prefilledUrl = sample.toPrefilledUrl();
+  const prefill = {
+    id: ydpExtractEntryId_(prefilledUrl, '__YDP_ID__'),
+    email: ydpExtractEntryId_(prefilledUrl, '__YDP_EMAIL__'),
+    name: ydpExtractEntryId_(prefilledUrl, '__YDP_NAME__')
+  };
+
+  const publishedUrl = form.getPublishedUrl();
+  const editUrl = form.getEditUrl();
+  const props = PropertiesService.getScriptProperties();
+  props.setProperty(cfg.propFormId, form.getId());
+  props.setProperty(cfg.propPublishedUrl, publishedUrl);
+  props.setProperty(cfg.propEditUrl, editUrl);
+  props.setProperty(cfg.propPrefill, JSON.stringify(prefill));
+
+  return { publishedUrl: publishedUrl, editUrl: editUrl, prefill: prefill };
+}
+
+// Menu: builds whichever of the two final forms does not exist yet, and
+// reports the links for both. Never builds a duplicate.
+function buildYdpFinalFeedbackForms() {
+  const ui = SpreadsheetApp.getUi();
+  const props = PropertiesService.getScriptProperties();
+  const lines = [];
+  const problems = [];
+
+  ['mentee', 'mentor'].forEach(function(audience) {
+    const cfg = getYdpClosingAudience_(audience);
+    const label = audience === 'mentor' ? 'MENTOR' : 'MENTEE';
+    if (props.getProperty(cfg.propFormId)) {
+      lines.push(label + ' form (already existed):\n  Live: ' + (props.getProperty(cfg.propPublishedUrl) || '(unknown)') +
+        '\n  Edit: ' + (props.getProperty(cfg.propEditUrl) || '(unknown)'));
+      return;
+    }
+    try {
+      const result = createYdpClosingForm_(audience);
+      lines.push(label + ' form (created, answers go to "' + cfg.responsesSheetName + '"):\n  Live: ' + result.publishedUrl + '\n  Edit: ' + result.editUrl);
+    } catch (error) {
+      problems.push(label + ' form could not be created: ' + String(error.message || error));
+    }
+  });
+
+  ui.alert('Final feedback forms',
+    lines.join('\n\n') +
+    (problems.length ? '\n\n' + problems.join('\n') + '\n\nIf this mentions authorization or Forms permission, re-run and approve the new access when prompted.' : '') +
+    '\n\nNext: open each edit link to check the questions, then preview the closing emails, send a test to yourself, and send to all.',
+    ui.ButtonSet.OK);
+}
+
+// Reads one audience's stored form; throws a clear message if not built yet.
+function getYdpClosingFormConfig_(audience) {
+  const cfg = getYdpClosingAudience_(audience);
+  const props = PropertiesService.getScriptProperties();
+  const publishedUrl = props.getProperty(cfg.propPublishedUrl);
+  if (!publishedUrl) {
+    throw new Error('The final ' + audience + ' feedback form has not been created yet. Run "Create final feedback forms" first.');
+  }
+  let prefill = {};
+  try { prefill = JSON.parse(props.getProperty(cfg.propPrefill) || '{}'); } catch (parseError) { prefill = {}; }
+  return { publishedUrl: publishedUrl, prefill: prefill };
+}
+
+// Pure: builds a prefilled form link from a stored form config.
+function buildYdpClosingPrefillUrlFrom_(formConfig, id, email, name) {
+  const p = formConfig.prefill || {};
+  const parts = ['usp=pp_url'];
+  if (p.id) parts.push('entry.' + p.id + '=' + encodeURIComponent(id || ''));
+  if (p.email) parts.push('entry.' + p.email + '=' + encodeURIComponent(email || ''));
+  if (p.name) parts.push('entry.' + p.name + '=' + encodeURIComponent(name || ''));
+  const sep = formConfig.publishedUrl.indexOf('?') === -1 ? '?' : '&';
+  return formConfig.publishedUrl + sep + parts.join('&');
+}
+
+// Forgets both stored final form links. Does NOT delete the Google Forms or
+// any responses already collected.
+function resetYdpFinalFeedbackFormLinks() {
+  const ui = SpreadsheetApp.getUi();
+  const response = ui.alert('Reset final feedback form links',
+    'This only forgets the stored links for BOTH final feedback forms. It does NOT delete the Google Forms or any responses already collected.\n\n' +
+    'After this, "Create final feedback forms" will build fresh forms. Continue?',
+    ui.ButtonSet.YES_NO);
+  if (response !== ui.Button.YES) return;
+  const props = PropertiesService.getScriptProperties();
+  ['mentee', 'mentor'].forEach(function(audience) {
+    const cfg = getYdpClosingAudience_(audience);
+    props.deleteProperty(cfg.propFormId);
+    props.deleteProperty(cfg.propPublishedUrl);
+    props.deleteProperty(cfg.propEditUrl);
+    props.deleteProperty(cfg.propPrefill);
+  });
+  ui.alert('Done. Both stored final feedback form links were cleared.');
+}
+
+// --- Recipients ------------------------------------------------------
+
+// Pure: one recipient per unique email for the audience, from Matched Pairs
+// rows (row 2 onward). Each recipient keeps every row number it appears on
+// and the first names of the people it was paired with.
+function buildYdpClosingRecipients_(audience, rows, headerMap) {
+  const self = audience === 'mentor' ? 'Mentor' : 'Mentee';
+  const other = audience === 'mentor' ? 'Mentee' : 'Mentor';
+  const byEmail = {};
+  const order = [];
+
+  rows.forEach(function(row, index) {
+    const email = getYdpRowValueByHeader_(row, headerMap, self + ' Email');
+    const id = getYdpRowValueByHeader_(row, headerMap, self + ' ID');
+    const name = getYdpRowValueByHeader_(row, headerMap, self + ' Name');
+    const partnerName = getYdpRowValueByHeader_(row, headerMap, other + ' Name');
+
+    if (!id || !isValidYdpEmail_(email)) return;
+
+    const key = email.toLowerCase();
+    if (!byEmail[key]) {
+      byEmail[key] = {
+        email: email,
+        id: id,
+        name: name,
+        firstName: getYdpFirstName_(name),
+        rowNumbers: [],
+        partnerFirstNames: []
+      };
+      order.push(key);
+    }
+    byEmail[key].rowNumbers.push(index + 2);
+    const partnerFirst = partnerName ? getYdpFirstName_(partnerName) : '';
+    if (partnerFirst && byEmail[key].partnerFirstNames.indexOf(partnerFirst) === -1) {
+      byEmail[key].partnerFirstNames.push(partnerFirst);
+    }
+  });
+
+  return order.map(function(k) { return byEmail[k]; });
+}
+
+function getYdpClosingRecipients_(audience) {
+  const sheet = getYdpMatchedPairsSheetForInvites_();
+  const headerMap = getYdpMatchingHeaderMap_(sheet);
+  const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+  return buildYdpClosingRecipients_(audience, rows, headerMap);
+}
+
+// Adds the given tracking columns to a sheet if missing; returns header map.
+function ensureYdpClosingColumns_(sheet, wanted) {
+  const headers = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), 1)).getValues()[0].map(function(h) {
+    return String(h || '').trim();
+  });
+  const missing = wanted.filter(function(h) { return headers.indexOf(h) === -1; });
+  if (missing.length) {
+    sheet.getRange(1, sheet.getLastColumn() + 1, 1, missing.length).setValues([missing]);
+    sheet.setFrozenRows(1);
+  }
+  return getYdpMatchingHeaderMap_(sheet);
+}
+
+// --- Email -----------------------------------------------------------
+
+// Pure: the closing email for one recipient. Pass logoSrc for previews
+// (a data URI); live sends attach the logo inline as cid:ydpLogo.
+function buildYdpClosingEmail_(audience, recipient, formUrl, logoSrc) {
+  const isMentor = audience === 'mentor';
+  const first = String(recipient.firstName || '').trim();
+  const name = first && first !== 'there' ? first : 'there';
+  const partners = ydpJoinNames_(recipient.partnerFirstNames || []) || (isMentor ? 'your mentee(s)' : 'your mentor');
+  const endLabel = YDP_CLOSING.programEndLabel;
+
+  const subject = isMentor
+    ? 'The YDP Mentorship Program has officially ended. Thank you for mentoring' + (name === 'there' ? '!' : ', ' + name + '!')
+    : 'The YDP Mentorship Program has officially ended. Thank you' + (name === 'there' ? '!' : ', ' + name + '!');
+
+  const endedText = 'The YDP Mentorship Program (Cohort 2) officially ended on ' + endLabel + '. Scheduled mentorship sessions have now come to a close.';
+  const endedHtml = 'The <strong>YDP Mentorship Program (Cohort 2)</strong> officially ended on <strong>' + escapeYdpHtml_(endLabel) + '</strong>. Scheduled mentorship sessions have now come to a close.';
+
+  const middle = isMentor
+    ? {
+        text: [
+          endedText,
+          'Thank you. You gave your time, experience, and care to ' + partners + '. Every session you held, every question you answered, and every bit of encouragement you offered made a real difference. This program works because of mentors like you.'
+        ],
+        html: [
+          endedHtml,
+          '<strong>Thank you.</strong> You gave your time, experience, and care to ' + escapeYdpHtml_(partners) + '. Every session you held, every question you answered, and every bit of encouragement you offered made a real difference. This program works because of mentors like you.'
+        ]
+      }
+    : {
+        text: [
+          endedText + ' You are welcome to stay in touch with ' + partners + ' on your own.',
+          'Congratulations! Over the past months you showed up, asked questions, and did the work with ' + partners + '. Whether you picked up new skills, got clearer on your career direction, or grew in confidence, that progress is yours to keep. We are proud of you.'
+        ],
+        html: [
+          endedHtml + ' You are welcome to stay in touch with ' + escapeYdpHtml_(partners) + ' on your own.',
+          '<strong>Congratulations!</strong> Over the past months you showed up, asked questions, and did the work with ' + escapeYdpHtml_(partners) + '. Whether you picked up new skills, got clearer on your career direction, or grew in confidence, that progress is yours to keep. We are proud of you.'
+        ]
+      };
+
+  const feedbackWhat = isMentor
+    ? 'Tell us how mentoring went and how we can make the next cohort even better'
+    : 'Tell us how the program went for you and how we can make the next cohort even better';
+  const certificateText = isMentor
+    ? 'We will send you a certificate of participation for mentoring in Cohort 2 soon.'
+    : 'We will send your certificate of participation to you soon.';
+  const alumniText = 'The YDP community continues as an alumni group. We will share how to join shortly.';
+  const closingLine = isMentor
+    ? 'It has been a privilege to have you with us. Thank you for mentoring with YDP.'
+    : 'Thank you for being part of Cohort 2. We cannot wait to see what you do next.';
+
+  const body = [
+    'Hi ' + name + ',',
+    '',
+    middle.text[0],
+    '',
+    middle.text[1],
+    '',
+    'WHAT HAPPENS NEXT',
+    '',
+    '1. Share your final feedback. ' + feedbackWhat + '. It takes about 3 minutes, and your ID, email, and name are already filled in:',
+    formUrl,
+    '',
+    '2. Your certificate of participation. ' + certificateText,
+    '',
+    '3. Stay in the community. ' + alumniText,
+    '',
+    closingLine,
+    '',
+    'Warm regards,',
+    YDP_MATCHING_CONFIG.senderName
+  ].join('\n');
+
+  const htmlBody = buildYdpFeedbackHtml_({
+    preheader: isMentor
+      ? 'Cohort 2 has come to a close. Thank you for giving your time. Share your final feedback.'
+      : 'Cohort 2 has come to a close. Share your final feedback, and look out for your certificate of participation.',
+    badge: 'PROGRAM COMPLETE',
+    subhead: 'Cohort 2 officially ended on <strong>' + escapeYdpHtml_(endLabel) + '</strong>',
+    bodyParagraphs: [
+      'Hi ' + escapeYdpHtml_(name) + ',',
+      middle.html[0],
+      middle.html[1],
+      '<strong style="letter-spacing:1px;">WHAT HAPPENS NEXT</strong>',
+      '<strong>1. Share your final feedback.</strong> ' + feedbackWhat + '. It takes about 3 minutes, and your ID, email, and name are already filled in. Use the button below.',
+      '<strong>2. Your certificate of participation.</strong> ' + certificateText,
+      '<strong>3. Stay in the community.</strong> ' + alumniText
+    ],
+    buttonLabel: 'Share your final feedback (3 min)',
+    buttonUrl: formUrl,
+    closingLine: closingLine,
+    footerNote: 'You are receiving this because you were a ' + audience + ' in Cohort 2.',
+    logoSrc: logoSrc
+  });
+
+  return { subject: subject, body: body, htmlBody: htmlBody };
+}
+
+function buildYdpClosingEmailFor_(audience, recipient, logoSrc) {
+  const formUrl = buildYdpClosingPrefillUrlFrom_(getYdpClosingFormConfig_(audience), recipient.id, recipient.email, recipient.name);
+  const email = buildYdpClosingEmail_(audience, recipient, formUrl, logoSrc);
+  if (!logoSrc) email.inlineImages = { ydpLogo: getYdpLogoBlob_() };
+  return email;
+}
+
+// --- Send ------------------------------------------------------------
+
+// Sends the closing email to every recipient of the audience not already
+// SENT. Marks SENDING first, then SENT (or ERROR) on all their rows. Stops
+// early, safely, when time or the daily email quota runs low.
+function sendYdpClosingCore_(audience) {
+  const cfg = getYdpClosingAudience_(audience);
+  const started = Date.now();
+  const sheet = getYdpMatchedPairsSheetForInvites_();
+  const recipients = getYdpClosingRecipients_(audience);
+  const plural = audience === 'mentor' ? 'mentors' : 'mentees';
+
+  if (recipients.length === 0) {
+    return { sentCount: 0, failures: [], summary: 'No ' + plural + ' with valid email addresses were found. Nothing was sent.' };
+  }
+
+  getYdpClosingFormConfig_(audience); // fail fast if the form does not exist yet
+
+  const headerMap = ensureYdpClosingColumns_(sheet, [cfg.statusHeader, cfg.sentAtHeader]);
+  const statusCol = headerMap[cfg.statusHeader];
+  const sentAtCol = headerMap[cfg.sentAtHeader];
+  const statuses = sheet.getRange(2, statusCol, sheet.getLastRow() - 1, 1).getValues().map(function(r) {
+    return String(r[0] || '').trim().toUpperCase();
+  });
+
+  let sentCount = 0;
+  let skippedCount = 0;
+  let notReached = 0;
+  let stoppedReason = '';
+  const stuck = [];
+  const failures = [];
+
+  function mark(rowNumbers, status, withDate) {
+    rowNumbers.forEach(function(rowNumber) {
+      sheet.getRange(rowNumber, statusCol).setValue(status);
+      if (withDate) sheet.getRange(rowNumber, sentAtCol).setValue(new Date());
+    });
+  }
+
+  recipients.forEach(function(recipient) {
+    const rowStatuses = recipient.rowNumbers.map(function(rowNumber) { return statuses[rowNumber - 2]; });
+    if (rowStatuses.indexOf('SENT') !== -1) { skippedCount++; return; }
+    if (rowStatuses.indexOf('SENDING') !== -1) { stuck.push(recipient.email); return; }
+    if (stoppedReason) { notReached++; return; }
+
+    if (Date.now() - started > YDP_CLOSING.maxRunMilliseconds) {
+      stoppedReason = 'Stopped before the Apps Script time limit.';
+      notReached++;
+      return;
+    }
+    if (MailApp.getRemainingDailyQuota() < 1) {
+      stoppedReason = 'The daily email quota is used up.';
+      notReached++;
+      return;
+    }
+
+    try {
+      mark(recipient.rowNumbers, 'SENDING', false);
+      SpreadsheetApp.flush();
+      const email = buildYdpClosingEmailFor_(audience, recipient);
+      MailApp.sendEmail({
+        to: recipient.email,
+        subject: email.subject,
+        body: email.body,
+        htmlBody: email.htmlBody,
+        name: YDP_MATCHING_CONFIG.senderName,
+        inlineImages: email.inlineImages
+      });
+      mark(recipient.rowNumbers, 'SENT', true);
+      sentCount++;
+    } catch (error) {
+      mark(recipient.rowNumbers, 'ERROR', false);
+      failures.push(recipient.email + ' (' + String(error.message || error) + ')');
+    }
+  });
+
+  const summary = 'Closing email (' + plural + '): sent ' + sentCount + ', skipped already-sent ' + skippedCount +
+    ', of ' + recipients.length + ' ' + plural + '.' +
+    (stoppedReason ? '\n\n' + stoppedReason + ' ' + notReached + ' ' + plural + ' were not reached yet. Run the same button again to continue; already-sent people are skipped.' : '') +
+    (stuck.length ? '\n\nStill marked SENDING from an interrupted run (not re-sent, check their inbox before clearing the status):\n' + stuck.join('\n') : '') +
+    (failures.length ? '\n\nFailed (marked ERROR, will retry on the next run):\n' + failures.join('\n') : '');
+
+  return { sentCount: sentCount, failures: failures, partial: !!(stoppedReason || stuck.length), summary: summary };
+}
+
+function previewYdpClosing_(audience) {
+  const ui = SpreadsheetApp.getUi();
+  try {
+    getYdpClosingFormConfig_(audience);
+    const recipients = getYdpClosingRecipients_(audience);
+    if (recipients.length === 0) {
+      ui.alert('No matched ' + audience + 's found in Matched Pairs.');
+      return;
+    }
+    const sample = recipients[0];
+    const email = buildYdpClosingEmailFor_(audience, sample, 'data:image/png;base64,' + YDP_LOGO_BASE64);
+    ydpShowMatchInvitePreview_(email, sample.firstName,
+      recipients.length + ' ' + audience + '(s) will receive this, each with their own prefilled final feedback link.',
+      (audience === 'mentor' ? 'Mentor' : 'Mentee') + ' Closing Email Preview');
+  } catch (error) {
+    ui.alert('Could not build the closing email preview:\n\n' + String(error.message || error));
+  }
+}
+
+function sendYdpClosingTest_(audience) {
+  const ui = SpreadsheetApp.getUi();
+  try {
+    getYdpClosingFormConfig_(audience);
+  } catch (cfgError) {
+    ui.alert(String(cfgError.message || cfgError));
+    return;
+  }
+  const testRecipient = ydpResolveTestRecipient_('Send Test ' + (audience === 'mentor' ? 'Mentor' : 'Mentee') + ' Closing Email');
+  if (!testRecipient) return;
+
+  try {
+    const recipients = getYdpClosingRecipients_(audience);
+    if (recipients.length === 0) {
+      ui.alert('No matched ' + audience + 's found in Matched Pairs.');
+      return;
+    }
+    const email = buildYdpClosingEmailFor_(audience, recipients[0]);
+    MailApp.sendEmail({ to: testRecipient, subject: '[TEST] ' + email.subject, body: email.body, htmlBody: email.htmlBody, name: YDP_MATCHING_CONFIG.senderName, inlineImages: email.inlineImages });
+    ui.alert('Test closing email sent to ' + testRecipient + '.\n\nIt used "' + recipients[0].firstName + '" as a sample with their prefilled final feedback link. No ' + audience + 's were emailed and no tracking changed.');
+  } catch (error) {
+    ui.alert('Test closing email failed:\n\n' + String(error.message || error));
+  }
+}
+
+function sendYdpClosingToAll_(audience) {
+  const ui = SpreadsheetApp.getUi();
+  const cfg = getYdpClosingAudience_(audience);
+  let recipients;
+  try {
+    getYdpClosingFormConfig_(audience);
+    recipients = getYdpClosingRecipients_(audience);
+  } catch (error) {
+    ui.alert(String(error.message || error));
+    return;
+  }
+  if (recipients.length === 0) {
+    ui.alert('No matched ' + audience + 's with valid email addresses were found. Nothing was sent.');
+    return;
+  }
+
+  const confirm = ui.alert('Send the official closing email to ALL ' + audience + 's',
+    'This will email the official program-closing announcement and final feedback form to ' + recipients.length + ' ' + audience + '(s), skipping anyone already marked ' + cfg.statusHeader + ' = SENT.\n\n' +
+    'Today\'s remaining email quota: ' + MailApp.getRemainingDailyQuota() + '. Continue?',
+    ui.ButtonSet.YES_NO);
+  if (confirm !== ui.Button.YES) return;
+
+  const lock = LockService.getDocumentLock();
+  if (!lock.tryLock(5000)) {
+    ui.alert('Another closing email send is already running. Nothing was sent.');
+    return;
+  }
+
+  let result;
+  try {
+    result = sendYdpClosingCore_(audience);
+  } catch (error) {
+    ui.alert('Sending stopped:\n\n' + String(error.message || error) + '\n\nAnyone already marked SENT was emailed; re-run to continue.');
+    return;
+  } finally {
+    lock.releaseLock();
+  }
+  logYdpMatchingRun_(cfg.logAction, (result.failures.length || result.partial) ? 'PARTIAL_SUCCESS' : 'SUCCESS', result.summary);
+  ui.alert(result.summary);
+}
+
+function previewYdpMenteeClosing() { previewYdpClosing_('mentee'); }
+function sendYdpMenteeClosingTest() { sendYdpClosingTest_('mentee'); }
+function sendYdpMenteeClosingToAll() { sendYdpClosingToAll_('mentee'); }
+function previewYdpMentorClosing() { previewYdpClosing_('mentor'); }
+function sendYdpMentorClosingTest() { sendYdpClosingTest_('mentor'); }
+function sendYdpMentorClosingToAll() { sendYdpClosingToAll_('mentor'); }
 
 /* ===================================================================
  * Unresponsive mentor nudge

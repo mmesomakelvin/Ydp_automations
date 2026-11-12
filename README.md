@@ -332,6 +332,12 @@ The setup creates these tabs:
 | `Send mentor feedback — TEST to me` | Sends one sample mentor check-in email to your own inbox. | After preview, before the live send. | Does not change any tracking columns. |
 | `Send mentor feedback to ALL paired mentors` | Emails every mentor who has at least one mentee one pre-filled check-in link (one email per mentor). | After preview and test. | Sends real emails. Skips mentors already marked `SENT`. Unpaired mentors are never emailed. |
 | `Reset mentor feedback form link` | Forgets the stored mentor form link so a new form can be built. | Rarely. | Does not delete the Google Form or its answers. |
+| `Create final feedback forms (mentee + mentor)` | Builds the final end-of-program mentee and mentor Google Forms and links their answers to `Final Mentee Feedback Responses` and `Final Mentor Feedback Responses`. | Once, before the closing emails. | Builds only whichever form is missing; otherwise just shows the links. |
+| `Preview mentee closing email` / `Preview mentor closing email` | Shows the official program-closing email with a sample pre-filled final feedback link. | Before the live closing send. | Sends nothing. |
+| `Send mentee closing email — TEST to me` / `Send mentor closing email — TEST to me` | Sends one sample closing email to your own inbox. | After preview, before the live send. | Does not change any tracking columns. |
+| `Send closing email to ALL mentees` | Emails every matched mentee the official closing announcement with their own final feedback link. | After preview and test. | Sends real emails. Skips mentees already marked `SENT`. See [Program Closing Email](#program-closing-email). |
+| `Send closing email to ALL paired mentors` | Emails every paired mentor one closing announcement naming their mentees, with their own final feedback link. | After preview and test. | Sends real emails. Skips mentors already marked `SENT`. Unpaired mentors are never emailed. |
+| `Reset final feedback form links` | Forgets both stored final form links so new forms can be built. | Rarely. | Does not delete the Google Forms or their answers. |
 | `Test Gemini connection` | Checks the configured Gemini keys and automatically moves to the next key if the active one is quota-limited. | Use after adding or changing any Gemini API key. | API key values must stay in Apps Script Script Properties, not in GitHub. |
 
 ## Mentee Selection Emails
@@ -547,6 +553,8 @@ All of this runs from `Matched Pairs`: mentees are read one per row, and mentors
 | Mentee check-in, August | 2026-08-17 | `Feedback Responses` | `Feedback Sent` / `Feedback Sent At` | Closed (form no longer accepts answers). Kept as history. |
 | Mentee check-in, October ("home stretch") | 2026-10-04 | `October Feedback Responses` | `October Feedback Sent` / `October Feedback Sent At` | Open until the program ends on October 31. |
 | Mentor check-in | 2026-10-04 | `Mentor Feedback Responses` | `Mentor Feedback Sent` / `Mentor Feedback Sent At` | Open. |
+| Final mentee feedback (in the closing email) | Program end | `Final Mentee Feedback Responses` | `Mentee Closing Email Sent` / `Mentee Closing Email Sent At` | See [Program Closing Email](#program-closing-email). |
+| Final mentor feedback (in the closing email) | Program end | `Final Mentor Feedback Responses` | `Mentor Closing Email Sent` / `Mentor Closing Email Sent At` | See [Program Closing Email](#program-closing-email). |
 
 The October mentee form asks about how things are going **now**: sessions in the past month, how reachable the mentor is (worded the same as in August so the two can be compared), progress, a 1-5 rating, and anything they need before the program ends. The mentor form asks about sessions held, how engaged their mentees are, any mentee who needs follow-up, a 1-5 rating, and open comments.
 
@@ -589,6 +597,27 @@ Sending order:
 Each round uses its own form, responses tab, tracking columns, and stored form link, so earlier answers are never mixed in or overwritten. To start another round, change the names in `YDP_FEEDBACK_FORM` and `YDP_FEEDBACK_TRACKING` at the top of the mentee feedback section in `matching/YDP Matching Automation.gs` (title, `responsesSheetName`, the four `prop...` Script Property keys, and the two column headers), push, then run `Create mentee feedback form`.
 
 Close the previous round's form by hand so old email links stop collecting answers: select its responses tab, choose `Form > Edit form`, open the `Responses` tab, and turn off `Accepting responses`.
+
+## Program Closing Email
+
+Cohort 2 ended on **Sunday, 1 November 2026**. The closing email is the official "full stop" on the program, and it must go out before any other closing step. Mentees and mentors get **separate** emails, one each:
+
+- **Mentees:** the program has officially ended and scheduled sessions are over (they can stay in touch with their mentor on their own), congratulations on what they achieved with their mentor, then **What happens next**.
+- **Mentors:** the program has officially ended, thank you for giving your time to {mentee names}, then **What happens next**. One email per mentor, however many mentees they had.
+- **What happens next** (both): 1. a final feedback form (button, about 3 minutes, ID, email, and name pre-filled); 2. a certificate of participation will be sent soon; 3. the community continues as an alumni group, and details on how to join will follow.
+
+The final forms are new Google Forms built by `Create final feedback forms (mentee + mentor)`. Their answers go to two new tabs in this workbook, `Final Mentee Feedback Responses` and `Final Mentor Feedback Responses`. The August, October, and mentor check-in tabs are not touched.
+
+Sending order:
+
+1. `Create final feedback forms (mentee + mentor)`. Open both edit links and check the questions.
+2. `Preview mentee closing email`, click the button in the preview to confirm the ID, email, and name are pre-filled, and close the form without submitting. Do the same with `Preview mentor closing email`.
+3. Send both TEST emails to yourself and check them in your inbox.
+4. `Send closing email to ALL mentees`, then `Send closing email to ALL paired mentors`.
+
+Each row goes `SENDING` then `SENT` (or `ERROR`) in `Mentee Closing Email Sent` / `Mentor Closing Email Sent`. One run stops safely after about 4½ minutes or when the daily email quota runs out; run the same button again to continue, and anyone already `SENT` is skipped. A row left on `SENDING` means a run was interrupted mid-send: it is not re-sent automatically, so check whether that person got the email before clearing the status. Every live run is written to `Run Log` as `MENTEE_CLOSING_SEND` / `MENTOR_CLOSING_SEND`.
+
+The copy and dates live in `YDP_CLOSING` and `buildYdpClosingEmail_` in `matching/YDP Matching Automation.gs`.
 
 ## Mentorship Hub Website
 
@@ -640,6 +669,7 @@ Several settings in `matching/YDP Matching Automation.gs` are specific to Cohort
 | `YDP_MENTEE_ONBOARDING` | Session title, date, time, and Google Meet link. |
 | `YDP_FEEDBACK_FORM` / `YDP_FEEDBACK_TRACKING` | New round names and `programEndLabel` (see [Starting a new mentee round](#starting-a-new-mentee-round)). |
 | `YDP_MENTOR_FEEDBACK_FORM` | Run `Reset mentor feedback form link` (or rename its tab and properties) so the new cohort gets a fresh form. |
+| `YDP_CLOSING` | `programEndLabel`, form titles and descriptions, response tab names, Script Property keys, and tracking column headers. Run `Reset final feedback form links` so the new cohort gets fresh forms. |
 | Email text | "Cohort 2" appears in email bodies and footers throughout the file; search and replace it. |
 | `YDP_HUB_URL` | Only if the Hub moves. |
 
